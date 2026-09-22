@@ -1,6 +1,6 @@
 # First Run Troubleshooting
 
-이 문서는 PlayOps 저장소를 처음 받은 뒤 Docker Compose로 실행하면서 확인한 내용과 장애 처리 기록이다.
+이 문서는 AI-TestOps 저장소를 처음 받은 뒤 Docker Compose로 실행하면서 확인한 내용과 장애 처리 기록이다.
 
 ## 실행 기준
 

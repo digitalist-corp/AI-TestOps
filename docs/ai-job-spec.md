@@ -1,4 +1,6 @@
-# PlayOps AI Job Spec (초안)
+# AI-TestOps AI Job Spec (초안)
+
+> **2026-09-22 업데이트** — 이 문서는 현재 구현된 AI 작업(일회용 AI 러너 · CODE_FIX) 기준 설계다. 다음 단계로 중앙 `ai-service`(Python · LangGraph)가 api 도구와 LLM 프록시만 호출해 작성 · 실행 · 분류 · 수정 · 승인 · PR을 하나의 루프로 잇는 방향을 [AI 개선안](./ai-improvement-plan.md)에 정리했다. 실행 격리 · 키 보관 · 사람 승인 원칙은 이 문서와 같다.
 
 [ai-integration-architecture.md](./ai-integration-architecture.md)에서 정의한 Ephemeral Scoped AI Runner가 `api`와 주고받는 계약을 구체화한다. 기존 `Execution` 실행 흐름([tobe-architecture.md](./tobe-architecture.md))의 요청/상태/결과 패턴을 그대로 따르되, AI 작업에 필요한 필드만 확장한다.
 
@@ -177,7 +179,7 @@ private AiModelProvider aiModelProvider = AiModelProvider.CLAUDE;
 | `aiDeniedPathGlobs` | 항상 제외할 경로 | `["package.json", "playwright.config.ts", ".env*"]` |
 | `aiModelProvider` | 이 프로젝트의 AI 작업에 쓸 공급자/모델 (`CLAUDE`/`GPT`/`GEMINI`) | `CLAUDE` |
 
-`aiModelProvider`는 **키가 아니라 선택값**이다. 실제 API 키는 `api` 환경변수에만 있고 ([ai-integration-architecture.md의 AI 공급자 API 키 정책](./ai-integration-architecture.md#ai-공급자-api-키-정책)), 프로젝트 설정 화면에는 이 드롭다운만 노출한다 — 키 입력 필드 자체를 두지 않는다. PlayOps는 회원가입 없는 단일 조직 내부 툴이라는 전제(공유 로그인, `User.role`은 `ADMIN`/`USER`뿐)를 이 결정의 근거로 삼는다. 여러 고객사에 별도 배포하는 셀프호스팅으로 방향이 바뀌면 고객사별 관리자가 자기 배포에 자기 키를 넣는 것으로 그대로 확장되지만, 하나의 배포를 여러 고객이 공유하며 AI 비용을 이 팀이 대신 부담·과금하는 모델로 간다면 이 결정 전체를 다시 검토해야 한다(조직/tenant 개념과 사용량 계측·과금 시스템이 없기 때문).
+`aiModelProvider`는 **키가 아니라 선택값**이다. 실제 API 키는 `api` 환경변수에만 있고 ([ai-integration-architecture.md의 AI 공급자 API 키 정책](./ai-integration-architecture.md#ai-공급자-api-키-정책)), 프로젝트 설정 화면에는 이 드롭다운만 노출한다 — 키 입력 필드 자체를 두지 않는다. AI-TestOps는 회원가입 없는 단일 조직 내부 툴이라는 전제(공유 로그인, `User.role`은 `ADMIN`/`USER`뿐)를 이 결정의 근거로 삼는다. 여러 고객사에 별도 배포하는 셀프호스팅으로 방향이 바뀌면 고객사별 관리자가 자기 배포에 자기 키를 넣는 것으로 그대로 확장되지만, 하나의 배포를 여러 고객이 공유하며 AI 비용을 이 팀이 대신 부담·과금하는 모델로 간다면 이 결정 전체를 다시 검토해야 한다(조직/tenant 개념과 사용량 계측·과금 시스템이 없기 때문).
 
 `job.json`의 `constraints.allowedPathGlobs`/`deniedPathGlobs`는 매 job마다 새로 입력받는 값이 아니라, job 생성 시 `api`가 이 `Project` 컬럼 값을 그대로 채워 넣는다. 만약 향후 job 생성 요청에서 더 좁은 범위를 지정할 수 있게 하더라도, `Project`에 저장된 값보다 **넓은** 범위는 절대 허용하지 않는다 — Project 컬럼이 이 프로젝트에서 AI가 건드릴 수 있는 파일의 상한선이다.
 

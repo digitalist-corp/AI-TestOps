@@ -1,6 +1,6 @@
-# PlayOps To-Be Architecture
+# AI-TestOps To-Be Architecture
 
-PlayOps는 Playwright 기반 UI 테스트를 프로젝트 단위로 등록하고, 시나리오/spec/케이스 단위로 실행하며, 실행 결과와 산출물을 이력으로 관리하는 자동화 운영 플랫폼이다.
+AI-TestOps는 Playwright 기반 UI 테스트를 프로젝트 단위로 등록하고, 시나리오/spec/케이스 단위로 실행하며, 실행 결과와 산출물을 이력으로 관리하는 자동화 운영 플랫폼이다.
 
 현재 PoC 구조는 API가 실행 요청을 만들고 `@Async` 스레드에서 Docker one-off 컨테이너를 직접 실행한다. To-Be 구조에서는 실행 책임을 Worker로 분리하고, API는 실행 요청/상태/결과를 관리하는 control plane 역할에 집중한다.
 
@@ -274,7 +274,7 @@ finishedAt 저장
 
 실행량이 많아지면 Redis Queue, RabbitMQ, Kafka 등을 검토한다.
 
-단, PlayOps의 실행 작업은 수 초~수 분 이상 걸리는 long-running job이므로 메시지 큐만으로 끝내지 말고 DB의 execution 상태를 source of truth로 유지한다.
+단, AI-TestOps의 실행 작업은 수 초~수 분 이상 걸리는 long-running job이므로 메시지 큐만으로 끝내지 말고 DB의 execution 상태를 source of truth로 유지한다.
 
 ## 실행 중 상태 관리
 
@@ -476,4 +476,4 @@ CPU, RAM, Disk, 동시 실행 수에 대한 상세 기준은 [ops-sizing.md](./o
 
 ## 결론
 
-PlayOps의 To-Be 아키텍처는 API가 실행을 직접 수행하는 구조에서 벗어나, DB queue와 Worker 중심의 실행 구조로 이동하는 것이 핵심이다. 이렇게 하면 여러 사용자의 실행 요청을 안정적으로 처리하고, 결과 덮어쓰기 없이 이력을 보존하며, 실행 중 상태/로그/취소/리소스 정리까지 운영 기능으로 확장할 수 있다.
+AI-TestOps의 To-Be 아키텍처는 API가 실행을 직접 수행하는 구조에서 벗어나, DB queue와 Worker 중심의 실행 구조로 이동하는 것이 핵심이다. 이렇게 하면 여러 사용자의 실행 요청을 안정적으로 처리하고, 결과 덮어쓰기 없이 이력을 보존하며, 실행 중 상태/로그/취소/리소스 정리까지 운영 기능으로 확장할 수 있다.

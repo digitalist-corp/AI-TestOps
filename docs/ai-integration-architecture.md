@@ -1,6 +1,8 @@
-# PlayOps AI 연동 아키텍처 (To-Be)
+# AI-TestOps AI 연동 아키텍처 (To-Be)
 
-AI 기반 기능(자동 코드 생성/수정, Sandbox 자율 수정 루프, 자연어 시나리오 기반 템플릿 생성, 예약 실행)을 PlayOps에 통합하기 위한 설계다. 최우선 원칙은 **보안**과 **프로젝트별 독립성**이며, 실행 컨테이너 lifecycle은 [tobe-architecture.md](./tobe-architecture.md)의 one-off Worker/Runner 패턴을 그대로 확장한다.
+> **2026-09-22 업데이트** — 이 문서는 현재 구현된 AI 작업(일회용 AI 러너 · CODE_FIX) 기준 설계다. 다음 단계로 중앙 `ai-service`(Python · LangGraph)가 api 도구와 LLM 프록시만 호출해 작성 · 실행 · 분류 · 수정 · 승인 · PR을 하나의 루프로 잇는 방향을 [AI 개선안](./ai-improvement-plan.md)에 정리했다. 실행 격리 · 키 보관 · 사람 승인 원칙은 이 문서와 같다.
+
+AI 기반 기능(자동 코드 생성/수정, Sandbox 자율 수정 루프, 자연어 시나리오 기반 템플릿 생성, 예약 실행)을 AI-TestOps에 통합하기 위한 설계다. 최우선 원칙은 **보안**과 **프로젝트별 독립성**이며, 실행 컨테이너 lifecycle은 [tobe-architecture.md](./tobe-architecture.md)의 one-off Worker/Runner 패턴을 그대로 확장한다.
 
 ## 검토한 옵션과 결정
 
@@ -89,7 +91,7 @@ Storage
 
 ### AI 공급자 API 키 정책
 
-PlayOps는 회원가입이 없는 단일 조직 내부 툴이다(`User.role`은 `ADMIN`/`USER` 둘뿐, 공유 로그인 방식). 따라서 "프로젝트 생성 시 키 입력"이나 "계정별 개인 키 등록"은 이 구조와 맞지 않는다 — 예약 실행처럼 사람이 없는 트리거에서는 애초에 귀속시킬 개인 계정이 없고, 팀 전체 AI 비용을 한 곳에서 통제한다는 보안 우선순위와도 어긋난다.
+AI-TestOps는 회원가입이 없는 단일 조직 내부 툴이다(`User.role`은 `ADMIN`/`USER` 둘뿐, 공유 로그인 방식). 따라서 "프로젝트 생성 시 키 입력"이나 "계정별 개인 키 등록"은 이 구조와 맞지 않는다 — 예약 실행처럼 사람이 없는 트리거에서는 애초에 귀속시킬 개인 계정이 없고, 팀 전체 AI 비용을 한 곳에서 통제한다는 보안 우선순위와도 어긋난다.
 
 **결정: 관리자가 등록하는 플랫폼 공용 키.**
 

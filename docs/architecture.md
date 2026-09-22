@@ -20,3 +20,5 @@
 상세 To-Be 설계는 [tobe-architecture.md](./tobe-architecture.md)를 참고합니다.
 
 AI 기능 연동(자동 코드 수정, 예약 실행, GitHub 연동 등)에 대한 아키텍처는 [ai-integration-architecture.md](./ai-integration-architecture.md)를 참고합니다.
+
+AI 개선 방향(중앙 ai-service · LangGraph AI 루프 · 승인 3곳 · 브랜치 + PR)은 [ai-improvement-plan.md](./ai-improvement-plan.md)를 참고합니다.

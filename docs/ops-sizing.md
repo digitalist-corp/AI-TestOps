@@ -1,8 +1,8 @@
-# PlayOps Runtime Sizing
+# AI-TestOps Runtime Sizing
 
-이 문서는 PlayOps를 개발 모드와 운영 모드로 실행할 때 필요한 예상 CPU, RAM, Disk, 동시 실행 기준을 정리한다.
+이 문서는 AI-TestOps를 개발 모드와 운영 모드로 실행할 때 필요한 예상 CPU, RAM, Disk, 동시 실행 기준을 정리한다.
 
-PlayOps의 리소스 사용량은 API/Web/PostgreSQL 자체보다 Playwright 실행 컨테이너가 대부분을 차지한다. 따라서 스펙 산정의 기준은 `동시 실행 수`, `브라우저 worker 수`, `trace/video/screenshot 저장 정책`, `npm install/cache 전략`이다.
+AI-TestOps의 리소스 사용량은 API/Web/PostgreSQL 자체보다 Playwright 실행 컨테이너가 대부분을 차지한다. 따라서 스펙 산정의 기준은 `동시 실행 수`, `브라우저 worker 수`, `trace/video/screenshot 저장 정책`, `npm install/cache 전략`이다.
 
 ## 기본 가정
 
@@ -155,7 +155,7 @@ Docker image/layer, container writable layer, build cache
 -> 기본값은 Docker Desktop/WSL 저장소이며 보통 C 드라이브를 사용함
 ```
 
-PlayOps 설정으로 D 드라이브에 둘 수 있는 항목:
+AI-TestOps 설정으로 D 드라이브에 둘 수 있는 항목:
 
 | 항목 | 권장 경로 |
 |------|-----------|
@@ -245,4 +245,4 @@ docker system df
 
 ## 결론
 
-PlayOps의 스펙은 등록 프로젝트 수보다 동시에 실행하는 Playwright 컨테이너 수에 더 크게 좌우된다. 안정적인 시작점은 개발 모드 `동시 실행 1`, 단일 서버 운영 모드 `동시 실행 2`이며, trace/video 저장 정책과 report 보존 기간을 반드시 함께 관리해야 한다.
+AI-TestOps의 스펙은 등록 프로젝트 수보다 동시에 실행하는 Playwright 컨테이너 수에 더 크게 좌우된다. 안정적인 시작점은 개발 모드 `동시 실행 1`, 단일 서버 운영 모드 `동시 실행 2`이며, trace/video 저장 정책과 report 보존 기간을 반드시 함께 관리해야 한다.
