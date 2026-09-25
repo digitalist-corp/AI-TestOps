@@ -239,14 +239,14 @@ public class AiJobService {
         slackNotificationService.send(
                 ":large_yellow_circle: [" + project.getProjectName() + "] AI 시나리오 생성 검토 필요 — job #" + job.getId()
                         + "\n생성 대상: " + job.getTargetSpecPath()
-                        + "\nPlayOps > AI 검토 메뉴에서 승인/거부해주세요."
+                        + "\nAI-TestOps > AI 검토 메뉴에서 승인/거부해주세요."
         );
     }
 
     private String generateSpecContent(Project project, String targetSpecPath, String instruction) {
         String systemPrompt = """
                 You are an expert QA automation engineer specializing in Playwright v%s and TypeScript,
-                working inside an existing PlayOps-managed test project.
+                working inside an existing AI-TestOps-managed test project.
                 Generate ONE complete, executable Playwright spec file to be saved at "%s",
                 implementing the user's natural-language scenario request.
                 Return ONLY the raw TypeScript code for that file — no markdown code fences, no explanation, no JSON wrapper.
@@ -366,7 +366,7 @@ public class AiJobService {
                 ":large_yellow_circle: [" + project.getProjectName() + "] AI 수정 검토 필요 — job #" + job.getId()
                         + "\n대상: " + job.getTargetSpecPath()
                         + "\n사유: " + reason
-                        + "\nPlayOps > AI 검토 메뉴에서 승인/거부해주세요."
+                        + "\nAI-TestOps > AI 검토 메뉴에서 승인/거부해주세요."
         );
     }
 
@@ -431,7 +431,7 @@ public class AiJobService {
         }
 
         try {
-            String commitMessage = "AI fix: " + job.getTargetSpecPath() + " (PlayOps job #" + job.getId() + ")"
+            String commitMessage = "AI fix: " + job.getTargetSpecPath() + " (AI-TestOps job #" + job.getId() + ")"
                     + (job.getSummary() != null && !job.getSummary().isBlank() ? "\n\n" + job.getSummary() : "");
             String sha = gitCommitService.commitAndPush(project, changedFiles, commitMessage);
             if (sha != null) {

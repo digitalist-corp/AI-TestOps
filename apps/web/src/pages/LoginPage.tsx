@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, FlaskConical, Info, Loader2, RefreshCw } from 'lucide-react';
+import { Activity, Info, Loader2, RefreshCw } from 'lucide-react';
 import { api, clearStoredAuth, setStoredAuth } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import type { ServiceHealth, ServiceHealthItem } from '@/types';
 import { cn } from '@/lib/utils';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const ENV_FILE_PRESENT = import.meta.env.VITE_PLAYOPS_ENV_FILE_PRESENT === 'true';
 
@@ -146,10 +147,8 @@ export function LoginPage() {
       <div className="w-full max-w-md space-y-3">
         <Card className="w-full shadow-2xl">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <FlaskConical className="h-6 w-6" />
-            </div>
-            <CardTitle>PlayOps Web</CardTitle>
+            <BrandLogo size={52} className="mx-auto mb-3 block w-fit" />
+            <CardTitle>AI-TestOps</CardTitle>
             <CardDescription>Playwright 테스트 관리 플랫폼</CardDescription>
           </CardHeader>
           <CardContent>

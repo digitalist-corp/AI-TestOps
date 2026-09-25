@@ -123,7 +123,7 @@ public class AiTemplateService {
 
         AiTemplateResponse response = new AiTemplateResponse();
         response.setTemplateName(name);
-        response.setDescription("PlayOps AI Agent가 생성한 " + request.getUserPrompt() + " 자동화 스펙");
+        response.setDescription("AI-TestOps AI Agent가 생성한 " + request.getUserPrompt() + " 자동화 스펙");
 
         List<AiTemplateResponse.TemplateFileDto> files = new ArrayList<>();
 

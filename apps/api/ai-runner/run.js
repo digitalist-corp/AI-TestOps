@@ -1,4 +1,4 @@
-// PlayOps AI Runner — CODE_FIX.
+// AI-TestOps AI Runner — CODE_FIX.
 // docs/ai-job-spec.md의 job.json/result.json 계약을 따르되, 이번에도 unified diff가 아니라
 // 파일별 "새 내용 전체"로 주고받는다 (diff 라이브러리 없이 시작하기 위한 의도적 단순화).
 // v1은 targetSpecPath 딱 하나만 고칠 수 있었지만, 실패한 테스트를 고치려면 그 spec이 import하는

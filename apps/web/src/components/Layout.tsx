@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/Input';
 import { ResourceStatusBar } from '@/components/ResourceStatusBar';
 import { GlobalAiChatWidget } from '@/components/GlobalAiChatWidget';
+import { BrandLogo } from '@/components/BrandLogo';
 import { api, clearStoredAuth, getStoredAuth } from '@/api/client';
 import { cn } from '@/lib/utils';
 import { useTheme } from '@/lib/theme';
@@ -223,8 +224,7 @@ export function Layout() {
             to="/projects"
             className="min-w-0 hover:opacity-90 transition-opacity"
           >
-            <h1 className="text-xl font-bold text-white tracking-tight">PlayOps</h1>
-            <p className="mt-1 text-xs text-sidebar-foreground/60">테스트 관리 플랫폼</p>
+            <BrandLogo size={32} showText tone="light" subtitle="테스트 관리 플랫폼" />
           </NavLink>
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <Button

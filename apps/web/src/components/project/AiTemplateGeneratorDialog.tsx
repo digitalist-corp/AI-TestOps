@@ -255,7 +255,7 @@ export function AiTemplateGeneratorDialog({
                     </>
                   ) : (
                     <>
-                      <ArrowRight className="h-4 w-4" /> PlayOps 템플릿으로 1-Click 저장
+                      <ArrowRight className="h-4 w-4" /> AI-TestOps 템플릿으로 1-Click 저장
                     </>
                   )}
                 </Button>

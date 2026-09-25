@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.BASE_URL || '{{baseUrl}}';
 
-// PlayOps 로그인 선행 시나리오(프로젝트 설정 > 로그인 선행 시나리오)가 만든 세션을 재사용한다.
+// AI-TestOps 로그인 선행 시나리오(프로젝트 설정 > 로그인 선행 시나리오)가 만든 세션을 재사용한다.
 // 설정 안 했거나 세션 파일이 아직 없으면 undefined로 남아 평소처럼 로그인 없이 시작한다.
 const storageStatePath = process.env.PLAYWRIGHT_STORAGE_STATE;
 const storageState = storageStatePath && fs.existsSync(storageStatePath) ? storageStatePath : undefined;

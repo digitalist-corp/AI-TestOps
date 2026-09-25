@@ -486,7 +486,7 @@ export function ProjectFormDialog({
                     ))}
                   </datalist>
                   <p className="text-xs text-muted-foreground">
-                    PlayOps 일반 실행은 <span className="font-mono">playwright test</span> 명령에
+                    AI-TestOps 일반 실행은 <span className="font-mono">playwright test</span> 명령에
                     <span className="font-mono"> --project=chromium --retries=0</span>을 기본 적용합니다.
                   </p>
                 </div>

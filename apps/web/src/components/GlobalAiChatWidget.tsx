@@ -80,7 +80,7 @@ export function GlobalAiChatWidget() {
                 <Sparkles className="h-4 w-4" />
               </span>
               <div>
-                <p className="text-sm font-bold leading-tight">PlayOps AI 도우미</p>
+                <p className="text-sm font-bold leading-tight">AI-TestOps 도우미</p>
                 <p className="text-[11px] leading-tight text-sidebar-foreground">Playwright/E2E 관련 질문에 답해드려요</p>
               </div>
             </div>
@@ -189,8 +189,8 @@ export function GlobalAiChatWidget() {
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-ai-accent text-ai-accent-foreground shadow-lg shadow-ai-accent/30 transition-transform hover:scale-105 hover:opacity-90"
-        title="PlayOps AI 도우미"
-        aria-label="PlayOps AI 도우미 열기"
+        title="AI-TestOps 도우미"
+        aria-label="AI-TestOps 도우미 열기"
       >
         {open ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
       </button>

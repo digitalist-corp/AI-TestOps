@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" width="320" height="96" role="img" aria-label="AI-TestOps">
+  <defs>
+    <linearGradient id="ait-logo" x1="24" y1="24" x2="72" y2="72" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(22 24)">
+    <rect x="0" y="0" width="48" height="48" rx="13" fill="url(#ait-logo)"/>
+    <g transform="translate(-2 -2)">
+      <g stroke="#FFFFFF" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M8.5 27 L14 12 L19.5 27"/>
+        <path d="M10.9 22.4 H17.1"/>
+        <path d="M24 12 V27"/>
+        <path d="M28.5 12 H39.5"/>
+        <path d="M34 12 V27"/>
+      </g>
+      <path d="M15 33.6 L20.6 39 L33 27.8" stroke="#FFFFFF" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+  </g>
+  <text x="86" y="52" font-family="Pretendard, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="27" font-weight="700" letter-spacing="-0.6" fill="#0F172A">AI-TestOps</text>
+  <text x="87" y="70" font-family="Pretendard, 'Segoe UI', system-ui, -apple-system, sans-serif" font-size="12.5" font-weight="500" letter-spacing="0.2" fill="#64748B">AI 테스트 자동화 플랫폼</text>
+</svg>
