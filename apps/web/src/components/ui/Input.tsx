@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  *
  * 밀집한 툴바·필터에서는 className으로 h-10(40px)을 덮어쓴다.
  */
-export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+export function Input({ className, ...props }: React.ComponentProps<'input'>) {
   return (
     <input
       className={cn(
