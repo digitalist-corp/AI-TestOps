@@ -2,55 +2,101 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * KRDS(전자정부 디자인 시스템) v1.0.0 토큰 기반.
+ * 색·타이포·라운드·포커스 값은 KRDS 규격을 그대로 따른다.
+ * 다크 모드는 KRDS 공식 규격에 없는 우리 확장이며, KRDS 색조로 맞춰 재조정했다.
+ */
 @theme {
-  --font-sans: "Pretendard", ui-sans-serif, system-ui, sans-serif;
-  --color-background: #f8fafc;
-  --color-foreground: #0f172a;
-  --color-card: #ffffff;
-  --color-card-foreground: #0f172a;
-  --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
-  --color-border: #e2e8f0;
-  --color-primary: #2563eb;
+  --font-sans: "Pretendard GOV", "Pretendard", -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+
+  /* surface & text */
+  --color-background: #f4f5f6; /* gray-10, bg-subtle */
+  --color-foreground: #131416; /* gray-100, fg-1 */
+  --color-card: #ffffff; /* bg-canvas */
+  --color-card-foreground: #131416;
+  --color-muted: #f4f5f6; /* gray-10 */
+  --color-muted-foreground: #6d7882; /* gray-60, fg-3 */
+  --color-secondary-foreground: #464c53; /* gray-80, fg-2 */
+  --color-border: #cdd1d5; /* gray-30, border-default */
+  --color-border-strong: #8a949e; /* gray-50 */
+
+  /* brand */
+  --color-primary: #256ef4; /* primary-50 */
   --color-primary-foreground: #ffffff;
-  --color-accent: #f1f5f9;
-  --color-accent-foreground: #0f172a;
-  --color-destructive: #dc2626;
+  --color-primary-hover: #0b50d0; /* primary-60 */
+  --color-primary-pressed: #063a74; /* primary-70 */
+  --color-primary-subtle: #ecf2fe; /* primary-10, 선택 배경 */
+
+  /* surfaces for hover / selection */
+  --color-accent: #eef2f7; /* secondary-10, bg-muted */
+  --color-accent-foreground: #131416;
+
+  /* status */
+  --color-destructive: #d6322f; /* danger */
   --color-destructive-foreground: #ffffff;
-  --color-success: #059669;
+  --color-success: #1f7a47;
   --color-success-foreground: #ffffff;
-  --color-warning: #d97706;
+  --color-warning: #c26900;
   --color-warning-foreground: #ffffff;
-  --color-ai-accent: #6366f1;
+  --color-info: #0b78cb;
+  --color-info-foreground: #ffffff;
+
+  /* AI 강조 — KRDS 팔레트 안에서 본문 파랑과 구분되는 한 단계 깊은 파랑 */
+  --color-ai-accent: #0b50d0; /* primary-60 */
   --color-ai-accent-foreground: #ffffff;
-  --color-sidebar: #020617;
-  --color-sidebar-foreground: #cbd5e1;
-  --color-sidebar-active: #1e293b;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+
+  /* chrome (레일 · 마스트헤드) — KRDS secondary 계열 */
+  --color-sidebar: #052b57; /* secondary-70 */
+  --color-sidebar-foreground: #d6e0eb; /* secondary-20 */
+  --color-sidebar-active: #223a58; /* secondary-60 */
+
+  /* KRDS 라운드 스케일 — 최댓값 12px */
+  --radius-xs: 0.25rem; /* 4px  chip · badge */
+  --radius-sm: 0.375rem; /* 6px  input · button · tag */
+  --radius-md: 0.5rem; /* 8px  large button · card */
+  --radius-lg: 0.625rem; /* 10px panel · modal section */
+  --radius-xl: 0.75rem; /* 12px hero card · full panel */
+
+  /* KRDS 그림자 4단 */
+  --shadow-1: 0 1px 2px rgb(19 20 22 / 0.06), 0 1px 1px rgb(19 20 22 / 0.04);
+  --shadow-2: 0 2px 6px rgb(19 20 22 / 0.08), 0 1px 2px rgb(19 20 22 / 0.04);
+  --shadow-3: 0 6px 16px rgb(19 20 22 / 0.1), 0 2px 4px rgb(19 20 22 / 0.05);
+  --shadow-4: 0 12px 28px rgb(19 20 22 / 0.14), 0 4px 8px rgb(19 20 22 / 0.06);
 }
 
 .dark {
-  --color-background: #020617;
-  --color-foreground: #e2e8f0;
-  --color-card: #0f172a;
-  --color-card-foreground: #e2e8f0;
-  --color-muted: #1e293b;
-  --color-muted-foreground: #94a3b8;
-  --color-border: #1e293b;
-  --color-primary: #3b82f6;
-  --color-primary-foreground: #ffffff;
-  --color-accent: #1e293b;
-  --color-accent-foreground: #f1f5f9;
-  --color-destructive: #ef4444;
+  --color-background: #131416; /* gray-100 */
+  --color-foreground: #f4f5f6;
+  --color-card: #1e2124; /* gray-95 */
+  --color-card-foreground: #f4f5f6;
+  --color-muted: #1e2124;
+  --color-muted-foreground: #b1b8be; /* gray-40 */
+  --color-secondary-foreground: #cdd1d5;
+  --color-border: #33363d; /* gray-90 */
+  --color-border-strong: #58616a;
+
+  --color-primary: #5b92f4; /* primary-40 — 어두운 배경 대비 */
+  --color-primary-foreground: #010c1f;
+  --color-primary-hover: #a3c2f8;
+  --color-primary-pressed: #d8e5fd;
+  --color-primary-subtle: #03204a; /* primary-90 */
+
+  --color-accent: #2a2e33;
+  --color-accent-foreground: #f4f5f6;
+
+  --color-destructive: #e84b4b;
   --color-destructive-foreground: #ffffff;
-  --color-success: #34d399;
-  --color-success-foreground: #052e21;
-  --color-warning: #fbbf24;
-  --color-warning-foreground: #451a03;
-  --color-ai-accent: #818cf8;
-  --color-ai-accent-foreground: #1e1b4b;
+  --color-success: #3fa76c;
+  --color-success-foreground: #02130a;
+  --color-warning: #e89b3c;
+  --color-warning-foreground: #241300;
+  --color-info: #5ba8e8;
+  --color-info-foreground: #01131f;
+
+  --color-ai-accent: #5b92f4;
+  --color-ai-accent-foreground: #010c1f;
 }
 
 * {
@@ -60,29 +106,40 @@
 body {
   margin: 0;
   font-family: var(--font-sans);
+  font-size: 15px; /* KRDS body-s */
+  line-height: 1.55;
   background: var(--color-background);
   color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * KRDS 포커스 규칙: 2px 솔리드 아웃라인 + 2px 오프셋, 항상 보이게.
+ * outline:none은 쓰지 않는다.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .ag-theme-playops {
-  --ag-font-family: "Pretendard", ui-sans-serif, system-ui, sans-serif;
+  --ag-font-family: var(--font-sans);
   --ag-font-size: 13px;
-  --ag-header-background-color: #f1f5f9;
-  --ag-header-foreground-color: #334155;
-  --ag-border-color: #e2e8f0;
-  --ag-row-hover-color: #f8fafc;
-  --ag-selected-row-background-color: #eff6ff;
-  --ag-checkbox-checked-color: #2563eb;
+  --ag-header-background-color: #f4f5f6;
+  --ag-header-foreground-color: #464c53;
+  --ag-border-color: #cdd1d5;
+  --ag-row-hover-color: #eef2f7;
+  --ag-selected-row-background-color: #ecf2fe;
+  --ag-checkbox-checked-color: #256ef4;
 }
 
 .dark .ag-theme-playops {
-  --ag-background-color: #0f172a;
-  --ag-header-background-color: #1e293b;
-  --ag-header-foreground-color: #e2e8f0;
-  --ag-foreground-color: #e2e8f0;
-  --ag-border-color: #1e293b;
-  --ag-row-hover-color: #1e293b;
-  --ag-selected-row-background-color: rgba(59, 130, 246, 0.16);
-  --ag-checkbox-checked-color: #3b82f6;
+  --ag-background-color: #1e2124;
+  --ag-header-background-color: #2a2e33;
+  --ag-header-foreground-color: #f4f5f6;
+  --ag-foreground-color: #f4f5f6;
+  --ag-border-color: #33363d;
+  --ag-row-hover-color: #2a2e33;
+  --ag-selected-row-background-color: rgba(91, 146, 244, 0.16);
+  --ag-checkbox-checked-color: #5b92f4;
 }

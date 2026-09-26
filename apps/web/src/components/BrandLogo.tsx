@@ -1,4 +1,3 @@
-import { useId } from 'react';
 import { cn } from '@/lib/utils';
 
 type BrandLogoProps = {
@@ -22,8 +21,6 @@ type BrandLogoProps = {
  * 같은 도형이 apps/web/public/favicon.svg · logo.svg 에도 들어 있다.
  */
 export function BrandLogo({ size = 32, showText = false, subtitle, tone = 'dark', className }: BrandLogoProps) {
-  const gradientId = useId();
-
   const mark = (
     <svg
       width={size}
@@ -34,13 +31,8 @@ export function BrandLogo({ size = 32, showText = false, subtitle, tone = 'dark'
       aria-label="AI-TestOps"
       className="shrink-0"
     >
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#2563EB" />
-          <stop offset="1" stopColor="#06B6D4" />
-        </linearGradient>
-      </defs>
-      <rect x="2" y="2" width="44" height="44" rx="12" fill={`url(#${gradientId})`} />
+      {/* KRDS는 장식용 그라데이션을 쓰지 않는다 — 브랜드 블루 단색 */}
+      <rect x="2" y="2" width="44" height="44" rx="12" fill="#256EF4" />
       {/* A I T 모노그램 */}
       <g stroke="#FFFFFF" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M8.5 27 L14 12 L19.5 27" />

@@ -27,6 +27,7 @@ import type {
   ScenarioUsageRequest,
   ScaffoldResult,
   ServiceHealth,
+  SiteCheckResult,
   User,
 } from '@/types';
 
@@ -153,6 +154,8 @@ export const api = {
     }),
 
   getProjects: () => request<Project[]>('/api/projects'),
+  checkSite: (url: string) =>
+    request<SiteCheckResult>(`/api/projects/site-check?url=${encodeURIComponent(url)}`),
 
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
 

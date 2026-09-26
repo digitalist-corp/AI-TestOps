@@ -481,6 +481,14 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   scaffoldOnCreate: true,
 };
 
+export interface SiteCheckResult {
+  reachable: boolean;
+  statusCode?: number | null;
+  title?: string | null;
+  finalUrl?: string | null;
+  message?: string | null;
+}
+
 export type AiModelProvider = 'CLAUDE' | 'GPT';
 
 export interface AiTemplateRequest {
