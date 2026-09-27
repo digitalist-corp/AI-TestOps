@@ -206,8 +206,8 @@ export function ProjectsPage() {
     : { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어나 필터를 바꿔보세요.' };
 
   return (
-    <div className="space-y-5 p-6">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <div className="@container space-y-5 p-6">
+      <div className="flex flex-col gap-3 @min-[52rem]:flex-row @min-[52rem]:items-center @min-[52rem]:justify-between">
         <div>
           <h2 className="text-[24px] font-bold leading-tight text-foreground">프로젝트</h2>
           <p className="mt-1 text-[15px] text-muted-foreground">
@@ -227,8 +227,8 @@ export function ProjectsPage() {
       </div>
 
       {/* 검색 + 필터 — 개수는 필터 칩에만 두어 같은 숫자를 두 번 보여주지 않는다 */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="relative w-full max-w-md">
+      <div className="flex flex-col gap-3 @min-[52rem]:flex-row @min-[52rem]:items-center @min-[52rem]:justify-between">
+        <div className="relative w-full @min-[52rem]:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
@@ -275,7 +275,7 @@ export function ProjectsPage() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 @min-[40rem]:grid-cols-2 @min-[68rem]:grid-cols-3">
           {filteredProjects.map((project) => (
             <ProjectCard
               key={project.projectId}

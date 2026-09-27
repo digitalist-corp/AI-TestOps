@@ -20,6 +20,10 @@ const RECENT_PROJECT_KEY = 'playops.recentProjectId';
 const AI_WIDTH_KEY = 'playops.aiPanel.width';
 const AI_COLLAPSED_KEY = 'playops.aiPanel.collapsed';
 const RAIL_WIDTH = 56;
+/** 이 폭 아래에서는 AI 패널이 캔버스를 밀지 않고 겹쳐 뜬다. */
+const OVERLAY_BREAKPOINT = 1024;
+/** 캔버스가 이보다 좁아지지 않도록 패널 폭을 깎는다. */
+const CANVAS_MIN_WIDTH = 460;
 
 function activeWorkspaceTab(pathname: string): ProjectTabId {
   const tab = pathname.match(/^\/projects\/[^/]+\/([^/]+)/)?.[1];
@@ -65,6 +69,8 @@ export function Layout() {
   const [aiWidth, setAiWidth] = useState(readStoredWidth);
   const [aiCollapsed, setAiCollapsed] = useState(readStoredCollapsed);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const [viewport, setViewport] = useState(() => window.innerWidth);
+  const [overlayOpen, setOverlayOpen] = useState(false);
 
   const projectWorkspaceMatch = location.pathname.match(/^\/projects\/([^/]+)/);
   const activeProjectId = projectId ?? projectWorkspaceMatch?.[1];
@@ -93,6 +99,13 @@ export function Layout() {
     };
   }, [activeProjectId]);
 
+  // 창 크기가 바뀌면 패널 · 캔버스 배분을 다시 계산한다.
+  useEffect(() => {
+    const onResize = () => setViewport(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const handleWidthChange = useCallback((width: number) => {
     setAiWidth(width);
     try {
@@ -120,7 +133,11 @@ export function Layout() {
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.key === '/') {
         event.preventDefault();
-        toggleAiPanel();
+        if (window.innerWidth < OVERLAY_BREAKPOINT) {
+          setOverlayOpen((prev) => !prev);
+        } else {
+          toggleAiPanel();
+        }
       } else if (event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setProjectSwitcherOpen(true);
@@ -148,22 +165,43 @@ export function Layout() {
     ? `${activeProject?.projectName ?? activeProjectId} · ${tabLabel(currentTab)}`
     : `전체 · ${railLabelOf(location.pathname) ?? 'AI-TestOps'}`;
 
+  // 좁은 화면에서는 패널이 캔버스를 밀지 않고 겹쳐 뜬다.
+  const overlayMode = viewport < OVERLAY_BREAKPOINT;
+  const panelOpen = overlayMode ? overlayOpen : !aiCollapsed;
+  // 넓은 화면에서도 캔버스가 너무 좁아지면 패널 폭을 깎는다.
+  const panelWidth = overlayMode
+    ? Math.min(aiWidth, Math.max(AI_PANEL_MIN_WIDTH, viewport - RAIL_WIDTH - 24))
+    : Math.min(aiWidth, Math.max(AI_PANEL_MIN_WIDTH, viewport - RAIL_WIDTH - CANVAS_MIN_WIDTH));
+  const handleTogglePanel = overlayMode
+    ? () => setOverlayOpen((prev) => !prev)
+    : toggleAiPanel;
+
   // 하단 리소스 바가 캔버스 영역에만 걸리도록 왼쪽 여백을 셸이 알려준다.
-  const shellLeft = RAIL_WIDTH + (aiCollapsed ? 0 : aiWidth);
+  const shellLeft = RAIL_WIDTH + (overlayMode || aiCollapsed ? 0 : panelWidth);
 
   return (
     <div
-      className="flex h-screen overflow-hidden"
+      className="relative flex h-screen overflow-hidden"
       style={{ '--shell-left': `${shellLeft}px` } as React.CSSProperties}
     >
-      <AppRail admin={admin} aiCollapsed={aiCollapsed} onToggleAi={toggleAiPanel} />
+      <AppRail admin={admin} aiCollapsed={!panelOpen} onToggleAi={handleTogglePanel} />
 
-      {!aiCollapsed && (
+      {overlayMode && panelOpen && (
+        <button
+          type="button"
+          aria-label="AI 패널 닫기"
+          className="absolute inset-0 z-30 bg-foreground/30"
+          onClick={() => setOverlayOpen(false)}
+        />
+      )}
+
+      {panelOpen && (
         <AiPanel
-          width={aiWidth}
+          width={panelWidth}
           onWidthChange={handleWidthChange}
-          onCollapse={toggleAiPanel}
+          onCollapse={handleTogglePanel}
           contextLabel={contextLabel}
+          overlay={overlayMode}
         />
       )}
 
@@ -180,7 +218,8 @@ export function Layout() {
         {inProjectWorkspace && activeProjectId && (
           <SubTabBar projectId={activeProjectId} currentTab={currentTab} />
         )}
-        <main className="flex-1 overflow-auto pb-16">
+        {/* @container — 아래 화면들은 창 폭이 아니라 이 캔버스 폭을 기준으로 배치된다 */}
+        <main className="@container flex-1 overflow-auto pb-16">
           <Outlet />
         </main>
       </div>

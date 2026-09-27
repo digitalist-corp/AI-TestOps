@@ -212,7 +212,7 @@ export function ProjectCard({
       </div>
 
       {/* 러너 · 실행 환경 */}
-      <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 px-4 text-[12px]">
+      <dl className="mt-3 grid grid-cols-1 gap-x-3 gap-y-1.5 px-4 text-[12px] @min-[20rem]:grid-cols-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <dt className="shrink-0 text-muted-foreground">러너</dt>
           <dd className="truncate font-medium text-foreground">
@@ -243,8 +243,8 @@ export function ProjectCard({
       )}
 
       {/* 할 수 있는 일 */}
-      <div className="mt-auto flex items-center justify-between gap-2 border-t border-border px-4 py-3">
-        <div className="flex items-center gap-2">
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
+        <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" onClick={onRun} disabled={running || missingEnv}
                   title={missingEnv ? '환경변수를 먼저 입력하세요' : '전체 테스트 실행'}>
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
@@ -255,7 +255,7 @@ export function ProjectCard({
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center gap-1">
           <IconButton title="결과 리포트" onClick={() => onGo('results')}>
             <BarChart3 className="h-4 w-4" />
           </IconButton>

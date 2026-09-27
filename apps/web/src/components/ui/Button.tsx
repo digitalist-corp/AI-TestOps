@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
  * 비활성은 opacity가 아니라 평면 색 전환(bg-subtle + fg-4)으로 처리한다.
  */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 font-bold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground disabled:border-border',
+  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap font-bold transition-colors cursor-pointer disabled:cursor-not-allowed disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground disabled:border-border',
   {
     variants: {
       variant: {

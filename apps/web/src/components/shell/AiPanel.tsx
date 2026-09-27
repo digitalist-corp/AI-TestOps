@@ -50,12 +50,15 @@ export function AiPanel({
   onWidthChange,
   onCollapse,
   contextLabel,
+  overlay = false,
 }: {
   width: number;
   onWidthChange: (width: number) => void;
   onCollapse: () => void;
   /** 패널 상단에 보여줄 현재 맥락 (예: "example.com · 시나리오"). */
   contextLabel: string;
+  /** 좁은 화면 — 캔버스를 밀어내지 않고 그 위에 겹쳐 띄운다. */
+  overlay?: boolean;
 }) {
   const [question, setQuestion] = useState('');
   const [userLevel, setUserLevel] = useState<UserLevel>(readStoredLevel);
@@ -117,7 +120,10 @@ export function AiPanel({
 
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-r border-border bg-card"
+      className={cn(
+        'flex flex-col border-r border-border bg-card',
+        overlay ? 'absolute inset-y-0 left-14 z-40 shadow-3' : 'relative shrink-0'
+      )}
       style={{ width }}
       aria-label="AI 어시스턴트"
     >
@@ -234,7 +240,7 @@ export function AiPanel({
         </button>
       </form>
 
-      <div
+      {!overlay && <div
         role="separator"
         aria-orientation="vertical"
         onMouseDown={handleResizeStart}
@@ -243,7 +249,7 @@ export function AiPanel({
           resizing ? 'bg-ai-accent/40' : 'hover:bg-ai-accent/30'
         )}
         title="끌어서 패널 폭 조절"
-      />
+      />}
     </aside>
   );
 }
