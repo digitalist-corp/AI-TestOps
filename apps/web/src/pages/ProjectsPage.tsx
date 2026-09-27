@@ -1,183 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, ICellRendererParams } from 'ag-grid-community';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
-import {
-  BarChart3,
-  FileCode,
-  FolderKanban,
-  History,
-  Loader2,
-  Pencil,
-  Play,
-  Plus,
-  RefreshCw,
-  Search,
-  SlidersHorizontal,
-  Trash2,
-} from 'lucide-react';
+import { FolderKanban, Loader2, Plus, RefreshCw, Search } from 'lucide-react';
 import { api } from '@/api/client';
 import { projectTabPath } from '@/config/projectWorkspace';
-import type { DockerStatus, ExecutionStatus, Project, ProjectFormData, RunnerActivity } from '@/types';
+import type { Project, ProjectFormData } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { AiBootstrapProgressDialog } from '@/components/AiBootstrapProgressDialog';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
-import {
-  configuredEnvCount as countConfiguredEnvVariables,
-  isRequiredEnvMissing,
-  resolveEnvRequirementState,
-} from '@/lib/envVariables';
+import { ProjectCard, isRunnerReady } from '@/components/project/ProjectCard';
+import { isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { cn } from '@/lib/utils';
 
-ModuleRegistry.registerModules([AllCommunityModule]);
-
 type ProjectFilter = 'ALL' | 'RUNNING' | 'TESTING' | 'ERROR' | 'EPHEMERAL';
 
-const dockerStatusLabel: Record<DockerStatus, string> = {
-  RUNNING: '실행 중',
-  STOPPED: '중지',
-  ERROR: '오류',
-  NOT_CONFIGURED: '미설정',
-};
-
-const dockerStatusColor: Record<DockerStatus, string> = {
-  RUNNING: 'bg-success/10 text-success',
-  STOPPED: 'bg-muted text-muted-foreground',
-  ERROR: 'bg-destructive/10 text-destructive',
-  NOT_CONFIGURED: 'bg-muted text-muted-foreground',
-};
-
-const runnerActivityLabel: Record<RunnerActivity, string> = {
-  IDLE: '대기',
-  TESTING: '테스트 중',
-  UNAVAILABLE: '중지',
-};
-
-const runnerActivityColor: Record<RunnerActivity, string> = {
-  IDLE: 'bg-success/10 text-success',
-  TESTING: 'bg-primary/10 text-primary',
-  UNAVAILABLE: 'bg-muted text-muted-foreground',
-};
-
-const serverTypeLabel: Record<Project['serverType'], string> = {
-  DEV: '개발',
-  TEST: '테스트',
-  PROD: '운영',
-};
-
-const serverTypeColor: Record<Project['serverType'], string> = {
-  DEV: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
-  TEST: 'bg-warning/10 text-warning',
-  PROD: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
-};
-
-const executionStatusLabel: Record<ExecutionStatus, string> = {
-  SCHEDULED: '예약',
-  PENDING: '대기',
-  RUNNING: '실행 중',
-  CANCEL_REQUESTED: '중단 중',
-  CANCELLED: '중단',
-  PASSED: '성공',
-  FAILED: '실패',
-  ERROR: '오류',
-};
-
-const executionStatusColor: Record<ExecutionStatus, string> = {
-  SCHEDULED: 'bg-ai-accent/10 text-ai-accent',
-  PENDING: 'bg-muted text-muted-foreground',
-  RUNNING: 'bg-primary/10 text-primary',
-  CANCEL_REQUESTED: 'bg-warning/10 text-warning',
-  CANCELLED: 'bg-muted text-muted-foreground',
-  PASSED: 'bg-success/10 text-success',
-  FAILED: 'bg-destructive/10 text-destructive',
-  ERROR: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
-};
-
-function configuredEnvCount(project: Project): number {
-  return countConfiguredEnvVariables(project.envVariables);
-}
-
-function envButtonState(project: Project) {
-  return resolveEnvRequirementState(project.loginEnvRequired, project.envVariables);
-}
-
-function envButtonTitle(project: Project): string {
-  const count = configuredEnvCount(project);
-  const state = envButtonState(project);
-  if (state === 'required-missing') return '필수 환경변수 입력 필요';
-  if (state === 'required-configured') return `필수 환경변수 ${count}개 입력됨`;
-  if (state === 'optional-configured') return `환경변수 ${count}개 입력됨`;
-  return '환경변수';
-}
-
-function isRunnerReady(project: Project) {
-  return project.dockerStatus === 'RUNNING'
-    || (project.dockerEnabled && project.runnerLifecycle === 'EPHEMERAL');
-}
-
-function StatusBadge({
-  className,
-  children,
-}: {
-  className: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <span className={cn('inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium', className)}>
-      {children}
-    </span>
-  );
-}
-
-function RunnerStatusBadge({ project }: { project: Project }) {
-  if (project.dockerStatus === 'RUNNING') {
-    const activity = project.runnerActivity ?? 'IDLE';
-    return <StatusBadge className={runnerActivityColor[activity]}>{runnerActivityLabel[activity]}</StatusBadge>;
-  }
-
-  if (project.dockerEnabled && (project.runnerLifecycle === 'EPHEMERAL' || !project.dockerContainerId)) {
-    return <StatusBadge className="bg-muted text-muted-foreground">없음</StatusBadge>;
-  }
-
-  return <StatusBadge className={dockerStatusColor[project.dockerStatus]}>{dockerStatusLabel[project.dockerStatus]}</StatusBadge>;
-}
-
-function ServerTypeBadge({ serverType }: { serverType: Project['serverType'] }) {
-  return <StatusBadge className={serverTypeColor[serverType]}>{serverTypeLabel[serverType]}</StatusBadge>;
-}
-
-function LifecycleBadge({ project }: { project: Project }) {
-  return (
-    <StatusBadge className={project.runnerLifecycle === 'EPHEMERAL' ? 'bg-ai-accent/10 text-ai-accent' : 'bg-muted text-muted-foreground'}>
-      {project.runnerLifecycle === 'EPHEMERAL' ? '일회용' : '상주'}
-    </StatusBadge>
-  );
-}
-
-function LatestExecutionBadge({ status }: { status: ExecutionStatus | null }) {
-  if (!status) {
-    return <span className="text-xs text-muted-foreground">-</span>;
-  }
-  return <StatusBadge className={executionStatusColor[status]}>{executionStatusLabel[status]}</StatusBadge>;
-}
-
-function formatExecutionAt(value: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString('ko-KR');
-}
-
-function formatDuration(durationMs: number | null) {
-  if (durationMs == null) return '-';
-  const seconds = durationMs / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = Math.round(seconds % 60);
-  return `${minutes}m ${rest}s`;
-}
+/** 등록 직후 카드를 강조해 두는 시간 */
+const JUST_CREATED_MS = 60_000;
 
 function matchesQuery(project: Project, query: string) {
   const normalized = query.trim().toLowerCase();
@@ -194,7 +34,6 @@ function matchesQuery(project: Project, query: string) {
 
 export function ProjectsPage() {
   const navigate = useNavigate();
-  const gridRef = useRef<AgGridReact<Project>>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
@@ -204,6 +43,7 @@ export function ProjectsPage() {
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [envProject, setEnvProject] = useState<Project | null>(null);
   const [testLoadingId, setTestLoadingId] = useState<string | null>(null);
+  const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
 
   const loadProjects = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -220,6 +60,7 @@ export function ProjectsPage() {
     loadProjects();
   }, [loadProjects]);
 
+  // 실행 중인 프로젝트가 있으면 짧은 주기로 상태를 새로 받아온다.
   useEffect(() => {
     const hasActiveExecution = projects.some((project) =>
       project.latestExecutionStatus === 'PENDING'
@@ -232,6 +73,13 @@ export function ProjectsPage() {
     return () => clearInterval(timer);
   }, [projects, loadProjects]);
 
+  // 방금 등록한 카드 강조는 잠시 뒤 스스로 걷힌다.
+  useEffect(() => {
+    if (!justCreatedId) return;
+    const timer = setTimeout(() => setJustCreatedId(null), JUST_CREATED_MS);
+    return () => clearTimeout(timer);
+  }, [justCreatedId]);
+
   const stats = useMemo(() => ({
     total: projects.length,
     ready: projects.filter(isRunnerReady).length,
@@ -242,20 +90,31 @@ export function ProjectsPage() {
     ephemeral: projects.filter((project) => project.runnerLifecycle === 'EPHEMERAL').length,
   }), [projects]);
 
-  const filteredProjects = useMemo(() => projects.filter((project) => {
-    if (!matchesQuery(project, query)) return false;
-    if (filter === 'RUNNING') return isRunnerReady(project);
-    if (filter === 'TESTING') return project.runnerActivity === 'TESTING';
-    if (filter === 'ERROR') return project.dockerStatus === 'ERROR'
-      || project.latestExecutionStatus === 'FAILED'
-      || project.latestExecutionStatus === 'ERROR';
-    if (filter === 'EPHEMERAL') return project.runnerLifecycle === 'EPHEMERAL';
-    return true;
-  }), [projects, query, filter]);
+  const filteredProjects = useMemo(() => projects
+    .filter((project) => {
+      if (!matchesQuery(project, query)) return false;
+      if (filter === 'RUNNING') return isRunnerReady(project);
+      if (filter === 'TESTING') return project.runnerActivity === 'TESTING';
+      if (filter === 'ERROR') return project.dockerStatus === 'ERROR'
+        || project.latestExecutionStatus === 'FAILED'
+        || project.latestExecutionStatus === 'ERROR';
+      if (filter === 'EPHEMERAL') return project.runnerLifecycle === 'EPHEMERAL';
+      return true;
+    })
+    // 방금 등록한 프로젝트를 맨 앞에, 그다음은 지정한 순서대로
+    .sort((a, b) => {
+      if (a.projectId === justCreatedId) return -1;
+      if (b.projectId === justCreatedId) return 1;
+      return (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
+        || a.projectName.localeCompare(b.projectName, 'ko');
+    }), [projects, query, filter, justCreatedId]);
 
   const handleCreate = async (data: ProjectFormData, aiBootstrapInstruction?: string) => {
     await api.createProject(data);
     setDialogOpen(false);
+    setJustCreatedId(data.projectId);
+    setFilter('ALL');
+    setQuery('');
     loadProjects();
     if (aiBootstrapInstruction) {
       setAiBootstrap({ projectId: data.projectId, instruction: aiBootstrapInstruction });
@@ -267,6 +126,12 @@ export function ProjectsPage() {
     await api.updateProject(editProject.projectId, data);
     setEditProject(null);
     loadProjects();
+  };
+
+  const replaceProject = (updated: Project) => {
+    setProjects((prev) => prev.map((project) =>
+      project.projectId === updated.projectId ? updated : project
+    ));
   };
 
   const handleEnvSaved = (updated: Project) => {
@@ -283,12 +148,6 @@ export function ProjectsPage() {
     if (!ok) return;
     await api.deleteProject(projectId);
     loadProjects();
-  };
-
-  const replaceProject = (updated: Project) => {
-    setProjects((prev) => prev.map((project) =>
-      project.projectId === updated.projectId ? updated : project
-    ));
   };
 
   const handleRunProject = async (project: Project) => {
@@ -334,214 +193,28 @@ export function ProjectsPage() {
     }
   };
 
-  const columnDefs = useMemo<ColDef<Project>[]>(() => [
-    { field: 'displayOrder', headerName: '순서', width: 76, sort: 'asc', pinned: 'left' },
-    {
-      field: 'projectName',
-      headerName: '프로젝트',
-      minWidth: 210,
-      width: 230,
-      pinned: 'left',
-      cellRenderer: (p: ICellRendererParams<Project>) => {
-        if (!p.data) return null;
-        return (
-          <button
-            type="button"
-            className="flex min-w-0 flex-col py-1 text-left"
-            onClick={() => navigate(projectTabPath(p.data!.projectId, 'dashboard'))}
-          >
-            <span className="truncate font-semibold text-foreground hover:text-primary">{p.data.projectName}</span>
-            <span className="truncate font-mono text-xs text-muted-foreground">{p.data.projectId}</span>
-          </button>
-        );
-      },
-    },
-    {
-      field: 'serverType',
-      headerName: '서버',
-      width: 74,
-      cellRenderer: (p: ICellRendererParams<Project>) =>
-        p.data ? <ServerTypeBadge serverType={p.data.serverType} /> : null,
-    },
-    {
-      headerName: '러너',
-      width: 132,
-      cellRenderer: (p: ICellRendererParams<Project>) =>
-        p.data ? (
-          <div className="flex flex-wrap items-center gap-1">
-            <RunnerStatusBadge project={p.data} />
-            <LifecycleBadge project={p.data} />
-          </div>
-        ) : null,
-    },
-    {
-      headerName: '테스트',
-      width: 184,
-      sortable: false,
-      filter: false,
-      cellRenderer: (p: ICellRendererParams<Project>) => {
-        if (!p.data) return null;
-        const project = p.data;
-        const testing = testLoadingId === project.projectId;
-        const envState = envButtonState(project);
-        const missingRequiredEnv = envState === 'required-missing';
-        return (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className={cn(
-                'inline-flex h-7 w-7 items-center justify-center rounded-md border disabled:cursor-not-allowed disabled:opacity-50',
-                envState === 'required-missing' && 'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20',
-                envState === 'required-configured' && 'border-success/30 bg-success/10 text-success hover:bg-success/20',
-                envState === 'optional-configured' && 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20',
-                envState === 'optional-empty' && 'border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/10 hover:text-primary'
-              )}
-              onClick={(e) => {
-                e.stopPropagation();
-                setEnvProject(project);
-              }}
-              title={envButtonTitle(project)}
-            >
-              <SlidersHorizontal className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleRunProject(project);
-              }}
-              disabled={testing || missingRequiredEnv}
-              title={missingRequiredEnv ? '필수 환경변수 입력 후 실행할 수 있습니다' : '전체 테스트 실행'}
-            >
-              {testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(projectTabPath(project.projectId, 'results'));
-              }}
-              title="결과"
-            >
-              <BarChart3 className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(projectTabPath(project.projectId, 'runs'));
-              }}
-              title="실행 이력"
-            >
-              <History className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-primary/30 hover:bg-primary/10 hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(projectTabPath(project.projectId, 'source'));
-              }}
-              title="소스"
-            >
-              <FileCode className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        );
-      },
-    },
-    {
-      headerName: '최근 실행',
-      width: 190,
-      cellRenderer: (p: ICellRendererParams<Project>) =>
-        p.data ? (
-          <div className="flex min-w-0 flex-col gap-0.5 py-1">
-            <div className="flex items-center gap-2">
-              <LatestExecutionBadge status={p.data.latestExecutionStatus} />
-              <span className="truncate text-xs text-muted-foreground">{formatDuration(p.data.latestExecutionDurationMs)}</span>
-            </div>
-            <span className="truncate text-[11px] text-muted-foreground">{formatExecutionAt(p.data.latestExecutionAt)}</span>
-          </div>
-        ) : null,
-    },
-    {
-      headerName: '실행 환경',
-      width: 132,
-      cellRenderer: (p: ICellRendererParams<Project>) =>
-        p.data ? (
-          <div className="flex min-w-0 flex-col gap-0.5 py-1 text-xs">
-            <span className="truncate font-medium text-foreground">Node {p.data.nodeVersion}</span>
-            <span className="truncate text-[11px] text-muted-foreground">PW {p.data.playwrightVersion} · {p.data.packageManager}</span>
-          </div>
-        ) : null,
-    },
-    {
-      field: 'baseUrl',
-      headerName: 'Base URL',
-      minWidth: 160,
-      width: 180,
-      valueFormatter: (p) => p.value ?? '-',
-    },
-    {
-      field: 'managerName',
-      headerName: '관리자',
-      width: 112,
-      valueFormatter: (p) => p.value ?? '-',
-    },
-    {
-      headerName: '',
-      width: 92,
-      sortable: false,
-      filter: false,
-      cellRenderer: (p: ICellRendererParams<Project>) =>
-        p.data ? (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditProject(p.data!);
-              }}
-              title="수정"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-destructive hover:bg-destructive/10"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDelete(p.data!.projectId);
-              }}
-              title="삭제"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          </div>
-        ) : null,
-    },
-  ], [navigate, testLoadingId]);
-
   const filterButtons: Array<{ id: ProjectFilter; label: string; count: number }> = [
     { id: 'ALL', label: '전체', count: stats.total },
     { id: 'RUNNING', label: '실행 가능', count: stats.ready },
     { id: 'TESTING', label: '테스트 중', count: stats.testing },
-    { id: 'ERROR', label: '오류/실패', count: stats.failed },
+    { id: 'ERROR', label: '오류 · 실패', count: stats.failed },
     { id: 'EPHEMERAL', label: '일회용', count: stats.ephemeral },
   ];
 
+  const emptyReason = projects.length === 0
+    ? { title: '등록된 프로젝트가 없습니다', desc: '테스트할 사이트 주소만 있으면 바로 시작할 수 있습니다.' }
+    : { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어나 필터를 바꿔보세요.' };
+
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-5 p-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">프로젝트</h2>
-          <p className="mt-1 text-sm text-muted-foreground">테스트 프로젝트와 Runner 상태를 관리합니다.</p>
+          <h2 className="text-[24px] font-bold leading-tight text-foreground">프로젝트</h2>
+          <p className="mt-1 text-[15px] text-muted-foreground">
+            테스트할 사이트마다 프로젝트를 하나씩 둡니다. 카드를 열면 작업 화면으로 들어갑니다.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => loadProjects()} disabled={loading}>
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
             새로고침
@@ -553,76 +226,70 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-border bg-card">
-        <div className="grid grid-cols-2 divide-x divide-y divide-border md:grid-cols-5 md:divide-y-0">
-          {[
-            ['전체', stats.total],
-            ['실행 가능', stats.ready],
-            ['테스트 중', stats.testing],
-            ['오류/실패', stats.failed],
-            ['일회용', stats.ephemeral],
-          ].map(([label, value]) => (
-            <div key={label} className="px-4 py-3">
-              <div className="text-xs text-muted-foreground">{label}</div>
-              <div className="mt-1 text-xl font-semibold text-foreground">{value}</div>
-            </div>
-          ))}
+      {/* 검색 + 필터 — 개수는 필터 칩에만 두어 같은 숫자를 두 번 보여주지 않는다 */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="프로젝트명, 주소, 담당자 검색"
+            className="h-10 pl-9"
+          />
         </div>
-        <div className="flex flex-col gap-3 border-t border-border px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative max-w-xl flex-1">
-            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="프로젝트명, ID, 관리자, URL 검색"
-              className="pl-9"
-            />
-          </div>
-          <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
-            {filterButtons.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setFilter(item.id)}
-                className={cn(
-                  'h-8 rounded-md px-3 text-xs font-medium transition-colors',
-                  filter === item.id ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-card'
-                )}
-              >
-                {item.label} {item.count}
-              </button>
-            ))}
-          </div>
+        <div className="flex flex-wrap gap-1 rounded-sm border border-border bg-muted p-1">
+          {filterButtons.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setFilter(item.id)}
+              className={cn(
+                'h-8 rounded-sm px-3 text-[13px] font-bold transition-colors',
+                filter === item.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-card hover:text-foreground'
+              )}
+            >
+              {item.label} {item.count}
+            </button>
+          ))}
         </div>
       </div>
 
-      {!loading && filteredProjects.length === 0 ? (
-        <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-border bg-card">
+      {loading ? (
+        <div className="flex min-h-[320px] items-center justify-center rounded-md border border-border bg-card">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="flex min-h-[320px] items-center justify-center rounded-md border border-dashed border-border bg-card">
           <div className="max-w-sm text-center">
             <FolderKanban className="mx-auto h-10 w-10 text-muted-foreground" />
-            <h3 className="mt-4 text-lg font-semibold text-foreground">표시할 프로젝트가 없습니다</h3>
-            <p className="mt-2 text-sm text-muted-foreground">검색어와 필터를 확인하거나 새 프로젝트를 등록하세요.</p>
-            <Button className="mt-4" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-4 w-4" />
-              프로젝트 등록
-            </Button>
+            <h3 className="mt-4 text-[19px] font-bold text-foreground">{emptyReason.title}</h3>
+            <p className="mt-2 text-[15px] text-muted-foreground">{emptyReason.desc}</p>
+            {projects.length === 0 && (
+              <Button className="mt-4" onClick={() => setDialogOpen(true)}>
+                <Plus className="h-4 w-4" />
+                프로젝트 등록
+              </Button>
+            )}
           </div>
         </div>
       ) : (
-        <div className="ag-theme-playops overflow-hidden rounded-lg border border-border" style={{ height: 600 }}>
-          <AgGridReact
-            ref={gridRef}
-            rowData={filteredProjects}
-            columnDefs={columnDefs}
-            defaultColDef={{ sortable: true, filter: false, resizable: true }}
-            rowHeight={48}
-            headerHeight={40}
-            animateRows
-            theme="legacy"
-            rowSelection={{ mode: 'singleRow' }}
-            onRowDoubleClicked={(e) => e.data && navigate(projectTabPath(e.data.projectId, 'dashboard'))}
-            overlayNoRowsTemplate="표시할 프로젝트가 없습니다"
-          />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          {filteredProjects.map((project) => (
+            <ProjectCard
+              key={project.projectId}
+              project={project}
+              running={testLoadingId === project.projectId}
+              justCreated={project.projectId === justCreatedId}
+              onOpen={() => navigate(projectTabPath(project.projectId, 'dashboard'))}
+              onRun={() => handleRunProject(project)}
+              onEnv={() => setEnvProject(project)}
+              onEdit={() => setEditProject(project)}
+              onDelete={() => handleDelete(project.projectId)}
+              onGo={(tab) => navigate(projectTabPath(project.projectId, tab))}
+            />
+          ))}
         </div>
       )}
 
