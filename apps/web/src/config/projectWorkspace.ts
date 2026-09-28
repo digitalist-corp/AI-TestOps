@@ -26,14 +26,14 @@ export const PROJECT_WORKSPACE_TABS: {
   },
   {
     id: 'source',
-    label: '소스 탐색기',
-    description: 'Monaco 편집 · 파일 트리',
+    label: '코드',
+    description: '직접 편집 · AI 수정 도움',
     icon: FolderTree,
   },
   {
     id: 'scenarios',
-    label: '시나리오',
-    description: 'spec 분석 · 케이스 실행',
+    label: '테스트',
+    description: '케이스 선택 · 묶음 · AI 생성',
     icon: GitBranch,
   },
   {

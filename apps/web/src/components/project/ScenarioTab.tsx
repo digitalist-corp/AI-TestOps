@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Bookmark,
   ExternalLink,
@@ -448,6 +448,18 @@ export function ScenarioTab({
 
   useEffect(() => stopGenPolling, []);
 
+  // 헤더에서 'AI로 만들기' · '선택 실행'을 누르면 ?do= 로 넘어온다.
+  // 탭을 옮기는 순간 이 컴포넌트가 다시 마운트되므로, 상태가 아니라 주소로 창을 연다.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlAction = searchParams.get('do');
+  const clearUrlAction = () => {
+    if (!urlAction) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('do');
+    setSearchParams(next, { replace: true });
+  };
+
+
   const resetGenDialog = () => {
     stopGenPolling();
     setGenDialogOpen(false);
@@ -597,6 +609,12 @@ export function ScenarioTab({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {urlAction === 'pick' && checkedCaseList.length === 0 && (
+        <p className="rounded-sm border border-primary bg-primary-subtle px-3.5 py-2.5 text-[13px] text-primary">
+          실행할 테스트 케이스를 아래 목록에서 고르세요. 고른 뒤 &quot;선택 케이스 실행&quot;을 누르면 그 케이스만 실행합니다.
+          자주 쓰는 조합은 &quot;묶음으로 저장&quot;으로 남겨두면 다음부터 한 번에 실행할 수 있습니다.
+        </p>
+      )}
       <div className="lg:col-span-2 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
@@ -904,7 +922,17 @@ export function ScenarioTab({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={genDialogOpen} onOpenChange={(open) => (open ? setGenDialogOpen(true) : resetGenDialog())}>
+      <Dialog
+        open={genDialogOpen || urlAction === 'generate'}
+        onOpenChange={(open) => {
+          if (open) {
+            setGenDialogOpen(true);
+          } else {
+            resetGenDialog();
+            clearUrlAction();
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-1.5">

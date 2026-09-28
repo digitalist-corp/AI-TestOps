@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, KeyRound, Loader2, LogIn, Play, RefreshCw, Settings2, Square, Terminal, Upload } from 'lucide-react';
+import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Play, RefreshCw, Settings2, Sparkles, Square, Terminal, Upload } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthStateStatus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -139,6 +139,11 @@ export function ProjectDetailPage() {
 
   const goTab = (tab: ProjectTabId) => {
     if (projectId) navigate(projectTabPath(projectId, tab));
+  };
+
+  // 헤더에서 누른 동작은 주소(?do=)로 넘겨 테스트 탭이 받아 연다.
+  const requestScenarioAction = (action: 'pick' | 'generate') => {
+    if (projectId) navigate(`${projectTabPath(projectId, 'scenarios')}?do=${action}`);
   };
 
   const [scenarios, setScenarios] = useState<ScenarioTree | null>(null);
@@ -472,6 +477,23 @@ export function ProjectDetailPage() {
             {runnerBadgeLabel}
           </span>
         </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <Button
+          variant="outline"
+          onClick={() => requestScenarioAction('pick')}
+          title="실행할 케이스를 골라 묶어서 실행합니다"
+        >
+          <ListChecks className="h-4 w-4" />
+          선택 실행
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={() => requestScenarioAction('generate')}
+          title="테스트하고 싶은 내용을 문장으로 적으면 AI가 테스트 코드를 만듭니다"
+        >
+          <Sparkles className="h-4 w-4" />
+          AI로 만들기
+        </Button>
         <Button
           onClick={() => handleRun()}
           disabled={!canRunTests}
@@ -488,6 +510,7 @@ export function ProjectDetailPage() {
           {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           전체 실행
         </Button>
+        </div>
       </div>
 
       {!dockerRunning && !canAutoStartRunner && !canStartPersistentRunner && (
