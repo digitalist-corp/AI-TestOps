@@ -462,6 +462,8 @@ export const api = {
       }),
     listByProject: (projectId: string) =>
       request<import('@/types').AiJob[]>(`/api/projects/${projectId}/ai-jobs`),
+    /** 작업 한 건의 현재 상태. 채팅 패널의 작업 카드가 이걸 주기적으로 읽는다. */
+    get: (id: number) => request<import('@/types').AiJob>(`/api/ai-jobs/${id}`),
     needsReview: () => request<import('@/types').AiJob[]>('/api/ai-jobs/needs-review'),
     diff: (id: number) => request<import('@/types').AiJobFileDiff[]>(`/api/ai-jobs/${id}/diff`),
     approve: (id: number) =>

@@ -543,6 +543,17 @@ public class AiJobService {
         return result;
     }
 
+    /**
+     * 작업 한 건을 읽는다.
+     *
+     * 채팅 패널의 작업 카드, 'AI 검토' 화면, 그리고 앞으로 붙을 외부 오케스트레이터(LangGraph)가
+     * 모두 이 하나의 읽기 경로를 쓴다. 상태를 화면마다 따로 계산하면 같은 작업이 화면에 따라
+     * 다르게 보이게 된다.
+     */
+    public AiJob getJob(Long jobId) {
+        return getJobOrThrow(jobId);
+    }
+
     private AiJob getJobOrThrow(Long jobId) {
         return aiJobRepository.findById(jobId)
                 .orElseThrow(() -> new ApiException(404, "AiJob not found: " + jobId));
