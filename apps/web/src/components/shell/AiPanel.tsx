@@ -50,6 +50,7 @@ export function AiPanel({
   onWidthChange,
   onCollapse,
   contextLabel,
+  projectId,
   overlay = false,
 }: {
   width: number;
@@ -57,6 +58,8 @@ export function AiPanel({
   onCollapse: () => void;
   /** 패널 상단에 보여줄 현재 맥락 (예: "example.com · 시나리오"). */
   contextLabel: string;
+  /** 지금 보고 있는 프로젝트. 질문에 함께 실어 보내면 서버가 최근 실패 로그까지 읽고 답한다. */
+  projectId?: string;
   /** 좁은 화면 — 캔버스를 밀어내지 않고 그 위에 겹쳐 띄운다. */
   overlay?: boolean;
 }) {
@@ -66,6 +69,7 @@ export function AiPanel({
 
   const { messages, loading, send, clear } = useAiChat({
     userLevel,
+    projectId,
     storageKey: MESSAGES_STORAGE_KEY,
   });
 

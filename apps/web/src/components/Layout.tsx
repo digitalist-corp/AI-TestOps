@@ -201,6 +201,7 @@ export function Layout() {
           onWidthChange={handleWidthChange}
           onCollapse={handleTogglePanel}
           contextLabel={contextLabel}
+          projectId={activeProjectId}
           overlay={overlayMode}
         />
       )}

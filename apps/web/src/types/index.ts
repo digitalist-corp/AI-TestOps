@@ -443,6 +443,8 @@ export interface AiChatMessage {
 
 export interface AiChatRequest {
   executionId?: number;
+  /** 지금 열어 둔 프로젝트. 서버가 이 프로젝트의 최근 실행 로그를 스스로 찾아 붙인다. */
+  projectId?: string;
   question: string;
   userLevel: UserLevel;
   provider?: AiModelProvider;

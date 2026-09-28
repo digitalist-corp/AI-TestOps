@@ -4,6 +4,7 @@ import com.playops.api.dto.AiAnalysisRequest;
 import com.playops.api.dto.AiAnalysisResponse;
 import com.playops.api.dto.AiChatRequest;
 import com.playops.api.dto.ExecutionDetailResponse;
+import com.playops.api.dto.ExecutionResponse;
 import com.playops.api.entity.AiModelProvider;
 import com.playops.api.entity.Project;
 import com.playops.api.exception.ApiException;
@@ -72,15 +73,38 @@ public class AiAnalysisService {
         }
 
         String userLevel = normalizeUserLevel(request.getUserLevel());
+        // 실행을 지정하지 않았으면 그 프로젝트의 가장 최근 실행(실패 우선)을 스스로 찾는다.
         ExecutionDetailResponse detail = loadDetailOrNull(request.getExecutionId());
+        if (detail == null && request.getProjectId() != null && !request.getProjectId().isBlank()) {
+            detail = loadDetailOrNull(findRecentExecutionId(request.getProjectId()));
+        }
         AiModelProvider provider = resolveProvider(request.getProvider(), detail);
 
-        String systemPrompt = buildChatSystemPrompt(userLevel, detail);
+        String systemPrompt = buildChatSystemPrompt(userLevel, detail, request.getProjectId());
 
         List<LlmMessage> messages = new ArrayList<>(toLlmHistory(request.getHistory()));
         messages.add(LlmMessage.user(question));
 
         return callLlm(provider, systemPrompt, messages);
+    }
+
+    /** 실패한 실행이 있으면 그것을, 없으면 가장 최근 실행을 고른다. */
+    private Long findRecentExecutionId(String projectId) {
+        try {
+            List<ExecutionResponse> executions = executionQueryService.listByProject(projectId);
+            if (executions.isEmpty()) {
+                return null;
+            }
+            for (ExecutionResponse execution : executions) {
+                String status = String.valueOf(execution.status());
+                if (status.equals("FAILED") || status.equals("ERROR")) {
+                    return execution.id();
+                }
+            }
+            return executions.get(0).id();
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private ExecutionDetailResponse loadDetailOrNull(Long executionId) {
@@ -201,17 +225,82 @@ public class AiAnalysisService {
     }
 
     /** 대화용 시스템 프롬프트: 페르소나 + 참고 실행 정보 + 답변 지침. 사용자 메시지에는 질문만 담는다. */
-    private String buildChatSystemPrompt(String userLevel, ExecutionDetailResponse detail) {
+    /**
+      * 채팅용 시스템 프롬프트.
+      *
+      * 예전에는 상태 · 통과 · 실패 세 숫자만 넣어, AI가 사용자에게 "실패 로그를 붙여넣어 달라"고
+      * 요구할 수밖에 없었다. 지금은 프로젝트 정보와 실제 실패 로그 · 실패 케이스를 함께 넣는다.
+      */
+    private String buildChatSystemPrompt(String userLevel, ExecutionDetailResponse detail, String projectId) {
         StringBuilder sb = new StringBuilder(buildPersonaPrompt(userLevel));
         sb.append("\n\nPlaywright 테스트 및 E2E 결과 관련 질의응답을 진행합니다.\n");
-        if (detail != null && detail.execution() != null) {
-            sb.append("참고 실행 정보: 상태=").append(detail.execution().status())
-              .append(", 통과=").append(detail.execution().passedTests())
-              .append(", 실패=").append(detail.execution().failedTests()).append("\n");
-        }
-        sb.append("답변 요청: 사용자의 기술 수준(").append(userLevel)
-          .append(")에 맞춰 이해하기 쉽고 친절하게 한글로, Markdown으로 답변해주세요.");
+
+        appendProjectContext(sb, projectId);
+        appendExecutionContext(sb, detail);
+
+        sb.append("\n답변 규칙\n");
+        sb.append("- 위 정보는 이미 시스템이 제공했습니다. 사용자에게 로그나 코드를 붙여넣어 달라고 요구하지 마세요.\n");
+        sb.append("- 정보가 부족하면 무엇이 더 필요한지 한 줄로만 말하고, 가진 정보로 할 수 있는 추정과 다음 행동을 먼저 제시하세요.\n");
+        sb.append("- 실패 원인을 짚을 때는 근거가 된 로그 줄을 인용하세요.\n");
+        sb.append("- 코드 수정이 필요하면 고칠 파일과 바뀔 부분을 구체적으로 제시하세요. 다만 실제 반영은 사람이 승인해야 하므로,\n");
+        sb.append("  \"소스 탭의 AI 수정 도움\" 또는 \"AI로 만들기\"로 이어가라고 안내하세요.\n");
+        sb.append("- 사용자의 기술 수준(").append(userLevel).append(")에 맞춰 한글 Markdown으로 답하세요.");
         return sb.toString();
+    }
+
+    private void appendProjectContext(StringBuilder sb, String projectId) {
+        if (projectId == null || projectId.isBlank()) {
+            sb.append("\n[지금 보고 있는 프로젝트] 없음 (전체 화면에서의 질문)\n");
+            return;
+        }
+        try {
+            var project = projectService.getProject(projectId);
+            sb.append("\n[지금 보고 있는 프로젝트]\n");
+            sb.append("- 이름: ").append(project.getProjectName()).append(" (id=").append(project.getProjectId()).append(")\n");
+            if (project.getBaseUrl() != null) {
+                sb.append("- 대상 사이트: ").append(project.getBaseUrl()).append("\n");
+            }
+            sb.append("- 실행 환경: Node ").append(project.getNodeVersion())
+              .append(" · Playwright ").append(project.getPlaywrightVersion()).append("\n");
+        } catch (Exception ignored) {
+            sb.append("\n[지금 보고 있는 프로젝트] id=").append(projectId).append(" (상세 조회 실패)\n");
+        }
+    }
+
+    private void appendExecutionContext(StringBuilder sb, ExecutionDetailResponse detail) {
+        if (detail == null || detail.execution() == null) {
+            sb.append("\n[최근 실행] 아직 실행 기록이 없습니다.\n");
+            return;
+        }
+        var exec = detail.execution();
+        sb.append("\n[참고할 최근 실행]\n");
+        sb.append("- 실행 ID: ").append(exec.id()).append(", 상태: ").append(exec.status()).append("\n");
+        sb.append("- 통과 ").append(exec.passedTests()).append(" / 실패 ").append(exec.failedTests())
+          .append(" (전체 ").append(exec.totalTests()).append("), 소요 ").append(exec.durationMs()).append("ms\n");
+
+        if (detail.caseResults() != null && !detail.caseResults().isEmpty()) {
+            sb.append("- 실패한 케이스:\n");
+            int shown = 0;
+            for (var caseResult : detail.caseResults()) {
+                if (shown >= 5) break;
+                String status = String.valueOf(caseResult.status());
+                if (status.equals("FAILED") || status.equals("ERROR")) {
+                    sb.append("  · ").append(caseResult.caseTitle())
+                      .append(" (").append(caseResult.specPath()).append(")\n");
+                    if (caseResult.errorMessage() != null && !caseResult.errorMessage().isBlank()) {
+                        String message = caseResult.errorMessage();
+                        sb.append("    → ").append(message.length() > 500 ? message.substring(0, 500) : message).append("\n");
+                    }
+                    shown++;
+                }
+            }
+        }
+
+        String logs = detail.logOutput();
+        if (logs != null && !logs.isBlank()) {
+            String tail = logs.length() > 3000 ? logs.substring(logs.length() - 3000) : logs;
+            sb.append("\n[실행 로그 (마지막 부분)]\n").append(tail).append("\n");
+        }
     }
 
     private String buildAnalysisPrompt(ExecutionDetailResponse detail, String logs, String userLevel, String additionalContext) {
