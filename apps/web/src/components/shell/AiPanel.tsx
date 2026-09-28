@@ -154,7 +154,7 @@ export function AiPanel({
       style={{ width }}
       aria-label="AI 어시스턴트"
     >
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+      <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
         <div className="flex min-w-0 items-center gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-ai-accent/15 text-ai-accent ring-1 ring-ai-accent/30">
             <Sparkles className="h-4 w-4" />
