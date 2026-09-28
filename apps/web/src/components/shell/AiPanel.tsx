@@ -70,6 +70,19 @@ export function AiPanel({
   });
 
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  /** 입력한 줄 수에 맞춰 높이를 늘린다. 너무 길어지면 스크롤로 넘긴다. */
+  const resizeInput = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 168)}px`;
+  }, []);
+
+  useEffect(() => {
+    resizeInput();
+  }, [question, resizeInput]);
 
   useEffect(() => {
     try {
@@ -118,6 +131,20 @@ export function AiPanel({
     await send(q);
   };
 
+  /**
+   * Enter 로 보내고 Shift+Enter 로 줄을 바꾼다.
+   * 한글 입력 중(조합 중)에는 Enter 가 글자 확정에 쓰이므로 보내지 않는다.
+   */
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    if (event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    if (!question.trim() || loading) return;
+    const q = question.trim();
+    setQuestion('');
+    void send(q);
+  };
+
   return (
     <aside
       className={cn(
@@ -134,7 +161,7 @@ export function AiPanel({
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold leading-tight text-foreground">AI 어시스턴트</p>
-            <p className="truncate text-[11px] leading-tight text-muted-foreground" title={contextLabel}>
+            <p className="truncate text-[12px] leading-tight text-muted-foreground" title={contextLabel}>
               맥락: {contextLabel}
             </p>
           </div>
@@ -166,7 +193,7 @@ export function AiPanel({
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
             <Sparkles className="h-7 w-7 text-ai-accent/60" />
-            <p className="text-xs leading-relaxed">
+            <p className="text-[13px] leading-relaxed">
               Playwright 문법, 셀렉터, 실패 원인 등 무엇이든 물어보세요.
               <br />
               답변과 AI가 한 작업이 여기에 차례로 쌓입니다.
@@ -174,7 +201,7 @@ export function AiPanel({
           </div>
         ) : (
           messages.map((msg, idx) => (
-            <div key={idx} className={cn('flex text-xs', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+            <div key={idx} className={cn('flex text-[14px]', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div
                 className={cn(
                   'max-w-[88%] rounded-xl px-3 py-2 leading-relaxed',
@@ -189,7 +216,7 @@ export function AiPanel({
           ))
         )}
         {loading && (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin text-ai-accent" />
             AI 답변 작성 중...
           </div>
@@ -197,7 +224,7 @@ export function AiPanel({
       </div>
 
       <div className="flex items-center gap-1.5 border-t border-border bg-card px-2.5 pt-2">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">수준</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">수준</span>
         <div className="inline-flex rounded-lg border border-border bg-muted p-0.5">
           {levelOptions.map((opt) => {
             const isSelected = userLevel === opt.id;
@@ -208,7 +235,7 @@ export function AiPanel({
                 type="button"
                 onClick={() => setUserLevel(opt.id)}
                 className={cn(
-                  'flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold transition-all',
+                  'flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-semibold transition-all',
                   isSelected
                     ? 'border border-border bg-card text-ai-accent shadow-sm'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -222,13 +249,15 @@ export function AiPanel({
         </div>
       </div>
 
-      <form onSubmit={handleSend} className="flex gap-2 bg-card p-2.5">
-        <input
-          type="text"
+      <form onSubmit={handleSend} className="flex items-end gap-2 bg-card p-2.5">
+        <textarea
+          ref={inputRef}
+          rows={1}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="무엇이든 물어보세요"
-          className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-ai-accent focus:outline-none"
+          onKeyDown={handleKeyDown}
+          placeholder="무엇이든 물어보세요 (Shift+Enter 로 줄바꿈)"
+          className="min-w-0 flex-1 resize-none overflow-y-auto rounded-sm border border-border bg-background px-3 py-2 text-[14px] leading-relaxed text-foreground placeholder:text-muted-foreground focus:border-ai-accent"
         />
         <button
           type="submit"
