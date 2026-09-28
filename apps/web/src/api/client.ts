@@ -26,6 +26,7 @@ import type {
   ScenarioTree,
   ScenarioUsageRequest,
   ScaffoldResult,
+  AiAvailability,
   ServiceHealth,
   SiteCheckResult,
   User,
@@ -160,6 +161,9 @@ export const api = {
     }),
 
   getProjects: () => request<Project[]>('/api/projects'),
+  getAiAvailability: () =>
+    request<AiAvailability>('/api/ai/availability'),
+
   checkSite: (url: string) =>
     request<SiteCheckResult>(`/api/projects/site-check?url=${encodeURIComponent(url)}`),
 

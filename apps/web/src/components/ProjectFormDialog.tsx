@@ -17,7 +17,7 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
-import type { PlaywrightTemplate, Project, ProjectFormData, SiteCheckResult } from '@/types';
+import type { AiAvailability, PlaywrightTemplate, Project, ProjectFormData, SiteCheckResult } from '@/types';
 import { DEFAULT_PROJECT_FORM } from '@/types';
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/Button';
@@ -259,11 +259,14 @@ export function ProjectFormDialog({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [projectIdTouched, setProjectIdTouched] = useState(false);
   const [siteCheck, setSiteCheck] = useState<SiteCheckResult | null>(null);
+  const [aiAvailability, setAiAvailability] = useState<AiAvailability | null>(null);
   const [checkingSite, setCheckingSite] = useState(false);
 
   useEffect(() => {
     if (open && !initial) {
       api.getTemplates().then(setTemplates).catch(() => setTemplates([]));
+      // AI 키가 등록되어 있지 않으면 첫 테스트 생성을 아예 켜지 못하게 한다.
+      api.getAiAvailability().then(setAiAvailability).catch(() => setAiAvailability(null));
     }
   }, [open, initial]);
 
@@ -428,8 +431,9 @@ export function ProjectFormDialog({
       setLoading(false);
       return;
     }
+    const aiUsable = aiAvailability ? aiAvailability.anyConfigured : true;
     const bootstrapInstruction =
-      !initial && aiBootstrapEnabled && aiBootstrapInstruction.trim()
+      !initial && aiUsable && aiBootstrapEnabled && aiBootstrapInstruction.trim()
         ? aiBootstrapInstruction.trim()
         : undefined;
     try {
@@ -675,12 +679,19 @@ export function ProjectFormDialog({
                   <Sparkles className="h-4 w-4 text-ai-accent" />
                   <h3 className="text-[15px] font-bold text-foreground">첫 테스트</h3>
                 </div>
-                <ToggleRow
-                  checked={aiBootstrapEnabled}
-                  onChange={setAiBootstrapEnabled}
-                  title="등록 직후 AI가 첫 테스트를 만들고 실행해 봅니다"
-                  detail="AI가 이 사이트를 열어보고 맞는 테스트 케이스를 만든 뒤, 실제로 실행해 통과하는지까지 보여줍니다."
-                />
+                {aiAvailability && !aiAvailability.anyConfigured ? (
+                  <div className="rounded-sm border border-warning bg-warning/10 px-3.5 py-2.5 text-[13px] text-warning">
+                    AI 공급자 키가 등록되어 있지 않아 지금은 사용할 수 없습니다.
+                    관리자 설정에서 Claude 또는 GPT 키를 먼저 등록하세요. 등록은 이대로 진행할 수 있습니다.
+                  </div>
+                ) : (
+                  <ToggleRow
+                    checked={aiBootstrapEnabled}
+                    onChange={setAiBootstrapEnabled}
+                    title="등록 직후 AI가 첫 테스트를 만들고 실행해 봅니다"
+                    detail="AI가 이 사이트를 열어보고 맞는 테스트 케이스를 만든 뒤, 실제로 실행해 통과하는지까지 보여줍니다. 처음에는 실행 환경을 받느라 몇 분 걸릴 수 있습니다."
+                  />
+                )}
                 {aiBootstrapEnabled && (
                   <textarea
                     rows={3}

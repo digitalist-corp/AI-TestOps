@@ -481,6 +481,12 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   scaffoldOnCreate: true,
 };
 
+export interface AiAvailability {
+  claude: boolean;
+  gpt: boolean;
+  anyConfigured: boolean;
+}
+
 export interface SiteCheckResult {
   reachable: boolean;
   statusCode?: number | null;

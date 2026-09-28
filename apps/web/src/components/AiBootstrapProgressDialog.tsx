@@ -91,9 +91,11 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
 
   const inProgress = phase === 'GENERATING' || phase === 'RUNNING';
   const remainingMs = estimatedMs - elapsedMs;
+  // 처음 실행은 테스트 실행 환경(도커 이미지)을 받느라 몇 분 걸릴 수 있다.
+  const takingLong = inProgress && elapsedMs > 90_000;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next && !inProgress) onClose(); }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1.5">
@@ -132,10 +134,18 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
           </div>
 
           {inProgress && (
-            <p className="text-center text-sm text-muted-foreground">
-              {Math.floor(elapsedMs / 1000)}초 경과 ·{' '}
-              {remainingMs > 0 ? formatRemaining(remainingMs) : '예상 시간을 넘겼습니다, 조금만 더 기다려주세요'}
-            </p>
+            <div className="space-y-2">
+              <p className="text-center text-sm text-muted-foreground">
+                {Math.floor(elapsedMs / 1000)}초 경과 ·{' '}
+                {remainingMs > 0 ? formatRemaining(remainingMs) : '예상보다 오래 걸리고 있습니다'}
+              </p>
+              {takingLong && (
+                <p className="rounded-sm border border-warning bg-warning/10 px-3 py-2 text-[13px] text-warning">
+                  처음 실행할 때는 테스트 실행 환경(도커 이미지)을 내려받느라 몇 분 걸릴 수 있습니다.
+                  창을 닫아도 작업은 서버에서 계속되며, 결과는 실행 이력에서 확인할 수 있습니다.
+                </p>
+              )}
+            </div>
           )}
 
           {phase === 'PASSED' && (
@@ -174,10 +184,10 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
           {phase === 'ERROR' && <p className="text-sm text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" disabled={inProgress} onClick={onClose}>
-              닫기
+            <Button type="button" variant="outline" onClick={onClose}>
+              {inProgress ? '닫기 (계속 진행됩니다)' : '닫기'}
             </Button>
-            <Button type="button" disabled={inProgress} onClick={onOpenProject}>
+            <Button type="button" onClick={onOpenProject}>
               프로젝트 열기
             </Button>
           </div>
