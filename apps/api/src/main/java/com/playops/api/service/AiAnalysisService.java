@@ -2,14 +2,20 @@ package com.playops.api.service;
 
 import com.playops.api.dto.AiAnalysisRequest;
 import com.playops.api.dto.AiAnalysisResponse;
+import com.playops.api.dto.AiChatAction;
 import com.playops.api.dto.AiChatRequest;
+import com.playops.api.dto.AiChatResponse;
 import com.playops.api.dto.ExecutionDetailResponse;
 import com.playops.api.dto.ExecutionResponse;
 import com.playops.api.entity.AiModelProvider;
 import com.playops.api.entity.Project;
 import com.playops.api.exception.ApiException;
 import com.playops.api.llm.LlmMessage;
+import com.playops.api.llm.LlmResult;
 import com.playops.api.llm.LlmRole;
+import com.playops.api.llm.LlmToolCall;
+import com.playops.api.llm.LlmToolResult;
+import com.playops.api.llm.LlmToolSpec;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -17,6 +23,9 @@ import java.util.List;
 
 @Service
 public class AiAnalysisService {
+
+    /** 한 질문에서 도구를 부를 수 있는 최대 왕복 횟수. */
+    private static final int MAX_TOOL_TURNS = 6;
 
     /** 프롬프트에 실어 보낼 이전 대화 최대 턴 수. */
     private static final int MAX_HISTORY_MESSAGES = 20;
@@ -29,19 +38,22 @@ public class AiAnalysisService {
     private final LlmGatewayService llmGatewayService;
     private final ProjectService projectService;
     private final AiProviderSettingsService aiProviderSettingsService;
+    private final AiChatToolService aiChatToolService;
 
     public AiAnalysisService(
             ExecutionQueryService executionQueryService,
             ExecutionLogService executionLogService,
             LlmGatewayService llmGatewayService,
             ProjectService projectService,
-            AiProviderSettingsService aiProviderSettingsService
+            AiProviderSettingsService aiProviderSettingsService,
+            AiChatToolService aiChatToolService
     ) {
         this.executionQueryService = executionQueryService;
         this.executionLogService = executionLogService;
         this.llmGatewayService = llmGatewayService;
         this.projectService = projectService;
         this.aiProviderSettingsService = aiProviderSettingsService;
+        this.aiChatToolService = aiChatToolService;
     }
 
     public AiAnalysisResponse analyze(AiAnalysisRequest request) {
@@ -66,7 +78,16 @@ public class AiAnalysisService {
         return parseAiResponse(aiResult, userLevel);
     }
 
-    public String chat(AiChatRequest request) {
+    /**
+     * 대화 한 턴을 처리한다.
+     *
+     * 예전에는 모델에게 한 번 묻고 그 답을 그대로 돌려줬다. 그래서 "이거 고쳐줘"라고 해도
+     * 고치는 방법을 글로 설명할 뿐 아무 일도 일어나지 않았다. 지금은 모델이 도구를 부를 수 있고,
+     * 서버가 그 도구를 실행해 결과를 다시 모델에게 돌려주는 과정을 답이 나올 때까지 반복한다.
+     *
+     * @param userId 도구가 만든 AI 작업의 요청자로 기록된다. 승인 이력을 사람에게 귀속시키기 위함이다.
+     */
+    public AiChatResponse chat(AiChatRequest request, Long userId) {
         String question = request.getQuestion();
         if (question == null || question.isBlank()) {
             throw new ApiException(400, "질문을 입력해주세요.");
@@ -74,9 +95,11 @@ public class AiAnalysisService {
 
         String userLevel = normalizeUserLevel(request.getUserLevel());
         // 실행을 지정하지 않았으면 그 프로젝트의 가장 최근 실행(실패 우선)을 스스로 찾는다.
-        ExecutionDetailResponse detail = loadDetailOrNull(request.getExecutionId());
+        Long recentExecutionId = request.getExecutionId();
+        ExecutionDetailResponse detail = loadDetailOrNull(recentExecutionId);
         if (detail == null && request.getProjectId() != null && !request.getProjectId().isBlank()) {
-            detail = loadDetailOrNull(findRecentExecutionId(request.getProjectId()));
+            recentExecutionId = findRecentExecutionId(request.getProjectId());
+            detail = loadDetailOrNull(recentExecutionId);
         }
         AiModelProvider provider = resolveProvider(request.getProvider(), detail);
 
@@ -85,7 +108,74 @@ public class AiAnalysisService {
         List<LlmMessage> messages = new ArrayList<>(toLlmHistory(request.getHistory()));
         messages.add(LlmMessage.user(question));
 
-        return callLlm(provider, systemPrompt, messages);
+        AiChatToolService.ToolContext context =
+                new AiChatToolService.ToolContext(request.getProjectId(), userId, recentExecutionId);
+        List<LlmToolSpec> tools = aiChatToolService.toolsFor(context);
+
+        String answer = runAgentLoop(provider, systemPrompt, messages, tools, context,
+                request.getProjectId());
+        return new AiChatResponse(answer, context.actions());
+    }
+
+    /**
+     * 모델이 도구를 그만 부를 때까지 "호출 → 실행 → 결과 전달"을 반복한다.
+     *
+     * 횟수를 제한하는 이유는 두 가지다. 모델이 같은 도구를 무한히 반복하는 경우를 끊기 위해서이고,
+     * 한 번의 질문이 API 비용을 끝없이 쓰는 것을 막기 위해서다. 상한에 닿으면 마지막으로
+     * 도구 없이 한 번 더 물어 지금까지 알아낸 것으로 답을 만들게 한다.
+     */
+    private String runAgentLoop(AiModelProvider provider, String systemPrompt, List<LlmMessage> messages,
+                                List<LlmToolSpec> tools, AiChatToolService.ToolContext context,
+                                String projectId) {
+        if (tools.isEmpty()) {
+            return callLlm(provider, systemPrompt, messages, "AI 채팅", projectId);
+        }
+
+        // 모델은 도구를 부르는 턴에서도 말을 한다("먼저 파일을 확인해볼게요"). 마지막 턴만 돌려주면
+        // 그 말들이 사라져 답변이 문장 중간부터 시작한 것처럼 보인다. 그래서 턴마다 모아 이어 붙인다.
+        StringBuilder answer = new StringBuilder();
+
+        for (int turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+            LlmResult result;
+            try {
+                result = llmGatewayService.chatWithTools(
+                        provider, systemPrompt, messages, tools, "AI 채팅", projectId);
+            } catch (ApiException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new ApiException(502, "AI 호출 실패: " + e.getMessage());
+            }
+
+            appendTurnText(answer, result.text());
+
+            if (!result.hasToolCalls()) {
+                return answer.toString();
+            }
+
+            messages.add(LlmMessage.toolRequest(result.text(), result.toolCalls()));
+
+            List<LlmToolResult> toolResults = new ArrayList<>();
+            for (LlmToolCall call : result.toolCalls()) {
+                toolResults.add(aiChatToolService.execute(call, context));
+            }
+            messages.add(LlmMessage.toolResponse(toolResults));
+        }
+
+        // 상한에 닿았다 — 도구를 빼고 한 번만 더 물어 지금까지의 정보로 마무리하게 한다.
+        messages.add(LlmMessage.user(
+                "도구 사용 횟수가 상한에 닿았습니다. 지금까지 확인한 내용만으로 답을 정리해 주세요."));
+        appendTurnText(answer, callLlm(provider, systemPrompt, messages, "AI 채팅", projectId));
+        return answer.toString();
+    }
+
+    private void appendTurnText(StringBuilder answer, String text) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        if (!answer.isEmpty()) {
+            answer.append("\n\n");
+        }
+        answer.append(text.trim());
     }
 
     /** 실패한 실행이 있으면 그것을, 없으면 가장 최근 실행을 고른다. */
@@ -244,7 +334,14 @@ public class AiAnalysisService {
         sb.append("- 실패 원인을 짚을 때는 근거가 된 로그 줄을 인용하세요.\n");
         sb.append("- 코드 수정이 필요하면 고칠 파일과 바뀔 부분을 구체적으로 제시하세요. 다만 실제 반영은 사람이 승인해야 하므로,\n");
         sb.append("  \"소스 탭의 AI 수정 도움\" 또는 \"AI로 만들기\"로 이어가라고 안내하세요.\n");
-        sb.append("- 사용자의 기술 수준(").append(userLevel).append(")에 맞춰 한글 Markdown으로 답하세요.");
+sb.append("- 사용자의 기술 수준(").append(userLevel).append(")에 맞춰 한글 Markdown으로 답하세요.\n");
+
+        sb.append("\n도구 사용\n");
+        sb.append("- 코드를 언급하기 전에 read_file 로 실제 내용을 먼저 확인하세요. 기억이나 추측으로 코드를 인용하지 마세요.\n");
+        sb.append("- 사용자가 수정을 요청하면 설명만 하지 말고 fix_test 또는 generate_scenario 도구를 실제로 호출하세요.\n");
+        sb.append("- 새 시나리오 파일 경로는 tests/ 아래의 .spec.ts 로 정하세요. 폴더는 자동으로 만들어지므로 미리 만들 필요가 없습니다.\n");
+        sb.append("- 도구로 만든 작업은 사람이 승인해야 반영됩니다. 승인 전에는 아무것도 바뀌지 않았다는 점을 답변에 분명히 쓰세요.\n");
+        sb.append("- 테스트를 돌려보자고 할 때는 propose_test_run 을 쓰세요. 직접 실행되지 않고 사용자에게 버튼만 보여집니다.");
         return sb.toString();
     }
 
@@ -340,8 +437,13 @@ public class AiAnalysisService {
      * 사용자가 사실이 아닌 분석을 진짜 결과로 믿게 된다.
      */
     private String callLlm(AiModelProvider provider, String systemPrompt, List<LlmMessage> messages) {
+        return callLlm(provider, systemPrompt, messages, "실패 분석", null);
+    }
+
+    private String callLlm(AiModelProvider provider, String systemPrompt, List<LlmMessage> messages,
+                           String feature, String projectId) {
         try {
-            return llmGatewayService.chat(provider, systemPrompt, messages, "실패 분석", null);
+            return llmGatewayService.chat(provider, systemPrompt, messages, feature, projectId);
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {

@@ -10,6 +10,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { AiMarkdown } from '@/components/ai/AiMarkdown';
+import { AiActionCard } from '@/components/shell/AiActionCard';
 import { useAiChat } from '@/hooks/useAiChat';
 import type { UserLevel } from '@/types';
 import { cn } from '@/lib/utils';
@@ -205,24 +206,29 @@ export function AiPanel({
           </div>
         ) : (
           messages.map((msg, idx) => (
-            <div key={idx} className={cn('flex text-[14px]', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-              <div
-                className={cn(
-                  'max-w-[88%] rounded-xl px-3 py-2 leading-relaxed',
-                  msg.role === 'user'
-                    ? 'whitespace-pre-wrap rounded-br-none bg-ai-accent font-medium text-ai-accent-foreground'
-                    : 'rounded-bl-none border border-border bg-card text-foreground'
-                )}
-              >
-                {msg.role === 'user' ? msg.content : <AiMarkdown content={msg.content} />}
+            <div key={idx} className="space-y-2">
+              <div className={cn('flex text-[14px]', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
+                <div
+                  className={cn(
+                    'max-w-[88%] rounded-xl px-3 py-2 leading-relaxed',
+                    msg.role === 'user'
+                      ? 'whitespace-pre-wrap rounded-br-none bg-ai-accent font-medium text-ai-accent-foreground'
+                      : 'rounded-bl-none border border-border bg-card text-foreground'
+                  )}
+                >
+                  {msg.role === 'user' ? msg.content : <AiMarkdown content={msg.content} />}
+                </div>
               </div>
+              {msg.actions?.map((action, actionIdx) => (
+                <AiActionCard key={`${idx}-${actionIdx}`} action={action} />
+              ))}
             </div>
           ))
         )}
         {loading && (
           <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin text-ai-accent" />
-            AI 답변 작성 중...
+            AI가 코드와 실행 기록을 확인하는 중...
           </div>
         )}
       </div>

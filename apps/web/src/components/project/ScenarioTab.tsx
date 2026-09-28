@@ -16,6 +16,7 @@ import type { AiJob, Execution, ExecutionStatus, ScenarioCaseNode, ScenarioTree,
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { SpecPathField } from '@/components/project/SpecPathField';
 import {
   Dialog,
   DialogContent,
@@ -947,16 +948,11 @@ export function ScenarioTab({
 
           {!genJob ? (
             <form onSubmit={handleGenerateScenario} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">새 spec 파일 경로</label>
-                <Input
-                  value={genSpecPath}
-                  onChange={(e) => setGenSpecPath(e.target.value)}
-                  placeholder="tests/checkout.spec.ts"
-                  className="font-mono text-xs"
-                  required
-                />
-              </div>
+              <SpecPathField
+                specPaths={tree?.specs.map((spec) => spec.path) ?? []}
+                value={genSpecPath}
+                onChange={setGenSpecPath}
+              />
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-foreground">시나리오 요구사항 (자연어)</label>
                 <textarea

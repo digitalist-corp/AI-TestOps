@@ -416,7 +416,7 @@ export const api = {
         body: JSON.stringify(data),
       }),
     chat: (data: AiChatRequest) =>
-      request<{ answer: string }>('/api/ai/chat', {
+      request<import('@/types').AiChatResponse>('/api/ai/chat', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

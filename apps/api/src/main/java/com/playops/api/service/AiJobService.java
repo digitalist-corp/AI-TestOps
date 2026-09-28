@@ -12,6 +12,7 @@ import com.playops.api.repository.AiJobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -41,6 +42,16 @@ public class AiJobService {
     private final LlmGatewayService llmGatewayService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 자기 자신의 Spring 프록시.
+     *
+     * @Async 는 프록시를 거쳐 호출될 때만 동작한다. 같은 클래스 안에서 this.runAsync() 로 부르면
+     * 프록시를 건너뛰어 그냥 같은 스레드에서 실행되고, 그 결과 작업을 "만들기만" 하려던 요청이
+     * Docker 이미지 빌드와 AI 호출이 끝날 때까지 몇 분씩 막힌다.
+     * 순환 참조를 피하기 위해 @Lazy 로 늦게 주입받는다.
+     */
+    private final AiJobService self;
+
     public AiJobService(
             AiJobRepository aiJobRepository,
             ProjectService projectService,
@@ -50,7 +61,8 @@ public class AiJobService {
             AiPostApplyVerificationService postApplyVerificationService,
             SlackNotificationService slackNotificationService,
             GitCommitService gitCommitService,
-            LlmGatewayService llmGatewayService
+            LlmGatewayService llmGatewayService,
+            @Lazy AiJobService self
     ) {
         this.aiJobRepository = aiJobRepository;
         this.projectService = projectService;
@@ -61,6 +73,7 @@ public class AiJobService {
         this.slackNotificationService = slackNotificationService;
         this.gitCommitService = gitCommitService;
         this.llmGatewayService = llmGatewayService;
+        this.self = self;
     }
 
     /**
@@ -103,7 +116,7 @@ public class AiJobService {
         job.setCallbackTokenExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
         job = aiJobRepository.save(job);
 
-        runAsync(job.getId());
+        self.runAsync(job.getId());
         return job;
     }
 
@@ -173,7 +186,7 @@ public class AiJobService {
         job.setRequestedBy(requestedBy);
         job = aiJobRepository.save(job);
 
-        runTemplateGenerationAsync(job.getId());
+        self.runTemplateGenerationAsync(job.getId());
         return job;
     }
 

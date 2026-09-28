@@ -439,6 +439,30 @@ export interface AiChatMessage {
   content: string;
   /** 클라이언트에서 생성한 오류 안내 메시지. 서버 히스토리로는 보내지 않는다. */
   error?: boolean;
+  /** 이 답변을 만드는 동안 AI가 실제로 수행하거나 제안한 작업. */
+  actions?: AiChatAction[];
+}
+
+/**
+ * AI가 대화 중에 수행한 작업 한 건.
+ *
+ * FIX_TEST · GENERATE_SCENARIO 는 AI 작업이 만들어진 것으로, 사람이 승인해야 반영된다.
+ * RUN_PROPOSAL 은 아직 아무것도 하지 않은 상태의 실행 제안이다.
+ */
+export interface AiChatAction {
+  type: 'FIX_TEST' | 'GENERATE_SCENARIO' | 'RUN_PROPOSAL';
+  status: 'CREATED' | 'PROPOSED' | 'FAILED';
+  label: string;
+  detail?: string | null;
+  jobId?: number | null;
+  projectId?: string | null;
+  specPath?: string | null;
+  grep?: string | null;
+}
+
+export interface AiChatResponse {
+  answer: string;
+  actions?: AiChatAction[];
 }
 
 export interface AiChatRequest {

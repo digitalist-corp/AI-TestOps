@@ -7,6 +7,7 @@ import com.playops.api.llm.LlmClient;
 import com.playops.api.llm.LlmCredentials;
 import com.playops.api.llm.LlmMessage;
 import com.playops.api.llm.LlmResult;
+import com.playops.api.llm.LlmToolSpec;
 import com.playops.api.repository.AiUsageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,6 +76,30 @@ public class LlmGatewayService {
             return result.text();
         } catch (RuntimeException e) {
             // 실패한 호출도 남긴다. 재시도가 비용을 얼마나 쓰는지 보려면 필요하다.
+            record(resolved, feature, projectId, null, System.currentTimeMillis() - startedAt, false);
+            throw e;
+        }
+    }
+
+    /**
+     * 도구 목록을 함께 건네는 호출.
+     *
+     * 문자열이 아니라 결과 객체를 돌려준다. 모델이 "도구를 불러 달라"고 답하면
+     * 본문 텍스트가 비어 있고 toolCalls 만 채워져 오는데, 문자열만 돌려주면 그 요청이 사라진다.
+     */
+    public LlmResult chatWithTools(AiModelProvider provider, String systemPrompt, List<LlmMessage> messages,
+                                   List<LlmToolSpec> tools, String feature, String projectId) {
+        AiModelProvider resolved = provider != null ? provider : aiProviderSettingsService.getDefaultProvider();
+        LlmClient client = clients.get(resolved);
+        if (client == null) {
+            throw new ApiException(400, "지원하지 않는 AI 공급자입니다: " + resolved);
+        }
+        long startedAt = System.currentTimeMillis();
+        try {
+            LlmResult result = client.chat(resolveCredentials(resolved), systemPrompt, messages, tools);
+            record(resolved, feature, projectId, result, System.currentTimeMillis() - startedAt, true);
+            return result;
+        } catch (RuntimeException e) {
             record(resolved, feature, projectId, null, System.currentTimeMillis() - startedAt, false);
             throw e;
         }
