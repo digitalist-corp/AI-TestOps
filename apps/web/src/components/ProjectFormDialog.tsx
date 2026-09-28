@@ -97,16 +97,38 @@ function runModeOf(form: ProjectFormData): RunMode {
   return form.runnerLifecycle === 'EPHEMERAL' ? 'EPHEMERAL' : 'PERSISTENT';
 }
 
-/** 프로젝트 이름에서 주소로 쓸 ID를 만든다. 한글만 있는 이름은 만들 수 없어 빈 값을 돌려준다. */
-function slugify(name: string): string {
-  return name
+/** 서버가 받는 ID 규칙 — 영문 소문자 · 숫자 · 하이픈, 3~100자, 양 끝은 영숫자. */
+const PROJECT_ID_RULE = /^[a-z0-9][a-z0-9-]{1,98}[a-z0-9]$/;
+const PROJECT_ID_HELP = '영문 소문자 · 숫자 · 하이픈(-)만, 3~100자';
+
+function slugify(value: string): string {
+  return value
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9.\s_-]/g, '')
-    .replace(/[\s_]+/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^[-.]+|[-.]+$/g, '')
-    .slice(0, 40);
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100)
+    .replace(/-+$/, '');
+}
+
+/** 주소에서 ID 후보를 만든다 (예: https://gyengju-go.web.app → gyengju-go-web-app) */
+function slugifyHost(baseUrl: string): string {
+  try {
+    return slugify(new URL(baseUrl.trim()).hostname.replace(/^www\./, ''));
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * 이름으로 ID를 만들고, 한글 이름처럼 영문이 모자라면 사이트 주소에서 만든다.
+ * 둘 다 안 되면 빈 값을 돌려주고 사용자가 직접 적게 한다.
+ */
+function autoProjectId(projectName: string, baseUrl: string): string {
+  const fromName = slugify(projectName);
+  if (fromName.length >= 3) return fromName;
+  const fromHost = slugifyHost(baseUrl);
+  return fromHost.length >= 3 ? fromHost : '';
 }
 
 function FormSection({
@@ -302,10 +324,10 @@ export function ProjectFormDialog({
       if (key === 'dockerEnabled' && value === false) {
         next.runnerLifecycle = 'PERSISTENT';
       }
-      // 새 프로젝트에서는 이름을 적으면 주소(ID)를 자동으로 만들어 준다.
-      if (key === 'projectName' && !initial && !projectIdTouched) {
-        const slug = slugify(String(value));
-        if (slug) next.projectId = slug;
+      // 새 프로젝트에서는 이름 · 주소를 적으면 ID를 자동으로 만들어 준다.
+      if (!initial && !projectIdTouched && (key === 'projectName' || key === 'baseUrl')) {
+        const generated = autoProjectId(next.projectName, next.baseUrl);
+        if (generated) next.projectId = generated;
       }
       return next;
     });
@@ -383,8 +405,12 @@ export function ProjectFormDialog({
       setLoading(false);
       return;
     }
-    if (!form.projectId.trim()) {
-      setError('주소로 쓸 프로젝트 ID를 입력하세요. (고급 설정 > 프로젝트 정보)');
+    if (!PROJECT_ID_RULE.test(form.projectId.trim())) {
+      setError(
+        form.projectId.trim()
+          ? `주소로 쓸 프로젝트 ID "${form.projectId.trim()}" 는 사용할 수 없습니다. ${PROJECT_ID_HELP}로 지어주세요.`
+          : `주소로 쓸 프로젝트 ID를 입력하세요. ${PROJECT_ID_HELP}.`
+      );
       setAdvancedOpen(true);
       setLoading(false);
       return;
@@ -419,7 +445,7 @@ export function ProjectFormDialog({
   const creating = !initial;
   const runMode = runModeOf(form);
   // 이름이 한글뿐이면 주소를 자동으로 만들 수 없으므로 ID 칸을 앞에 내놓는다.
-  const needsManualId = creating && Boolean(form.projectName.trim()) && !form.projectId.trim();
+  const needsManualId = creating && Boolean(form.projectName.trim()) && !PROJECT_ID_RULE.test(form.projectId.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -516,7 +542,7 @@ export function ProjectFormDialog({
                   needsManualId ? (
                     <div className="space-y-1.5 rounded-sm border border-border bg-muted p-3">
                       <Label htmlFor="projectIdInline" className="text-[13px]">
-                        주소로 쓸 이름을 영문으로 지어주세요
+                        주소로 쓸 이름을 영문으로 지어주세요 ({PROJECT_ID_HELP})
                       </Label>
                       <Input
                         id="projectIdInline"
@@ -702,9 +728,9 @@ export function ProjectFormDialog({
                           disabled={!creating}
                           className="font-mono text-[13px]"
                         />
-                        {!creating && (
-                          <p className="text-[13px] text-muted-foreground">등록 후에는 바꿀 수 없습니다.</p>
-                        )}
+                        <p className="text-[13px] text-muted-foreground">
+                          {creating ? PROJECT_ID_HELP : '등록 후에는 바꿀 수 없습니다.'}
+                        </p>
                       </div>
                       <div className="space-y-2 md:col-span-2">
                         <Label>목록 순서</Label>
