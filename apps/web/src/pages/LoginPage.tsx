@@ -21,28 +21,38 @@ const HIGHLIGHTS = [
   '실행 이력과 리포트가 프로젝트별로 쌓입니다.',
 ];
 
+/** 서버에 닿지도 못했을 때 나타나는 메시지들 */
+const CONNECTION_ERRORS = [
+  'failed to fetch',
+  'networkerror',
+  'econnrefused',
+  'err_connection',
+  'internal server error',
+  'bad gateway',
+  'service unavailable',
+  'gateway timeout',
+];
+
+/**
+ * 실패 원인을 실제 순서대로 판단한다.
+ * 예전에는 .env 안내가 맨 앞에 있어서, 서버가 꺼져 있어도 .env 탓으로 보였다.
+ */
 function getLoginErrorMessage(err: unknown) {
   const baseMessage = err instanceof Error ? err.message : '로그인 실패';
+  const lower = baseMessage.toLowerCase();
 
-  if (!ENV_FILE_PRESENT) {
+  if (CONNECTION_ERRORS.some((hint) => lower.includes(hint))) {
     return [
-      '로그인 실패',
-      '프로젝트 루트에 .env 파일이 없거나 환경변수 PLAYOPS_ENV_FILE_PRESENT=true 설정이 누락되었습니다.',
-      '루트 .env를 만든 뒤 docker compose 컨테이너를 재생성하세요.',
+      'API 서버에 연결하지 못했습니다.',
+      '왼쪽 서비스 상태에서 API가 빨간색이면 서버가 아직 떠 있지 않은 것입니다.',
+      ENV_FILE_PRESENT
+        ? '잠시 후 다시 시도하세요.'
+        : '개발 중이라면 루트 .env를 만든 뒤 docker compose로 api 컨테이너를 띄우세요.',
     ].join('\n');
   }
 
-  if (
-    baseMessage.includes('Failed to fetch') ||
-    baseMessage.includes('Internal Server Error') ||
-    baseMessage.includes('NetworkError') ||
-    baseMessage.includes('ECONNREFUSED')
-  ) {
-    return [
-      '로그인 실패',
-      'API 서버가 아직 준비되지 않았거나 연결할 수 없습니다.',
-      '잠시 후 다시 시도하거나 http://localhost:8080/actuator/health 상태가 UP인지 확인하세요.',
-    ].join('\n');
+  if (lower.includes('unauthorized')) {
+    return '사용자명 또는 비밀번호가 올바르지 않습니다.';
   }
 
   return baseMessage;
@@ -183,6 +193,7 @@ export function LoginPage() {
 
   const services = health?.services ?? [webHealth()];
   const allHealthy = services.every((service) => service.status === 'ONLINE');
+  const apiOffline = services.some((service) => service.id === 'api' && service.status !== 'ONLINE');
   const troubleshoot = troubleshootMessage(services);
 
   return (
@@ -312,6 +323,11 @@ export function LoginPage() {
                   className="whitespace-pre-line rounded-sm border border-destructive bg-destructive/10 px-3.5 py-2.5 text-[15px] text-destructive"
                 >
                   {error}
+                </p>
+              )}
+              {apiOffline && !error && (
+                <p className="rounded-sm border border-warning bg-warning/10 px-3.5 py-2.5 text-[13px] text-warning">
+                  API 서버가 응답하지 않습니다. 서버가 뜬 뒤에 로그인할 수 있습니다.
                 </p>
               )}
               <Button type="submit" className="w-full" disabled={loading}>
