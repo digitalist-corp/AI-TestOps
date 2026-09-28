@@ -480,6 +480,30 @@ export function ProjectFormDialog({
               </div>
 
               <div className="space-y-2">
+                <Label>환경</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([['DEV', '개발'], ['TEST', '테스트'], ['PROD', '운영']] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => update('serverType', value)}
+                      className={cn(
+                        'h-10 rounded-sm border text-[15px] font-bold transition-colors',
+                        form.serverType === value
+                          ? 'border-primary bg-primary-subtle text-primary'
+                          : 'border-border bg-card text-muted-foreground hover:bg-accent'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[13px] text-muted-foreground">
+                  목록에서 이 기준으로 모아 볼 수 있습니다. 나중에 설정에서 바꿔도 됩니다.
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="projectName">프로젝트 이름 <span className="text-destructive">*</span></Label>
                 <Input
                   id="projectName"
@@ -681,18 +705,6 @@ export function ProjectFormDialog({
                         {!creating && (
                           <p className="text-[13px] text-muted-foreground">등록 후에는 바꿀 수 없습니다.</p>
                         )}
-                      </div>
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>서버 구분</Label>
-                        <select
-                          className={selectClass}
-                          value={form.serverType}
-                          onChange={(e) => update('serverType', e.target.value)}
-                        >
-                          <option value="DEV">개발</option>
-                          <option value="TEST">테스트</option>
-                          <option value="PROD">운영</option>
-                        </select>
                       </div>
                       <div className="space-y-2 md:col-span-2">
                         <Label>목록 순서</Label>

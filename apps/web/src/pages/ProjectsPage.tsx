@@ -9,12 +9,19 @@ import { Input } from '@/components/ui/Input';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { AiBootstrapProgressDialog } from '@/components/AiBootstrapProgressDialog';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
-import { ProjectCard, isRunnerReady } from '@/components/project/ProjectCard';
+import { ProjectCard, healthLabel, isRunnerReady, projectHealth, type ProjectHealth } from '@/components/project/ProjectCard';
 import { isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { cn } from '@/lib/utils';
 
-type ProjectFilter = 'ALL' | 'RUNNING' | 'TESTING' | 'ERROR' | 'EPHEMERAL';
+type EnvFilter = 'ALL' | Project['serverType'];
+type HealthFilter = 'ALL' | ProjectHealth;
+
+const ENV_LABEL: Record<Exclude<EnvFilter, 'ALL'>, string> = {
+  DEV: '개발',
+  TEST: '테스트',
+  PROD: '운영',
+};
 
 /** 등록 직후 카드를 강조해 두는 시간 */
 const JUST_CREATED_MS = 60_000;
@@ -37,7 +44,8 @@ export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<ProjectFilter>('ALL');
+  const [envFilter, setEnvFilter] = useState<EnvFilter>('ALL');
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [aiBootstrap, setAiBootstrap] = useState<{ projectId: string; instruction: string } | null>(null);
   const [editProject, setEditProject] = useState<Project | null>(null);
@@ -80,25 +88,23 @@ export function ProjectsPage() {
     return () => clearTimeout(timer);
   }, [justCreatedId]);
 
-  const stats = useMemo(() => ({
-    total: projects.length,
-    ready: projects.filter(isRunnerReady).length,
-    testing: projects.filter((project) => project.runnerActivity === 'TESTING').length,
-    failed: projects.filter((project) =>
-      project.latestExecutionStatus === 'FAILED' || project.latestExecutionStatus === 'ERROR'
-    ).length,
-    ephemeral: projects.filter((project) => project.runnerLifecycle === 'EPHEMERAL').length,
-  }), [projects]);
+  // 환경은 사람이 고른 값, 상태는 실행 이력에서 자동으로 판정한 값이다.
+  const counts = useMemo(() => {
+    const env: Record<string, number> = { DEV: 0, TEST: 0, PROD: 0 };
+    const health: Record<string, number> = { READY: 0, RUNNING: 0, OK: 0, ATTENTION: 0 };
+    projects.forEach((project) => {
+      env[project.serverType] = (env[project.serverType] ?? 0) + 1;
+      const state = projectHealth(project);
+      health[state] = (health[state] ?? 0) + 1;
+    });
+    return { total: projects.length, env, health };
+  }, [projects]);
 
   const filteredProjects = useMemo(() => projects
     .filter((project) => {
       if (!matchesQuery(project, query)) return false;
-      if (filter === 'RUNNING') return isRunnerReady(project);
-      if (filter === 'TESTING') return project.runnerActivity === 'TESTING';
-      if (filter === 'ERROR') return project.dockerStatus === 'ERROR'
-        || project.latestExecutionStatus === 'FAILED'
-        || project.latestExecutionStatus === 'ERROR';
-      if (filter === 'EPHEMERAL') return project.runnerLifecycle === 'EPHEMERAL';
+      if (envFilter !== 'ALL' && project.serverType !== envFilter) return false;
+      if (healthFilter !== 'ALL' && projectHealth(project) !== healthFilter) return false;
       return true;
     })
     // 방금 등록한 프로젝트를 맨 앞에, 그다음은 지정한 순서대로
@@ -107,13 +113,14 @@ export function ProjectsPage() {
       if (b.projectId === justCreatedId) return 1;
       return (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
         || a.projectName.localeCompare(b.projectName, 'ko');
-    }), [projects, query, filter, justCreatedId]);
+    }), [projects, query, envFilter, healthFilter, justCreatedId]);
 
   const handleCreate = async (data: ProjectFormData, aiBootstrapInstruction?: string) => {
     await api.createProject(data);
     setDialogOpen(false);
     setJustCreatedId(data.projectId);
-    setFilter('ALL');
+    setEnvFilter('ALL');
+    setHealthFilter('ALL');
     setQuery('');
     loadProjects();
     if (aiBootstrapInstruction) {
@@ -193,13 +200,25 @@ export function ProjectsPage() {
     }
   };
 
-  const filterButtons: Array<{ id: ProjectFilter; label: string; count: number }> = [
-    { id: 'ALL', label: '전체', count: stats.total },
-    { id: 'RUNNING', label: '실행 가능', count: stats.ready },
-    { id: 'TESTING', label: '테스트 중', count: stats.testing },
-    { id: 'ERROR', label: '오류 · 실패', count: stats.failed },
-    { id: 'EPHEMERAL', label: '일회용', count: stats.ephemeral },
+  const envButtons: Array<{ id: EnvFilter; label: string; count: number }> = [
+    { id: 'ALL', label: '전체', count: counts.total },
+    { id: 'DEV', label: ENV_LABEL.DEV, count: counts.env.DEV },
+    { id: 'TEST', label: ENV_LABEL.TEST, count: counts.env.TEST },
+    { id: 'PROD', label: ENV_LABEL.PROD, count: counts.env.PROD },
   ];
+
+  const healthButtons: Array<{ id: HealthFilter; label: string; count: number }> = [
+    { id: 'ALL', label: '전체', count: counts.total },
+    { id: 'READY', label: healthLabel.READY, count: counts.health.READY },
+    { id: 'RUNNING', label: healthLabel.RUNNING, count: counts.health.RUNNING },
+    { id: 'OK', label: healthLabel.OK, count: counts.health.OK },
+    { id: 'ATTENTION', label: healthLabel.ATTENTION, count: counts.health.ATTENTION },
+  ];
+
+  const chipClass = (active: boolean) => cn(
+    'h-8 rounded-sm px-3 text-[13px] font-bold transition-colors',
+    active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-card hover:text-foreground'
+  );
 
   const emptyReason = projects.length === 0
     ? { title: '등록된 프로젝트가 없습니다', desc: '테스트할 사이트 주소만 있으면 바로 시작할 수 있습니다.' }
@@ -237,22 +256,29 @@ export function ProjectsPage() {
             className="h-10 pl-9"
           />
         </div>
-        <div className="flex flex-wrap gap-1 rounded-sm border border-border bg-muted p-1">
-          {filterButtons.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setFilter(item.id)}
-              className={cn(
-                'h-8 rounded-sm px-3 text-[13px] font-bold transition-colors',
-                filter === item.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:bg-card hover:text-foreground'
-              )}
-            >
-              {item.label} {item.count}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-[13px] font-bold text-muted-foreground">환경</span>
+            <div className="flex flex-wrap gap-1 rounded-sm border border-border bg-muted p-1">
+              {envButtons.map((item) => (
+                <button key={item.id} type="button" onClick={() => setEnvFilter(item.id)}
+                        className={chipClass(envFilter === item.id)}>
+                  {item.label} {item.count}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 text-[13px] font-bold text-muted-foreground">상태</span>
+            <div className="flex flex-wrap gap-1 rounded-sm border border-border bg-muted p-1">
+              {healthButtons.map((item) => (
+                <button key={item.id} type="button" onClick={() => setHealthFilter(item.id)}
+                        className={chipClass(healthFilter === item.id)}>
+                  {item.label} {item.count}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

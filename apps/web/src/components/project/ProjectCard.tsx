@@ -58,6 +58,35 @@ const executionStatusTone: Record<ExecutionStatus, string> = {
   ERROR: 'border-destructive/30 bg-destructive/10 text-destructive',
 };
 
+/** 손으로 관리하지 않아도 항상 맞도록, 실행 이력에서 상태를 자동으로 판정한다. */
+export type ProjectHealth = 'READY' | 'RUNNING' | 'OK' | 'ATTENTION';
+
+export const healthLabel: Record<ProjectHealth, string> = {
+  READY: '준비 중',
+  RUNNING: '실행 중',
+  OK: '정상',
+  ATTENTION: '확인 필요',
+};
+
+const healthTone: Record<ProjectHealth, string> = {
+  READY: 'border-border bg-muted text-muted-foreground',
+  RUNNING: 'border-primary/30 bg-primary/10 text-primary',
+  OK: 'border-success/30 bg-success/10 text-success',
+  ATTENTION: 'border-destructive/30 bg-destructive/10 text-destructive',
+};
+
+export function projectHealth(project: Project): ProjectHealth {
+  const status = project.latestExecutionStatus;
+  if (status === 'RUNNING' || status === 'PENDING' || status === 'CANCEL_REQUESTED'
+    || project.runnerActivity === 'TESTING') return 'RUNNING';
+  if (status === 'FAILED' || status === 'ERROR' || project.dockerStatus === 'ERROR'
+    || resolveEnvRequirementState(project.loginEnvRequired, project.envVariables) === 'required-missing') {
+    return 'ATTENTION';
+  }
+  if (!status) return 'READY';
+  return status === 'PASSED' ? 'OK' : 'READY';
+}
+
 export function isRunnerReady(project: Project) {
   return project.dockerStatus === 'RUNNING'
     || (project.dockerEnabled && project.runnerLifecycle === 'EPHEMERAL');
@@ -183,6 +212,7 @@ export function ProjectCard({
         <div className="flex shrink-0 flex-col items-end gap-1">
           {justCreated && <Chip tone="border-primary/30 bg-primary/10 text-primary">방금 등록됨</Chip>}
           <Chip tone="border-border bg-muted text-secondary-foreground">{serverTypeLabel[project.serverType]}</Chip>
+          <Chip tone={healthTone[projectHealth(project)]}>{healthLabel[projectHealth(project)]}</Chip>
         </div>
       </div>
 
