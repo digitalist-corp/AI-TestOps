@@ -8,7 +8,7 @@
     <script>
       (function () {
         var stored = localStorage.getItem('playops.theme');
-        var dark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var dark = stored === 'dark'; // 기본값은 라이트
         if (dark) document.documentElement.classList.add('dark');
       })();
     </script>
