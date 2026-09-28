@@ -485,6 +485,7 @@ export interface AiAvailability {
   claude: boolean;
   gpt: boolean;
   anyConfigured: boolean;
+  defaultProvider: 'CLAUDE' | 'GPT';
 }
 
 export interface SiteCheckResult {
@@ -534,9 +535,46 @@ export interface AiProviderSettingsResponse {
   openaiMasked: string;
   claudeWorkspaceId?: string;
   updatedAt?: string;
+  defaultProvider?: 'CLAUDE' | 'GPT';
+  claudeInputPrice?: number | null;
+  claudeOutputPrice?: number | null;
+  openaiInputPrice?: number | null;
+  openaiOutputPrice?: number | null;
+}
+
+export interface AiUsageProvider {
+  provider: 'CLAUDE' | 'GPT';
+  calls: number;
+  failedCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  priceConfigured: boolean;
+}
+
+export interface AiUsageFeature {
+  feature: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface AiUsageSummary {
+  days: number;
+  from: string;
+  totalCalls: number;
+  estimatedCostUsd: number;
+  priceConfigured: boolean;
+  providers: AiUsageProvider[];
+  features: AiUsageFeature[];
 }
 
 export interface AiProviderSettingsRequest {
+  defaultProvider?: 'CLAUDE' | 'GPT';
+  claudeInputPrice?: number;
+  claudeOutputPrice?: number;
+  openaiInputPrice?: number;
+  openaiOutputPrice?: number;
   claudeApiKey?: string;
   openaiApiKey?: string;
   claudeWorkspaceId?: string;

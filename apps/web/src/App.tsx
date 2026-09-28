@@ -4,6 +4,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
 import { ProjectDetailPage } from '@/pages/ProjectDetailPage';
 import { UsersPage } from '@/pages/UsersPage';
+import { AiSettingsPage } from '@/pages/AiSettingsPage';
 import { AiJobsPage } from '@/pages/AiJobsPage';
 import { TemplatesPage } from '@/pages/TemplatesPage';
 import { RunnerContainersPage } from '@/pages/RunnerContainersPage';
@@ -39,6 +40,7 @@ export function App() {
           <Route path="board" element={<BoardPage />} />
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="ai-jobs" element={<AiJobsPage />} />
+          <Route path="ai-settings" element={<AiSettingsPage />} />
           <Route path="users" element={<UsersPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/projects" replace />} />

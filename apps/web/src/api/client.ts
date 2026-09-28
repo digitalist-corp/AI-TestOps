@@ -27,6 +27,7 @@ import type {
   ScenarioUsageRequest,
   ScaffoldResult,
   AiAvailability,
+  AiUsageSummary,
   ServiceHealth,
   SiteCheckResult,
   User,
@@ -163,6 +164,9 @@ export const api = {
   getProjects: () => request<Project[]>('/api/projects'),
   getAiAvailability: () =>
     request<AiAvailability>('/api/ai/availability'),
+
+  getAiUsage: (days = 30) =>
+    request<AiUsageSummary>(`/api/ai/usage?days=${days}`),
 
   checkSite: (url: string) =>
     request<SiteCheckResult>(`/api/projects/site-check?url=${encodeURIComponent(url)}`),

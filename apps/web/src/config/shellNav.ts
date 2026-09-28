@@ -3,6 +3,7 @@ import {
   Container,
   FileCode,
   FolderTree,
+  Gauge,
   GitBranch,
   LayoutDashboard,
   MessageSquareText,
@@ -35,6 +36,7 @@ export const RAIL_ITEMS: RailItem[] = [
   { to: '/board', label: '공지 / 게시판', icon: MessageSquareText },
   { to: '/templates', label: 'Playwright 템플릿', icon: FileCode },
   { to: '/ai-jobs', label: 'AI 검토', icon: Sparkles, adminOnly: true },
+  { to: '/ai-settings', label: 'AI 설정 · 사용량', icon: Gauge },
   { to: '/users', label: '사용자 관리', icon: Users, adminOnly: true },
 ];
 

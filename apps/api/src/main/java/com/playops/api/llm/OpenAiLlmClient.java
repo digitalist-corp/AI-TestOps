@@ -26,7 +26,7 @@ public class OpenAiLlmClient extends AbstractHttpLlmClient {
     }
 
     @Override
-    public String chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages) {
+    public LlmResult chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages) {
         List<Map<String, String>> payloadMessages = new ArrayList<>();
         payloadMessages.add(Map.of("role", "system", "content", systemPrompt));
         for (LlmMessage message : messages) {
@@ -47,7 +47,13 @@ public class OpenAiLlmClient extends AbstractHttpLlmClient {
                     .body(String.class);
 
             JsonNode root = objectMapper.readTree(responseJson);
-            return root.path("choices").get(0).path("message").path("content").asText();
+            JsonNode usage = root.path("usage");
+            return new LlmResult(
+                    root.path("choices").get(0).path("message").path("content").asText(),
+                    usage.path("prompt_tokens").asInt(0),
+                    usage.path("completion_tokens").asInt(0),
+                    root.path("model").asText(null)
+            );
         } catch (Exception e) {
             throw new ApiException(502, "OpenAI API 호출 실패: " + e.getMessage());
         }

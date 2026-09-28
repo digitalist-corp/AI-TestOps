@@ -57,7 +57,8 @@ public class AiEditAssistService {
                 + (currentContent != null ? currentContent : "")
                 + "\n```\n\n요청 사항: " + instruction;
 
-        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt);
+        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt,
+                "편집 도움", project.getProjectId());
         return stripMarkdownFence(raw);
     }
 

@@ -252,7 +252,7 @@ public class AiAnalysisService {
      */
     private String callLlm(AiModelProvider provider, String systemPrompt, List<LlmMessage> messages) {
         try {
-            return llmGatewayService.chat(provider, systemPrompt, messages);
+            return llmGatewayService.chat(provider, systemPrompt, messages, "실패 분석", null);
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {

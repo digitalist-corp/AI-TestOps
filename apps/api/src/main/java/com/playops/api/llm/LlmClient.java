@@ -9,5 +9,5 @@ public interface LlmClient {
 
     AiModelProvider provider();
 
-    String chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages);
+    LlmResult chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages);
 }

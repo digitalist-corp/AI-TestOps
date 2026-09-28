@@ -259,7 +259,8 @@ public class AiJobService {
                 + "\n생성할 파일 경로: " + targetSpecPath
                 + "\n요구사항: " + instruction;
 
-        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt);
+        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt,
+                "코드 수정", project.getProjectId());
         return stripMarkdownFence(raw);
     }
 

@@ -26,7 +26,7 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
     }
 
     @Override
-    public String chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages) {
+    public LlmResult chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages) {
         List<Map<String, String>> payloadMessages = new ArrayList<>();
         for (LlmMessage message : messages) {
             payloadMessages.add(Map.of("role", roleOf(message), "content", message.content()));
@@ -67,7 +67,13 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
                     }
                 }
             }
-            return text.toString();
+            JsonNode usage = root.path("usage");
+            return new LlmResult(
+                    text.toString(),
+                    usage.path("input_tokens").asInt(0),
+                    usage.path("output_tokens").asInt(0),
+                    root.path("model").asText(claudeModel)
+            );
         } catch (Exception e) {
             throw new ApiException(502, "Claude API 호출 실패: " + e.getMessage());
         }

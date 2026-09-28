@@ -81,6 +81,13 @@ const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
     },
   },
   {
+    prefix: '/ai-settings',
+    help: {
+      title: 'AI 설정 · 사용량',
+      body: '어떤 AI(Claude · GPT)를 쓸지 고르고, 토큰을 얼마나 썼는지 봅니다. 실제 청구액은 각 공급자 콘솔에서 확인하세요.',
+    },
+  },
+  {
     prefix: '/users',
     help: {
       title: '사용자 관리',

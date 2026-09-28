@@ -22,12 +22,13 @@ public class AiAvailabilityController {
         this.aiProviderSettingsService = aiProviderSettingsService;
     }
 
-    public record AiAvailabilityResponse(boolean claude, boolean gpt, boolean anyConfigured) {}
+    public record AiAvailabilityResponse(boolean claude, boolean gpt, boolean anyConfigured, String defaultProvider) {}
 
     @GetMapping
     public AiAvailabilityResponse get() {
         boolean claude = aiProviderSettingsService.hasKey(AiModelProvider.CLAUDE);
         boolean gpt = aiProviderSettingsService.hasKey(AiModelProvider.GPT);
-        return new AiAvailabilityResponse(claude, gpt, claude || gpt);
+        return new AiAvailabilityResponse(claude, gpt, claude || gpt,
+                aiProviderSettingsService.getDefaultProvider().name());
     }
 }
