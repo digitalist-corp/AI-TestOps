@@ -178,6 +178,10 @@ async function main() {
   if (job.jobType === 'EDIT_ASSIST_VERIFY') {
     return runEditAssistVerify(job);
   }
+  if (job.jobType === 'SITE_ANALYSIS') {
+    // 대상 분석은 LLM 을 부르지 않는 결정적 탐색이라 별도 모듈로 둔다 (analyze.js 참고).
+    return require('./analyze').runSiteAnalysis(job, resultDir);
+  }
 
   const targetSpecPath = job.targetSpecPath;
   const specFullPath = path.join(WORKSPACE, targetSpecPath);
@@ -285,6 +289,8 @@ main().catch((e) => {
     const failedJob = JSON.parse(fs.readFileSync(jobFile, 'utf-8'));
     if (failedJob.jobType === 'EDIT_ASSIST_VERIFY') {
       writeResult({ status: 'ERROR', passed: false, output: String(e.message || e) });
+    } else if (failedJob.jobType === 'SITE_ANALYSIS') {
+      writeResult({ version: 1, jobId: failedJob.jobId ?? null, status: 'ERROR', error: String(e.message || e) });
     } else {
       writeResult({
         jobId: failedJob.jobId,
