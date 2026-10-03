@@ -173,7 +173,7 @@ export function SourceExplorerTab({ projectId, project, files, onFilesChange, in
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[520px]">
+    <div className="grid grid-cols-1 @5xl:grid-cols-3 gap-4 min-h-[520px]">
       <div className="border border-border rounded-lg p-3 bg-muted/50 overflow-auto max-h-[600px]">
         <p className="text-xs font-medium text-muted-foreground mb-2">파일 탐색기</p>
         <FileTree
@@ -183,7 +183,7 @@ export function SourceExplorerTab({ projectId, project, files, onFilesChange, in
           isRestrictedFile={isRestrictedFile}
         />
       </div>
-      <div className="lg:col-span-2 flex flex-col border border-border rounded-lg overflow-hidden min-h-[520px]">
+      <div className="min-w-0 @5xl:col-span-2 flex flex-col border border-border rounded-lg overflow-hidden min-h-[520px]">
         {versionWarning && (
           <div className="flex items-center gap-2 border-b border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" />

@@ -335,7 +335,7 @@ export function UsersPage() {
           </p>
         </div>
         <form onSubmit={handleSaveAiSettings} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 @3xl:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="flex items-center justify-between">
                 <span>Claude API Key</span>

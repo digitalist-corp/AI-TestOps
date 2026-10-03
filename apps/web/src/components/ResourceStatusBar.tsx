@@ -160,11 +160,11 @@ export function ResourceStatusBar() {
     <div className="fixed bottom-0 right-0 z-40" style={{ left: "var(--shell-left, 0px)" }}>
       <div
         className={cn(
-          'border-t px-4 py-2.5 backdrop-blur',
+          '@container border-t px-4 py-2.5 backdrop-blur',
           barTone[resourceState.overallLevel]
         )}
       >
-        <div className="grid min-w-0 grid-cols-[190px_minmax(360px,1fr)_minmax(260px,520px)] items-center gap-x-5 gap-y-2 text-xs max-xl:grid-cols-[190px_minmax(0,1fr)]">
+        <div className="grid min-w-0 grid-cols-[190px_minmax(360px,1fr)_minmax(260px,520px)] items-center gap-x-5 gap-y-2 text-xs @max-7xl:grid-cols-[190px_minmax(0,1fr)]">
           <div className="flex min-w-0 items-center gap-2 font-medium">
             <span className={cn('h-2.5 w-2.5 rounded-full', dotTone[resourceState.overallLevel])} />
             <span>리소스 현황</span>
@@ -183,7 +183,7 @@ export function ResourceStatusBar() {
             ))}
           </div>
 
-          <div className="flex min-w-0 items-center gap-2 max-xl:col-span-2">
+          <div className="flex min-w-0 items-center gap-2 @max-7xl:col-span-2">
             <Bell className="h-3.5 w-3.5 shrink-0 opacity-70" />
             <div
               className="flex min-w-0 flex-1 items-center gap-2 font-medium"

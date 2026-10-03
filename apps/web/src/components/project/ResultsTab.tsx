@@ -145,7 +145,7 @@ export function ResultsTab({ detail, loading }: Props) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-4">
         {[
           ['상태', statusLabel[ex.status] ?? ex.status],
           ['통과', `${ex.passedTests} / ${ex.totalTests}`],
@@ -203,7 +203,7 @@ export function ResultsTab({ detail, loading }: Props) {
         {artifacts.length === 0 ? (
           <p className="text-sm text-muted-foreground">아티팩트가 없습니다.</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[280px] overflow-auto">
+          <div className="grid grid-cols-1 @min-[40rem]:grid-cols-2 gap-2 max-h-[280px] overflow-auto">
             {artifacts.map((a) => {
               const Icon = typeIcon[a.type] ?? ExternalLink;
               return (

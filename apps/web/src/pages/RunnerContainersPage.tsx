@@ -536,7 +536,7 @@ export function RunnerContainersPage() {
           </span>
         </div>
         <div className="px-4 py-4">
-          <div className="mb-4 grid gap-3 sm:grid-cols-5">
+          <div className="mb-4 grid gap-3 @min-[40rem]:grid-cols-5">
             {[
               ['Pool', capacity?.poolSize ?? 0],
               ['Active', capacity?.activeCount ?? 0],
@@ -550,9 +550,9 @@ export function RunnerContainersPage() {
               </div>
             ))}
           </div>
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,auto)]">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              <label className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm sm:col-span-2 lg:col-span-1">
+          <div className="grid gap-4 @5xl:grid-cols-[minmax(0,1fr)_minmax(220px,auto)]">
+            <div className="grid gap-3 @min-[40rem]:grid-cols-2 @5xl:grid-cols-5">
+              <label className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm @min-[40rem]:col-span-2 @5xl:col-span-1">
                 <span>
                   <span className="block font-medium text-foreground">오토스케일</span>
                   <span className="block text-xs text-muted-foreground">끄면 기본 수로 고정</span>
@@ -610,7 +610,7 @@ export function RunnerContainersPage() {
                 />
               </label>
             </div>
-            <div className="flex flex-col items-start gap-2 lg:items-end">
+            <div className="flex flex-col items-start gap-2 @5xl:items-end">
               <Button type="button" size="sm" onClick={saveRunnerCapacity} disabled={capacitySaving}>
                 <Save className={cn('h-4 w-4', capacitySaving && 'animate-pulse')} />
                 {capacitySaving ? '저장 중' : '저장'}

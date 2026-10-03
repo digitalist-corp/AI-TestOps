@@ -193,7 +193,7 @@ export function TemplatesPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 @5xl:flex-row @5xl:items-start @5xl:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Playwright 템플릿</h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -231,7 +231,7 @@ export function TemplatesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 @5xl:grid-cols-3 gap-4">
         <div className="space-y-3">
           {templates.map((template) => (
             <button
@@ -262,9 +262,9 @@ export function TemplatesPage() {
           ))}
         </div>
 
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 @5xl:col-span-2">
           <CardHeader>
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-3 @3xl:flex-row @3xl:items-start @3xl:justify-between">
               <div>
                 <CardTitle className="text-base">{selected?.name ?? '템플릿 선택'}</CardTitle>
                 <CardDescription>{selected?.description ?? '관리할 템플릿을 선택하세요.'}</CardDescription>
@@ -295,7 +295,7 @@ export function TemplatesPage() {
           </CardHeader>
           <CardContent>
             {selected ? (
-              <div className="grid grid-cols-1 md:grid-cols-[minmax(180px,240px)_1fr] gap-4 min-h-[420px]">
+              <div className="grid grid-cols-1 @3xl:grid-cols-[minmax(180px,240px)_1fr] gap-4 min-h-[420px]">
                 <div className="border border-border rounded-lg p-3 bg-muted/50 max-h-[520px] overflow-auto">
                   <FileTree files={selected.files} onFileClick={handleSelectFile} selectedPath={filePath} />
                 </div>
