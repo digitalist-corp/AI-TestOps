@@ -215,7 +215,7 @@ export function ProjectDashboardTab({
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 @5xl:flex-row @5xl:items-center @5xl:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-foreground">프로젝트 대시보드</h3>
           <p className="text-sm text-muted-foreground mt-1">{project.projectName}의 실행 상태와 최근 결과를 한눈에 봅니다.</p>
@@ -236,7 +236,7 @@ export function ProjectDashboardTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 @3xl:grid-cols-2 @7xl:grid-cols-5 gap-3">
         {[
           ['최종 결과', latest ? statusLabel[latest.status] : '-', latest?.status],
           ['성공률', percent(statusCounts.PASSED, successRateBase), null],
@@ -257,7 +257,7 @@ export function ProjectDashboardTab({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 @7xl:grid-cols-2 gap-4">
         <section className="rounded-lg border border-border bg-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <BarChart3 className="h-4 w-4 text-primary" />

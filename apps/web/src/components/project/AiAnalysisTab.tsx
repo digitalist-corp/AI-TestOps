@@ -206,7 +206,7 @@ export function AiAnalysisTab({
     <div className="space-y-4">
       {/* 1. 상단 컨트롤 바 (다른 페이지와 100% 동일한 깔끔한 백색 카드 디자인) */}
       <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-col @5xl:flex-row @5xl:items-center justify-between gap-4">
           {/* 타겟 실행 이력 선택 */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">실행 이력:</span>
@@ -402,7 +402,7 @@ export function AiAnalysisTab({
           </div>
 
           {/* 3대 상세 해설 카드 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 @3xl:grid-cols-3 gap-4">
             {/* 🔍 맞춤형 원인 해설 */}
             <div className="rounded-xl border border-border bg-card p-4 flex flex-col space-y-2">
               <div className="flex items-center justify-between border-b border-border pb-2">
