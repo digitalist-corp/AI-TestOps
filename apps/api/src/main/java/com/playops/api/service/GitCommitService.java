@@ -61,7 +61,7 @@ public class GitCommitService {
         List<String> script = new ArrayList<>();
         script.add("set -euo pipefail");
         script.add("git config user.email 'ai@playops.local'");
-        script.add("git config user.name 'PlayOps AI'");
+        script.add("git config user.name 'AI-TestOps AI'");
         script.add("git remote set-url origin " + GitRepositoryService.shellDoubleQuote(remoteUrl));
         script.add("git add -- " + changedFiles.stream().map(this::shellQuote).collect(Collectors.joining(" ")));
         script.add("git commit --quiet -m " + shellQuote(message));
@@ -82,7 +82,7 @@ public class GitCommitService {
         List<String> script = new ArrayList<>();
         script.add("set -euo pipefail");
         script.add("git config user.email 'ai@playops.local'");
-        script.add("git config user.name 'PlayOps AI'");
+        script.add("git config user.name 'AI-TestOps AI'");
         script.add("git remote set-url origin " + GitRepositoryService.shellDoubleQuote(remoteUrl));
         script.add("git revert --no-edit " + shellQuote(commitSha));
         script.add("git push --quiet");

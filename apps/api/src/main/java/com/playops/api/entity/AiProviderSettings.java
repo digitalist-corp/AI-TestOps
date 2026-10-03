@@ -22,6 +22,27 @@ public class AiProviderSettings {
     @Column(name = "claude_workspace_id")
     private String claudeWorkspaceId;
 
+    /** 화면에서 공급자를 고르지 않았을 때 사용할 공급자 */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "default_provider", length = 16)
+    private AiModelProvider defaultProvider = AiModelProvider.CLAUDE;
+
+    /**
+     * 100만 토큰당 단가(USD). 공급자가 사용량 조회 API를 공개하지 않아 실제 청구액을 가져올 수 없어,
+     * 기록한 토큰 수에 이 값을 곱해 추정치를 보여준다. 가격이 바뀌면 관리자가 직접 고친다.
+     */
+    @Column(name = "claude_input_price")
+    private Double claudeInputPrice;
+
+    @Column(name = "claude_output_price")
+    private Double claudeOutputPrice;
+
+    @Column(name = "openai_input_price")
+    private Double openaiInputPrice;
+
+    @Column(name = "openai_output_price")
+    private Double openaiOutputPrice;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -30,6 +51,21 @@ public class AiProviderSettings {
     void onSave() {
         updatedAt = Instant.now();
     }
+
+    public AiModelProvider getDefaultProvider() { return defaultProvider; }
+    public void setDefaultProvider(AiModelProvider defaultProvider) { this.defaultProvider = defaultProvider; }
+
+    public Double getClaudeInputPrice() { return claudeInputPrice; }
+    public void setClaudeInputPrice(Double claudeInputPrice) { this.claudeInputPrice = claudeInputPrice; }
+
+    public Double getClaudeOutputPrice() { return claudeOutputPrice; }
+    public void setClaudeOutputPrice(Double claudeOutputPrice) { this.claudeOutputPrice = claudeOutputPrice; }
+
+    public Double getOpenaiInputPrice() { return openaiInputPrice; }
+    public void setOpenaiInputPrice(Double openaiInputPrice) { this.openaiInputPrice = openaiInputPrice; }
+
+    public Double getOpenaiOutputPrice() { return openaiOutputPrice; }
+    public void setOpenaiOutputPrice(Double openaiOutputPrice) { this.openaiOutputPrice = openaiOutputPrice; }
 
     public Long getId() { return id; }
 

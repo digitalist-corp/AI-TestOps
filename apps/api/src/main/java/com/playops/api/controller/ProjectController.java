@@ -11,12 +11,14 @@ import com.playops.api.dto.RunnerCleanupResponse;
 import com.playops.api.dto.RunnerContainerResponse;
 import com.playops.api.dto.ScaffoldRequest;
 import com.playops.api.dto.ScaffoldResponse;
+import com.playops.api.dto.SiteCheckResponse;
 import com.playops.api.entity.DockerStatus;
 import com.playops.api.service.DockerRunnerService;
 import com.playops.api.service.LoginSessionService;
 import com.playops.api.service.PlaywrightTemplateService;
 import com.playops.api.service.ProjectService;
 import com.playops.api.service.RunnerCapacityService;
+import com.playops.api.service.SiteCheckService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,24 +33,33 @@ public class ProjectController {
     private final RunnerCapacityService runnerCapacityService;
     private final DockerRunnerService dockerRunnerService;
     private final LoginSessionService loginSessionService;
+    private final SiteCheckService siteCheckService;
 
     public ProjectController(
             ProjectService projectService,
             PlaywrightTemplateService templateService,
             RunnerCapacityService runnerCapacityService,
             DockerRunnerService dockerRunnerService,
-            LoginSessionService loginSessionService
+            LoginSessionService loginSessionService,
+            SiteCheckService siteCheckService
     ) {
         this.projectService = projectService;
         this.templateService = templateService;
         this.runnerCapacityService = runnerCapacityService;
         this.dockerRunnerService = dockerRunnerService;
         this.loginSessionService = loginSessionService;
+        this.siteCheckService = siteCheckService;
     }
 
     @GetMapping
     public List<ProjectResponse> list() {
         return projectService.findAll();
+    }
+
+    /** 등록 화면에서 대상 사이트 주소가 실제로 열리는지 확인한다. */
+    @GetMapping("/site-check")
+    public SiteCheckResponse siteCheck(@RequestParam String url) {
+        return siteCheckService.check(url);
     }
 
     @GetMapping("/{projectId}")

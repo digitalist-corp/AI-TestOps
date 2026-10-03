@@ -27,7 +27,8 @@ public class AiJobInternalController {
     @PostMapping("/llm")
     public LlmProxyResponse callLlm(@PathVariable Long jobId, @RequestBody LlmProxyRequest body, HttpServletRequest request) {
         AiJob job = aiJobService.validateCallbackToken(jobId, extractToken(request));
-        String content = llmGatewayService.chat(job.getAiModelProvider(), body.getSystemPrompt(), body.getUserPrompt());
+        String content = llmGatewayService.chat(job.getAiModelProvider(), body.getSystemPrompt(), body.getUserPrompt(),
+                "AI 러너", job.getProjectId());
         return new LlmProxyResponse(content);
     }
 

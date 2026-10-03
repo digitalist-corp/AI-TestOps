@@ -1,6 +1,6 @@
 {
   "id": "default",
   "name": "기본 데모",
-  "description": "example.com 샘플 스펙 1개. 빠르게 PlayOps 연동을 확인할 때 적합합니다.",
+  "description": "example.com 샘플 스펙 1개. 빠르게 AI-TestOps 연동을 확인할 때 적합합니다.",
   "default": true
 }

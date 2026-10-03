@@ -4,6 +4,7 @@ import java.util.List;
 
 public class AiChatRequest {
     private Long executionId;
+    private String projectId;
     private String question;
     private String userLevel;
     private String provider; // CLAUDE, GPT (미지정 시 서버가 자동 선택)
@@ -15,6 +16,14 @@ public class AiChatRequest {
         this.executionId = executionId;
         this.question = question;
         this.userLevel = userLevel;
+    }
+
+    public String getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(String projectId) {
+        this.projectId = projectId;
     }
 
     public String getProvider() {
