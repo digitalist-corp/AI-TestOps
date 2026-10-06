@@ -729,8 +729,9 @@ export function ProjectFormDialog({
                   <FormSection icon={Settings2} title="프로젝트 정보">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                       <div className="space-y-2 md:col-span-2">
-                        <Label>프로젝트 ID</Label>
+                        <Label htmlFor="projectIdField">프로젝트 ID</Label>
                         <Input
+                          id="projectIdField"
                           value={form.projectId}
                           onChange={(e) => {
                             setProjectIdTouched(true);
