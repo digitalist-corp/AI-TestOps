@@ -6,6 +6,7 @@ import com.playops.api.entity.AiModelProvider;
 import com.playops.api.entity.AiProviderSettings;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.AiProviderSettingsRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
@@ -19,6 +20,10 @@ public class AiProviderSettingsService {
 
     private final AiProviderSettingsRepository repository;
     private final SecretCipherService cipherService;
+
+    /** 값이 있으면 Claude 호출이 Bedrock 으로 나가므로 Claude API 키가 없어도 된다. */
+    @Value("${bedrock.model:}")
+    private String bedrockModel = "";
 
     public AiProviderSettingsService(AiProviderSettingsRepository repository, SecretCipherService cipherService) {
         this.repository = repository;
@@ -34,8 +39,9 @@ public class AiProviderSettingsService {
         String claudePlain = decryptOrNull(settings.getClaudeApiKeyEncrypted());
         String openaiPlain = decryptOrNull(settings.getOpenaiApiKeyEncrypted());
         AiProviderSettingsResponse response = new AiProviderSettingsResponse(
-                claudePlain != null,
-                claudePlain != null ? SecretCipherService.mask(claudePlain) : "",
+                claudePlain != null || viaBedrock(),
+                viaBedrock() ? "Amazon Bedrock · " + bedrockModel
+                        : claudePlain != null ? SecretCipherService.mask(claudePlain) : "",
                 openaiPlain != null,
                 openaiPlain != null ? SecretCipherService.mask(openaiPlain) : "",
                 settings.getClaudeWorkspaceId(),
@@ -99,6 +105,9 @@ public class AiProviderSettingsService {
 
     /** LlmGatewayService 등 내부 호출 전용 — 평문 키를 반환한다. 설정되지 않았으면 예외를 던진다. */
     public String getDecryptedKey(AiModelProvider provider) {
+        if (provider == AiModelProvider.CLAUDE && viaBedrock()) {
+            return "";
+        }
         AiProviderSettings settings = loadOrCreate();
         String encrypted = switch (provider) {
             case CLAUDE -> settings.getClaudeApiKeyEncrypted();
@@ -113,6 +122,9 @@ public class AiProviderSettingsService {
 
     /** 공급자 자동 선택용 — 해당 공급자의 키가 등록되어 있는지만 확인한다. 예외를 던지지 않는다. */
     public boolean hasKey(AiModelProvider provider) {
+        if (provider == AiModelProvider.CLAUDE && viaBedrock()) {
+            return true;
+        }
         try {
             AiProviderSettings settings = loadOrCreate();
             String encrypted = switch (provider) {
@@ -128,6 +140,10 @@ public class AiProviderSettingsService {
     /** LlmGatewayService 전용 — 워크스페이스 연결형 Claude 키에 필요한 workspace id. 없으면 null. */
     public String getClaudeWorkspaceIdOrNull() {
         return loadOrCreate().getClaudeWorkspaceId();
+    }
+
+    private boolean viaBedrock() {
+        return bedrockModel != null && !bedrockModel.isBlank();
     }
 
     private String decryptOrNull(String encrypted) {

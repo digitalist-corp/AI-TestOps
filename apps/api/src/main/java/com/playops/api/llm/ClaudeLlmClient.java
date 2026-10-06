@@ -3,6 +3,7 @@ package com.playops.api.llm;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.playops.api.entity.AiModelProvider;
 import com.playops.api.exception.ApiException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -21,6 +22,9 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
     @Value("${anthropic.model:claude-sonnet-5}")
     private String claudeModel = "claude-sonnet-5";
 
+    @Autowired(required = false)
+    BedrockTransport bedrock;
+
     @Override
     public AiModelProvider provider() {
         return AiModelProvider.CLAUDE;
@@ -36,6 +40,17 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
         body.put("messages", toPayloadMessages(messages));
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", toPayloadTools(tools));
+        }
+
+        if (bedrock != null && bedrock.enabled()) {
+            // Bedrock 은 모델을 요청 경로로 받고 본문에는 API 버전을 둔다. 나머지 본문과 응답은 Messages API 와 같다.
+            body.remove("model");
+            body.put("anthropic_version", "bedrock-2023-05-31");
+            try {
+                return parseResponse(bedrock.invoke(objectMapper.writeValueAsString(body)), bedrock.model());
+            } catch (Exception e) {
+                throw new ApiException(502, "Bedrock 호출 실패: " + e.getMessage());
+            }
         }
 
         // 워크스페이스에 연결된(identity-linked) API 키는 x-api-key만으로는 인증이 거부되고
@@ -57,7 +72,7 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
                     .retrieve()
                     .body(String.class);
 
-            return parseResponse(responseJson);
+            return parseResponse(responseJson, claudeModel);
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
@@ -65,7 +80,7 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
         }
     }
 
-    private LlmResult parseResponse(String responseJson) throws Exception {
+    private LlmResult parseResponse(String responseJson, String fallbackModel) throws Exception {
         JsonNode root = objectMapper.readTree(responseJson);
         JsonNode contentArray = root.path("content");
 
@@ -91,7 +106,7 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
                 text.toString(),
                 usage.path("input_tokens").asInt(0),
                 usage.path("output_tokens").asInt(0),
-                root.path("model").asText(claudeModel),
+                root.path("model").asText(fallbackModel),
                 toolCalls
         );
     }
