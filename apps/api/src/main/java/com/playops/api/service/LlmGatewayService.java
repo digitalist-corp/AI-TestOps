@@ -11,6 +11,10 @@ import com.playops.api.llm.LlmToolSpec;
 import com.playops.api.repository.AiUsageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.time.Instant;
+import java.time.YearMonth;
+import java.time.ZoneOffset;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumMap;
@@ -31,6 +35,9 @@ public class LlmGatewayService {
     private final AiProviderSettingsService aiProviderSettingsService;
     private final AiUsageRepository aiUsageRepository;
     private final Map<AiModelProvider, LlmClient> clients = new EnumMap<>(AiModelProvider.class);
+
+    @Value("${llm.monthly-budget-usd:0}")
+    private double monthlyBudgetUsd = 0;
 
     public LlmGatewayService(
             List<LlmClient> llmClients,
@@ -69,6 +76,7 @@ public class LlmGatewayService {
         if (client == null) {
             throw new ApiException(400, "지원하지 않는 AI 공급자입니다: " + resolved);
         }
+        ensureWithinMonthlyBudget();
         long startedAt = System.currentTimeMillis();
         try {
             LlmResult result = client.chat(resolveCredentials(resolved), systemPrompt, messages);
@@ -94,6 +102,7 @@ public class LlmGatewayService {
         if (client == null) {
             throw new ApiException(400, "지원하지 않는 AI 공급자입니다: " + resolved);
         }
+        ensureWithinMonthlyBudget();
         long startedAt = System.currentTimeMillis();
         try {
             LlmResult result = client.chat(resolveCredentials(resolved), systemPrompt, messages, tools);
@@ -102,6 +111,28 @@ public class LlmGatewayService {
         } catch (RuntimeException e) {
             record(resolved, feature, projectId, null, System.currentTimeMillis() - startedAt, false);
             throw e;
+        }
+    }
+
+    /**
+     * 이번 달(UTC) 추정 비용이 한도에 닿으면 호출을 막는다. 클라우드 쪽 예산 알림은 알려주기만 하고
+     * 멈추지 않으므로, 실제로 지출을 세우는 곳은 여기뿐이다.
+     */
+    private void ensureWithinMonthlyBudget() {
+        if (monthlyBudgetUsd <= 0) {
+            return;
+        }
+        Instant monthStart = YearMonth.now(ZoneOffset.UTC).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC);
+        // ponytail: 이번 달 기록을 전부 읽어 합산한다. 월 수만 건을 넘기면 집계 쿼리로 바꾼다.
+        double spent = 0;
+        for (AiUsage usage : aiUsageRepository.findByCreatedAtAfter(monthStart)) {
+            spent += usage.getInputTokens() / 1_000_000d * aiProviderSettingsService.inputPrice(usage.getProvider())
+                    + usage.getOutputTokens() / 1_000_000d * aiProviderSettingsService.outputPrice(usage.getProvider());
+        }
+        if (spent >= monthlyBudgetUsd) {
+            throw new ApiException(429, String.format(
+                    "이번 달 AI 예산($%.2f)을 모두 썼습니다 (추정 $%.2f). 다음 달에 다시 쓰거나 관리자에게 한도 조정을 요청하세요.",
+                    monthlyBudgetUsd, spent));
         }
     }
 

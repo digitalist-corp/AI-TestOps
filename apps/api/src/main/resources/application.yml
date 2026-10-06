@@ -22,3 +22,14 @@ anthropic:
 
 openai:
   model: ${OPENAI_MODEL:gpt-4o-mini}
+
+# BEDROCK_MODEL_ID 를 채우면 Claude 호출이 api.anthropic.com 대신 Amazon Bedrock 으로 나간다.
+# 자격증명은 AWS 기본 체인(AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)에서 읽는다.
+bedrock:
+  model: ${BEDROCK_MODEL_ID:}
+  region: ${AWS_REGION:ap-northeast-2}
+
+llm:
+  # 이번 달 추정 비용이 이 값(USD)에 닿으면 AI 호출을 거부한다. 0 이면 제한하지 않는다.
+  # 추정은 AI 설정 화면에 적은 단가로 계산하므로, 단가가 비어 있으면 동작하지 않는다.
+  monthly-budget-usd: ${AI_MONTHLY_BUDGET_USD:0}
