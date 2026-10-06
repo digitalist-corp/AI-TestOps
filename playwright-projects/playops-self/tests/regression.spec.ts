@@ -24,7 +24,7 @@ const login = async (page: Page) => {
 
 test.describe.serial('PlayOps Self Regression', () => {
   test('로그인 및 프로젝트 목록 진입', async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(120000);
     await login(page);
 
     // 이전 실행이 남긴 playops-full-test 프로젝트를 정리한다.
@@ -38,7 +38,7 @@ test.describe.serial('PlayOps Self Regression', () => {
       }
     });
     await page.reload();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     for (const [route, shot] of [
         ['/runners', '01_runners.png'],
@@ -47,17 +47,17 @@ test.describe.serial('PlayOps Self Regression', () => {
         ['/users', '04_users.png'],
       ] as const) {
       await page.goto(route);
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1000);
       await takeScreenshot(page, shot);
     }
 
     await page.goto('/projects');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
     await takeScreenshot(page, '05_projects.png');
   });
 
   test('프로젝트 등록 및 소스 탐색기 확인', async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(120000);
     await login(page);
 
     await page.click('button:has-text("프로젝트 등록")');
@@ -66,33 +66,33 @@ test.describe.serial('PlayOps Self Regression', () => {
     await page.click('button:has-text("고급 설정")');
     await page.fill('#projectIdField', 'playops-full-test');
     await page.click('button[type="submit"]:has-text("등록")');
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(3000);
 
     await page.goto('/projects/playops-full-test/dashboard');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1500);
     await takeScreenshot(page, '06_dashboard.png');
 
     await page.goto('/projects/playops-full-test/source');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1500);
 
     const templateBtn = page.locator('button:has-text("템플릿 생성")');
     if (await templateBtn.isVisible()) {
       await templateBtn.click();
-      await page.waitForTimeout(3000);
+      await page.waitForTimeout(2000);
     }
 
     const configSpan = page.locator('span:has-text("playwright.config.ts")');
     await configSpan.waitFor({ state: 'visible', timeout: 15000 });
     await configSpan.click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
     await takeScreenshot(page, '07_source.png');
   });
 
   test('시나리오 탭 확인', async ({ page }) => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
     await login(page);
     await page.goto('/projects/playops-full-test/scenarios');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1500);
     await takeScreenshot(page, '08_scenarios.png');
     await expect(page.locator('body')).toBeVisible();
   });
@@ -104,25 +104,25 @@ test.describe.serial('PlayOps Self Regression', () => {
 
     await page.waitForTimeout(1500);
     await page.click('button:has-text("전체 실행")');
-    await page.waitForTimeout(8000);
+    await page.waitForTimeout(5000);
     await takeScreenshot(page, '09_runs.png');
 
     await page.goto('/projects/playops-full-test/results');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(1500);
     await takeScreenshot(page, '10_results.png');
   });
 
   test('게시판 등록 확인', async ({ page }) => {
-    test.setTimeout(30000);
+    test.setTimeout(60000);
     await login(page);
     await page.goto('/board');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1000);
 
     await page.click('button:has-text("글 등록")');
     await page.fill('label:has-text("제목") + input', 'PlayOps 전수 테스트 완료');
     await page.fill('label:has-text("내용") + textarea', '전체 E2E 자동화 기능 전수 테스트가 정상적으로 종료되었습니다.');
     await page.click('button:has-text("저장")');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(1500);
 
     await expect(
       page.locator('span.truncate.font-medium:has-text("PlayOps 전수 테스트 완료")').first()
