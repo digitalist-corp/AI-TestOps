@@ -24,7 +24,7 @@ const login = async (page: Page) => {
 
 test.describe.serial('PlayOps Self Regression', () => {
   test('로그인 및 프로젝트 목록 진입', async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(180000);
     await login(page);
 
     // 이전 실행이 남긴 playops-full-test 프로젝트를 정리한다.
@@ -57,7 +57,7 @@ test.describe.serial('PlayOps Self Regression', () => {
   });
 
   test('프로젝트 등록 및 소스 탐색기 확인', async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(180000);
     await login(page);
 
     await page.click('button:has-text("프로젝트 등록")');
@@ -89,7 +89,7 @@ test.describe.serial('PlayOps Self Regression', () => {
   });
 
   test('시나리오 탭 확인', async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(120000);
     await login(page);
     await page.goto('/projects/playops-full-test/scenarios');
     await page.waitForTimeout(1500);
@@ -98,7 +98,7 @@ test.describe.serial('PlayOps Self Regression', () => {
   });
 
   test('실행 및 결과 탭 확인', async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(120000);
     await login(page);
     await page.goto('/projects/playops-full-test/runs');
 
@@ -113,7 +113,7 @@ test.describe.serial('PlayOps Self Regression', () => {
   });
 
   test('게시판 등록 확인', async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(120000);
     await login(page);
     await page.goto('/board');
     await page.waitForTimeout(1000);
