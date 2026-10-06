@@ -83,9 +83,16 @@ jobs:
             echo "--- 이미지 재빌드 필요 ---"
             docker compose -f docker-compose.dev.yml up -d --build
           else
-            echo "--- 핫리로드로 반영, 컨테이너 상태만 확인 ---"
+            echo "--- 컨테이너 상태 확인 ---"
             docker compose -f docker-compose.dev.yml up -d
           fi
+
+          echo "--- api 컨테이너 재시작 (스레드풀 및 미완료 실행 상태 초기화) ---"
+          docker compose -f docker-compose.dev.yml restart api
+
+          # 이전 실행이 남긴 고아 러너 컨테이너 정리
+          docker rm -f playops-runner-playops-self playops-runner-playops-full-test 2>/dev/null || true
+
 
           # ai-runner는 api 컨테이너와 별개로, api 프로세스가 필요할 때마다 직접
           # `docker build`해서 만드는 이미지라 (AiRunnerDockerService.ensureRunnerImage,
@@ -167,10 +174,10 @@ jobs:
 
           SUITE_ID=$(curl -sf -H "Authorization: Bearer $TOKEN" \
             "$API/api/projects/playops-self/test-suites" \
-            | jq -r '.[] | select(.name=="PlayOps Self Regression") | .id')
+            | jq -r '.[] | select(.name=="PlayOps Self Regression" or .name=="AI-TestOps Self Regression") | .id')
 
           if [ -z "$SUITE_ID" ] || [ "$SUITE_ID" = "null" ]; then
-            echo "::error::playops-self 프로젝트에 'PlayOps Self Regression' 스위트가 없습니다 (DataLoader 시드 확인 필요)."
+            echo "::error::playops-self 프로젝트에 회귀 테스트 스위트가 없습니다 (DataLoader 시드 확인 필요)."
             exit 1
           fi
 
@@ -186,6 +193,7 @@ jobs:
             STATUS=""
             for i in $(seq 1 60); do
               STATUS=$(curl -sf -H "Authorization: Bearer $TOKEN" "$API/api/executions/$EXEC_ID" | jq -r '.execution.status')
+              echo "[$((i * 10))초] execution #$EXEC_ID status=$STATUS"
               case "$STATUS" in
                 PASSED)
                   echo "self-test 통과 (execution #$EXEC_ID, $((i * 10))초)"
@@ -208,5 +216,9 @@ jobs:
           done
 
           echo "::error::PlayOps 자체 회귀 테스트 실패 (status=$STATUS, execution #$EXEC_ID)"
+          echo "--- 실행 로그 (logOutput) ---"
           curl -s -H "Authorization: Bearer $TOKEN" "$API/api/executions/$EXEC_ID" | jq -r '.logOutput' || true
+          echo "--- API 최근 로그 ---"
+          docker compose -f docker-compose.dev.yml logs --tail 200 api || true
           exit 1
+
