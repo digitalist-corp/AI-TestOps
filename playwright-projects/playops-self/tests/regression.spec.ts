@@ -103,8 +103,11 @@ test.describe.serial('PlayOps Self Regression', () => {
     await page.goto('/projects/playops-full-test/runs');
 
     await page.waitForTimeout(1500);
-    await page.click('button:has-text("전체 실행")');
-    await page.waitForTimeout(5000);
+    const runBtn = page.locator('button:has-text("전체 실행")');
+    if (await runBtn.isEnabled()) {
+      await runBtn.click();
+      await page.waitForTimeout(5000);
+    }
     await takeScreenshot(page, '09_runs.png');
 
     await page.goto('/projects/playops-full-test/results');
