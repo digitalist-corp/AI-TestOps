@@ -12,6 +12,7 @@ import com.playops.api.repository.AiJobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -41,6 +42,16 @@ public class AiJobService {
     private final LlmGatewayService llmGatewayService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 자기 자신의 Spring 프록시.
+     *
+     * @Async 는 프록시를 거쳐 호출될 때만 동작한다. 같은 클래스 안에서 this.runAsync() 로 부르면
+     * 프록시를 건너뛰어 그냥 같은 스레드에서 실행되고, 그 결과 작업을 "만들기만" 하려던 요청이
+     * Docker 이미지 빌드와 AI 호출이 끝날 때까지 몇 분씩 막힌다.
+     * 순환 참조를 피하기 위해 @Lazy 로 늦게 주입받는다.
+     */
+    private final AiJobService self;
+
     public AiJobService(
             AiJobRepository aiJobRepository,
             ProjectService projectService,
@@ -50,7 +61,8 @@ public class AiJobService {
             AiPostApplyVerificationService postApplyVerificationService,
             SlackNotificationService slackNotificationService,
             GitCommitService gitCommitService,
-            LlmGatewayService llmGatewayService
+            LlmGatewayService llmGatewayService,
+            @Lazy AiJobService self
     ) {
         this.aiJobRepository = aiJobRepository;
         this.projectService = projectService;
@@ -61,6 +73,7 @@ public class AiJobService {
         this.slackNotificationService = slackNotificationService;
         this.gitCommitService = gitCommitService;
         this.llmGatewayService = llmGatewayService;
+        this.self = self;
     }
 
     /**
@@ -103,7 +116,7 @@ public class AiJobService {
         job.setCallbackTokenExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
         job = aiJobRepository.save(job);
 
-        runAsync(job.getId());
+        self.runAsync(job.getId());
         return job;
     }
 
@@ -173,7 +186,7 @@ public class AiJobService {
         job.setRequestedBy(requestedBy);
         job = aiJobRepository.save(job);
 
-        runTemplateGenerationAsync(job.getId());
+        self.runTemplateGenerationAsync(job.getId());
         return job;
     }
 
@@ -239,14 +252,14 @@ public class AiJobService {
         slackNotificationService.send(
                 ":large_yellow_circle: [" + project.getProjectName() + "] AI 시나리오 생성 검토 필요 — job #" + job.getId()
                         + "\n생성 대상: " + job.getTargetSpecPath()
-                        + "\nPlayOps > AI 검토 메뉴에서 승인/거부해주세요."
+                        + "\nAI-TestOps > AI 검토 메뉴에서 승인/거부해주세요."
         );
     }
 
     private String generateSpecContent(Project project, String targetSpecPath, String instruction) {
         String systemPrompt = """
                 You are an expert QA automation engineer specializing in Playwright v%s and TypeScript,
-                working inside an existing PlayOps-managed test project.
+                working inside an existing AI-TestOps-managed test project.
                 Generate ONE complete, executable Playwright spec file to be saved at "%s",
                 implementing the user's natural-language scenario request.
                 Return ONLY the raw TypeScript code for that file — no markdown code fences, no explanation, no JSON wrapper.
@@ -259,7 +272,8 @@ public class AiJobService {
                 + "\n생성할 파일 경로: " + targetSpecPath
                 + "\n요구사항: " + instruction;
 
-        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt);
+        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt,
+                "코드 수정", project.getProjectId());
         return stripMarkdownFence(raw);
     }
 
@@ -366,7 +380,7 @@ public class AiJobService {
                 ":large_yellow_circle: [" + project.getProjectName() + "] AI 수정 검토 필요 — job #" + job.getId()
                         + "\n대상: " + job.getTargetSpecPath()
                         + "\n사유: " + reason
-                        + "\nPlayOps > AI 검토 메뉴에서 승인/거부해주세요."
+                        + "\nAI-TestOps > AI 검토 메뉴에서 승인/거부해주세요."
         );
     }
 
@@ -431,7 +445,7 @@ public class AiJobService {
         }
 
         try {
-            String commitMessage = "AI fix: " + job.getTargetSpecPath() + " (PlayOps job #" + job.getId() + ")"
+            String commitMessage = "AI fix: " + job.getTargetSpecPath() + " (AI-TestOps job #" + job.getId() + ")"
                     + (job.getSummary() != null && !job.getSummary().isBlank() ? "\n\n" + job.getSummary() : "");
             String sha = gitCommitService.commitAndPush(project, changedFiles, commitMessage);
             if (sha != null) {
@@ -527,6 +541,17 @@ public class AiJobService {
             }
         }
         return result;
+    }
+
+    /**
+     * 작업 한 건을 읽는다.
+     *
+     * 채팅 패널의 작업 카드, 'AI 검토' 화면, 그리고 앞으로 붙을 외부 오케스트레이터(LangGraph)가
+     * 모두 이 하나의 읽기 경로를 쓴다. 상태를 화면마다 따로 계산하면 같은 작업이 화면에 따라
+     * 다르게 보이게 된다.
+     */
+    public AiJob getJob(Long jobId) {
+        return getJobOrThrow(jobId);
     }
 
     private AiJob getJobOrThrow(Long jobId) {

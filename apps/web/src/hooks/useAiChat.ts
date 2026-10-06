@@ -7,6 +7,8 @@ const MAX_HISTORY = 20;
 
 export interface UseAiChatOptions {
   executionId?: number;
+  /** 지금 보고 있는 프로젝트 — 서버가 이 프로젝트의 최근 실패 로그를 함께 읽는다 */
+  projectId?: string;
   userLevel: UserLevel;
   provider?: AiModelProvider;
   /** 지정하면 대화 내용을 localStorage에 보존한다. */
@@ -80,9 +82,10 @@ export function useAiChat(opts: UseAiChatOptions): UseAiChatResult {
       const q = question.trim();
       if (!q) return;
 
-      const { executionId, userLevel, provider } = optsRef.current;
+      const { executionId, projectId, userLevel, provider } = optsRef.current;
 
       // 이번 질문 직전까지의 대화를 히스토리로 보낸다(오래된 순, 최대 20개).
+      // 작업 카드는 화면에만 쓰고 서버 히스토리에는 보내지 않는다 — 서버가 이미 자기 기록을 갖고 있다.
       const history = messagesRef.current
         .filter((m) => !m.error)
         .slice(-MAX_HISTORY)
@@ -91,8 +94,11 @@ export function useAiChat(opts: UseAiChatOptions): UseAiChatResult {
 
       setLoading(true);
       try {
-        const res = await api.ai.chat({ executionId, question: q, userLevel, provider, history });
-        applyMessages((prev) => [...prev, { role: 'assistant', content: res.answer }]);
+        const res = await api.ai.chat({ executionId, projectId, question: q, userLevel, provider, history });
+        applyMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: res.answer, actions: res.actions ?? [] },
+        ]);
       } catch (err) {
         applyMessages((prev) => [
           ...prev,

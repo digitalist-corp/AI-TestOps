@@ -15,10 +15,13 @@ import java.util.List;
 public class AiTemplateService {
 
     private final LlmGatewayService llmGatewayService;
+    private final AiProviderSettingsService aiProviderSettingsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public AiTemplateService(LlmGatewayService llmGatewayService) {
+    public AiTemplateService(LlmGatewayService llmGatewayService,
+                             AiProviderSettingsService aiProviderSettingsService) {
         this.llmGatewayService = llmGatewayService;
+        this.aiProviderSettingsService = aiProviderSettingsService;
     }
 
     public AiTemplateResponse generateTemplate(AiTemplateRequest request) {
@@ -55,7 +58,7 @@ public class AiTemplateService {
                 request.getUserPrompt() != null ? request.getUserPrompt() : "General E2E Test Suite"
             );
 
-            String aiContent = llmGatewayService.chat(provider, systemPrompt, userPrompt);
+            String aiContent = llmGatewayService.chat(provider, systemPrompt, userPrompt, "테스트 생성", null);
             JsonNode templateJson = objectMapper.readTree(stripMarkdownFence(aiContent));
 
             AiTemplateResponse response = new AiTemplateResponse();
@@ -91,14 +94,15 @@ public class AiTemplateService {
         }
     }
 
+    /** 호출자가 공급자를 지정하지 않으면 관리자 설정의 기본 공급자를 쓴다. */
     private AiModelProvider parseProvider(String raw) {
         if (raw == null || raw.isBlank()) {
-            return AiModelProvider.CLAUDE;
+            return aiProviderSettingsService.getDefaultProvider();
         }
         try {
             return AiModelProvider.valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return AiModelProvider.CLAUDE;
+            return aiProviderSettingsService.getDefaultProvider();
         }
     }
 
@@ -123,7 +127,7 @@ public class AiTemplateService {
 
         AiTemplateResponse response = new AiTemplateResponse();
         response.setTemplateName(name);
-        response.setDescription("PlayOps AI Agent가 생성한 " + request.getUserPrompt() + " 자동화 스펙");
+        response.setDescription("AI-TestOps AI Agent가 생성한 " + request.getUserPrompt() + " 자동화 스펙");
 
         List<AiTemplateResponse.TemplateFileDto> files = new ArrayList<>();
 

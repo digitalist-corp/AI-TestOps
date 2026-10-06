@@ -67,6 +67,18 @@ public class AiJobController {
         return aiJobService.listNeedsReview().stream().map(AiJobResponse::from).toList();
     }
 
+    /**
+     * 작업 한 건의 현재 상태.
+     *
+     * 채팅 패널의 작업 카드가 이걸 주기적으로 읽어 "검토 대기 → 적용됨"까지 따라간다.
+     * 승인이 아니라 조회이므로 관리자 권한까지는 요구하지 않는다 —
+     * 자기가 요청한 작업이 지금 어디까지 갔는지는 누구나 볼 수 있어야 한다.
+     */
+    @GetMapping("/api/ai-jobs/{id}")
+    public AiJobResponse get(@PathVariable Long id) {
+        return AiJobResponse.from(aiJobService.getJob(id));
+    }
+
     @GetMapping("/api/ai-jobs/{id}/diff")
     public List<AiJobFileDiff> diff(@PathVariable Long id, HttpServletRequest request) {
         requireAdmin(request);
