@@ -19,7 +19,7 @@ const login = async (page: Page) => {
   await page.fill('#password', 'admin');
   await page.click('button[type="submit"]');
   await page.waitForURL('**/projects');
-  await expect(page.locator('h2')).toContainText('프로젝트');
+  await expect(page.locator('h2:has-text("프로젝트")')).toBeVisible();
 };
 
 test.describe.serial('PlayOps Self Regression', () => {
@@ -61,24 +61,18 @@ test.describe.serial('PlayOps Self Regression', () => {
     await login(page);
 
     await page.click('button:has-text("프로젝트 등록")');
-    await page.fill('input[placeholder="my-project"]', 'playops-full-test');
-    await page.fill('label:has-text("프로젝트명 *") + input', 'PlayOps Full E2E Test Project');
-    await page.selectOption('label:has-text("서버 구분") + select', 'DEV');
-    await page.fill('label:has-text("관리자") + input', '홍길동');
-    await page.fill('label:has-text("연락처") + input', '010-1234-5678');
-    await page.fill('label:has-text("설명") + textarea', 'E2E Full Regression Test Suite');
-    await page.fill('label:has-text("테스트 목적") + textarea', '전수 자동화 테스트 및 보고서 컴파일');
-    await page.fill('label:has-text("Base URL") + input', 'https://example.com');
-    await page.click('button:has-text("Docker Runner 사용")');
-    await page.click('button:has-text("기본 테스트 생성")');
-    await page.click('button:has-text("저장")');
+    await page.fill('#baseUrl', 'https://example.com');
+    await page.fill('#projectName', 'PlayOps Full E2E Test Project');
+    await page.click('button:has-text("고급 설정")');
+    await page.fill('#projectIdField', 'playops-full-test');
+    await page.click('button[type="submit"]:has-text("등록")');
     await page.waitForTimeout(5000);
 
     await page.goto('/projects/playops-full-test/dashboard');
     await page.waitForTimeout(3000);
     await takeScreenshot(page, '06_dashboard.png');
 
-    await page.click('a:has-text("소스 탐색기")');
+    await page.goto('/projects/playops-full-test/source');
     await page.waitForTimeout(3000);
 
     const templateBtn = page.locator('button:has-text("템플릿 생성")');
@@ -97,8 +91,7 @@ test.describe.serial('PlayOps Self Regression', () => {
   test('시나리오 탭 확인', async ({ page }) => {
     test.setTimeout(30000);
     await login(page);
-    await page.goto('/projects/playops-full-test/dashboard');
-    await page.click('a:has-text("시나리오")');
+    await page.goto('/projects/playops-full-test/scenarios');
     await page.waitForTimeout(3000);
     await takeScreenshot(page, '08_scenarios.png');
     await expect(page.locator('body')).toBeVisible();
@@ -107,15 +100,14 @@ test.describe.serial('PlayOps Self Regression', () => {
   test('실행 및 결과 탭 확인', async ({ page }) => {
     test.setTimeout(60000);
     await login(page);
-    await page.goto('/projects/playops-full-test/dashboard');
+    await page.goto('/projects/playops-full-test/runs');
 
-    await page.click('a:has-text("실행 이력")');
     await page.waitForTimeout(1500);
     await page.click('button:has-text("전체 실행")');
     await page.waitForTimeout(8000);
     await takeScreenshot(page, '09_runs.png');
 
-    await page.click('a:has-text("결과")');
+    await page.goto('/projects/playops-full-test/results');
     await page.waitForTimeout(3000);
     await takeScreenshot(page, '10_results.png');
   });

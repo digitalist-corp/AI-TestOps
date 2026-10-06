@@ -235,10 +235,10 @@ export function LoginPage() {
           {/* 서비스 상태 */}
           <div className="max-w-xl rounded-xl border border-border bg-card p-4 shadow-1">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-[15px] font-bold text-foreground">
+              <div className="flex items-center gap-2 text-[15px] font-bold text-foreground">
                 <Activity className="h-4 w-4 text-muted-foreground" />
                 서비스 상태
-              </h2>
+              </div>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
