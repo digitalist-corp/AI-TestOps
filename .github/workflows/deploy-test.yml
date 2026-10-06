@@ -160,26 +160,28 @@ jobs:
             exit 1
           fi
 
-          LOGIN_USER=$(grep -E '^LOGIN_USERNAME=' .env | cut -d= -f2- || true); LOGIN_USER=${LOGIN_USER:-admin}
-          LOGIN_PASS=$(grep -E '^LOGIN_PASSWORD=' .env | cut -d= -f2- || true); LOGIN_PASS=${LOGIN_PASS:-admin}
+          LOGIN_USER=$(grep -E '^LOGIN_USERNAME=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_USER=${LOGIN_USER:-admin}
+          LOGIN_PASS=$(grep -E '^LOGIN_PASSWORD=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_PASS=${LOGIN_PASS:-admin}
 
           TOKEN=$(curl -sf -X POST "$API/api/auth/login" \
             -H 'Content-Type: application/json' \
-            -d "{\"username\":\"$LOGIN_USER\",\"password\":\"$LOGIN_PASS\"}" | jq -r '.token')
+            -d "{\"username\":\"$LOGIN_USER\",\"password\":\"$LOGIN_PASS\"}" | jq -r '.token // empty' | tr -d '\r\n')
 
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "::error::self-test 게이트: 로그인 실패, 토큰을 받지 못했습니다."
             exit 1
           fi
+          echo "self-test 인증 성공"
 
           SUITE_ID=$(curl -sf -H "Authorization: Bearer $TOKEN" \
             "$API/api/projects/playops-self/test-suites" \
-            | jq -r '.[] | select(.name=="PlayOps Self Regression" or .name=="AI-TestOps Self Regression") | .id')
+            | jq -r '[.[] | select(.name=="PlayOps Self Regression" or .name=="AI-TestOps Self Regression") | .id][0] // empty' | tr -d '\r\n')
 
           if [ -z "$SUITE_ID" ] || [ "$SUITE_ID" = "null" ]; then
             echo "::error::playops-self 프로젝트에 회귀 테스트 스위트가 없습니다 (DataLoader 시드 확인 필요)."
             exit 1
           fi
+          echo "self-test 스위트 ID: $SUITE_ID"
 
           # ERROR는 테스트가 틀렸다는 뜻이 아니라 API 재시작 등으로 실행이 정리된 경우가 많아서
           # (errorMessage: "API 서버 재시작 ... 종료 처리했습니다") 한 번만 다시 시도한다.
@@ -187,7 +189,7 @@ jobs:
           STATUS=""
           for attempt in 1 2; do
             EXEC_ID=$(curl -sf -X POST -H "Authorization: Bearer $TOKEN" \
-              "$API/api/projects/playops-self/test-suites/$SUITE_ID/execute" | jq -r '.id')
+              "$API/api/projects/playops-self/test-suites/$SUITE_ID/execute" | jq -r '.id // empty' | tr -d '\r\n')
             echo "self-test 실행 시작 (시도 $attempt): execution #$EXEC_ID"
 
             STATUS=""
