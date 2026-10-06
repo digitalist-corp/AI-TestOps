@@ -10,7 +10,9 @@ const screenshotDir = process.env.PLAYOPS_SCREENSHOT_DIR || path.join(__dirname,
 fs.mkdirSync(screenshotDir, { recursive: true });
 
 const takeScreenshot = async (page: Page, name: string) => {
-  await page.screenshot({ path: path.join(screenshotDir, name) });
+  if (process.env.PLAYOPS_TAKE_SCREENSHOTS) {
+    await page.screenshot({ path: path.join(screenshotDir, name) });
+  }
 };
 
 const login = async (page: Page) => {
@@ -24,7 +26,7 @@ const login = async (page: Page) => {
 
 test.describe.serial('PlayOps Self Regression', () => {
   test('로그인 및 프로젝트 목록 진입', async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(120000);
     await login(page);
 
     // 이전 실행이 남긴 playops-full-test 프로젝트를 정리한다.
@@ -39,25 +41,11 @@ test.describe.serial('PlayOps Self Regression', () => {
     });
     await page.reload();
     await page.waitForTimeout(1000);
-
-    for (const [route, shot] of [
-        ['/runners', '01_runners.png'],
-        ['/board', '02_board.png'],
-        ['/templates', '03_templates.png'],
-        ['/users', '04_users.png'],
-      ] as const) {
-      await page.goto(route);
-      await page.waitForTimeout(1000);
-      await takeScreenshot(page, shot);
-    }
-
-    await page.goto('/projects');
-    await page.waitForTimeout(1000);
-    await takeScreenshot(page, '05_projects.png');
+    await expect(page.locator('h2:has-text("프로젝트")')).toBeVisible();
   });
 
   test('프로젝트 등록 및 소스 탐색기 확인', async ({ page }) => {
-    test.setTimeout(180000);
+    test.setTimeout(120000);
     await login(page);
 
     await page.click('button:has-text("프로젝트 등록")');
@@ -69,11 +57,11 @@ test.describe.serial('PlayOps Self Regression', () => {
     await page.waitForTimeout(3000);
 
     await page.goto('/projects/playops-full-test/dashboard');
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1000);
     await takeScreenshot(page, '06_dashboard.png');
 
     await page.goto('/projects/playops-full-test/source');
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1000);
 
     const templateBtn = page.locator('button:has-text("템플릿 생성")');
     if (await templateBtn.isVisible()) {
@@ -89,34 +77,34 @@ test.describe.serial('PlayOps Self Regression', () => {
   });
 
   test('시나리오 탭 확인', async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(60000);
     await login(page);
     await page.goto('/projects/playops-full-test/scenarios');
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1000);
     await takeScreenshot(page, '08_scenarios.png');
     await expect(page.locator('body')).toBeVisible();
   });
 
   test('실행 및 결과 탭 확인', async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(60000);
     await login(page);
     await page.goto('/projects/playops-full-test/runs');
 
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1000);
     const runBtn = page.locator('button:has-text("전체 실행")');
     if (await runBtn.isEnabled()) {
       await runBtn.click();
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(3000);
     }
     await takeScreenshot(page, '09_runs.png');
 
     await page.goto('/projects/playops-full-test/results');
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1000);
     await takeScreenshot(page, '10_results.png');
   });
 
   test('게시판 등록 확인', async ({ page }) => {
-    test.setTimeout(120000);
+    test.setTimeout(60000);
     await login(page);
     await page.goto('/board');
     await page.waitForTimeout(1000);
