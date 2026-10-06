@@ -53,7 +53,7 @@ public class SlackNotificationService {
             restClient.post()
                     .uri(webhookUrl)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(Map.of("text", ":white_check_mark: PlayOps Slack 알림 연동 테스트입니다. 이 메시지가 보이면 정상 연동된 것입니다."))
+                    .body(Map.of("text", ":white_check_mark: AI-TestOps Slack 알림 연동 테스트입니다. 이 메시지가 보이면 정상 연동된 것입니다."))
                     .retrieve()
                     .toBodilessEntity();
         } catch (Exception e) {

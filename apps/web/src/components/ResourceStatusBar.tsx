@@ -157,7 +157,7 @@ export function ResourceStatusBar() {
   ];
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-40 pl-72">
+    <div className="fixed bottom-0 right-0 z-40" style={{ left: "var(--shell-left, 0px)" }}>
       <div
         className={cn(
           'border-t px-4 py-2.5 backdrop-blur',

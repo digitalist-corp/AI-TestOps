@@ -1,4 +1,4 @@
-// PlayOps AI Runner — CODE_FIX.
+// AI-TestOps AI Runner — CODE_FIX.
 // docs/ai-job-spec.md의 job.json/result.json 계약을 따르되, 이번에도 unified diff가 아니라
 // 파일별 "새 내용 전체"로 주고받는다 (diff 라이브러리 없이 시작하기 위한 의도적 단순화).
 // v1은 targetSpecPath 딱 하나만 고칠 수 있었지만, 실패한 테스트를 고치려면 그 spec이 import하는
@@ -178,6 +178,10 @@ async function main() {
   if (job.jobType === 'EDIT_ASSIST_VERIFY') {
     return runEditAssistVerify(job);
   }
+  if (job.jobType === 'SITE_ANALYSIS') {
+    // 대상 분석은 LLM 을 부르지 않는 결정적 탐색이라 별도 모듈로 둔다 (analyze.js 참고).
+    return require('./analyze').runSiteAnalysis(job, resultDir);
+  }
 
   const targetSpecPath = job.targetSpecPath;
   const specFullPath = path.join(WORKSPACE, targetSpecPath);
@@ -285,6 +289,8 @@ main().catch((e) => {
     const failedJob = JSON.parse(fs.readFileSync(jobFile, 'utf-8'));
     if (failedJob.jobType === 'EDIT_ASSIST_VERIFY') {
       writeResult({ status: 'ERROR', passed: false, output: String(e.message || e) });
+    } else if (failedJob.jobType === 'SITE_ANALYSIS') {
+      writeResult({ version: 1, jobId: failedJob.jobId ?? null, status: 'ERROR', error: String(e.message || e) });
     } else {
       writeResult({
         jobId: failedJob.jobId,

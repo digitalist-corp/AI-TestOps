@@ -47,7 +47,7 @@ public class AiEditAssistService {
 
         String systemPrompt = """
                 You are an expert QA automation engineer specializing in Playwright v%s and TypeScript,
-                helping a user edit the file "%s" inside an existing PlayOps-managed test project.
+                helping a user edit the file "%s" inside an existing AI-TestOps-managed test project.
                 You will be given the file's CURRENT full content (may be empty) and a natural-language instruction.
                 Return ONLY the complete, updated file content reflecting the instruction —
                 no markdown code fences, no explanation, no diff syntax, just the raw new file content.
@@ -57,7 +57,8 @@ public class AiEditAssistService {
                 + (currentContent != null ? currentContent : "")
                 + "\n```\n\n요청 사항: " + instruction;
 
-        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt);
+        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt,
+                "편집 도움", project.getProjectId());
         return stripMarkdownFence(raw);
     }
 

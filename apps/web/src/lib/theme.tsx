@@ -4,10 +4,14 @@ type Theme = 'light' | 'dark';
 
 const THEME_KEY = 'playops.theme';
 
+/**
+ * 기본값은 라이트. KRDS는 라이트를 기준 모드로 두고 다크를 규정하지 않는다.
+ * 사용자가 한 번이라도 고른 값이 있으면 그 선택을 따른다.
+ */
 function resolveInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY);
   if (stored === 'light' || stored === 'dark') return stored;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 }
 
 const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void } | null>(null);

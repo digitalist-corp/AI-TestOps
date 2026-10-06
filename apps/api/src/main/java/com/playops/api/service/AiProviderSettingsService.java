@@ -33,7 +33,7 @@ public class AiProviderSettingsService {
         AiProviderSettings settings = loadOrCreate();
         String claudePlain = decryptOrNull(settings.getClaudeApiKeyEncrypted());
         String openaiPlain = decryptOrNull(settings.getOpenaiApiKeyEncrypted());
-        return new AiProviderSettingsResponse(
+        AiProviderSettingsResponse response = new AiProviderSettingsResponse(
                 claudePlain != null,
                 claudePlain != null ? SecretCipherService.mask(claudePlain) : "",
                 openaiPlain != null,
@@ -41,6 +41,33 @@ public class AiProviderSettingsService {
                 settings.getClaudeWorkspaceId(),
                 settings.getUpdatedAt()
         );
+        response.setDefaultProvider(getDefaultProvider().name());
+        response.setClaudeInputPrice(settings.getClaudeInputPrice());
+        response.setClaudeOutputPrice(settings.getClaudeOutputPrice());
+        response.setOpenaiInputPrice(settings.getOpenaiInputPrice());
+        response.setOpenaiOutputPrice(settings.getOpenaiOutputPrice());
+        return response;
+    }
+
+    /** 화면에서 공급자를 고르지 않았을 때 쓸 공급자. 설정이 없으면 Claude. */
+    public AiModelProvider getDefaultProvider() {
+        AiModelProvider configured = loadOrCreate().getDefaultProvider();
+        return configured != null ? configured : AiModelProvider.CLAUDE;
+    }
+
+    /** 단가(100만 토큰당 USD). 입력하지 않았으면 0으로 본다. */
+    public double inputPrice(AiModelProvider provider) {
+        AiProviderSettings settings = loadOrCreate();
+        Double value = provider == AiModelProvider.CLAUDE
+                ? settings.getClaudeInputPrice() : settings.getOpenaiInputPrice();
+        return value != null ? value : 0d;
+    }
+
+    public double outputPrice(AiModelProvider provider) {
+        AiProviderSettings settings = loadOrCreate();
+        Double value = provider == AiModelProvider.CLAUDE
+                ? settings.getClaudeOutputPrice() : settings.getOpenaiOutputPrice();
+        return value != null ? value : 0d;
     }
 
     public AiProviderSettingsResponse updateSettings(AiProviderSettingsRequest request) {
@@ -55,6 +82,17 @@ public class AiProviderSettingsService {
             String trimmed = request.getClaudeWorkspaceId().trim();
             settings.setClaudeWorkspaceId(trimmed.isEmpty() ? null : trimmed);
         }
+        if (request.getDefaultProvider() != null && !request.getDefaultProvider().isBlank()) {
+            try {
+                settings.setDefaultProvider(AiModelProvider.valueOf(request.getDefaultProvider().trim().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new ApiException(400, "알 수 없는 AI 공급자입니다: " + request.getDefaultProvider());
+            }
+        }
+        if (request.getClaudeInputPrice() != null) settings.setClaudeInputPrice(request.getClaudeInputPrice());
+        if (request.getClaudeOutputPrice() != null) settings.setClaudeOutputPrice(request.getClaudeOutputPrice());
+        if (request.getOpenaiInputPrice() != null) settings.setOpenaiInputPrice(request.getOpenaiInputPrice());
+        if (request.getOpenaiOutputPrice() != null) settings.setOpenaiOutputPrice(request.getOpenaiOutputPrice());
         repository.save(settings);
         return getMaskedSettings();
     }

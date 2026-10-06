@@ -27,7 +27,7 @@ const serverTypeLabel: Record<Project['serverType'], string> = {
 
 const containerTypeLabel: Record<string, string> = {
   DB: 'DB',
-  PLAYOPS: 'PlayOps',
+  PLAYOPS: 'AI-TestOps',
   RUNNER: 'Runner',
   BUILD: 'Build',
   OTHER: 'Other',
@@ -304,7 +304,7 @@ export function RunnerContainersPage() {
   const cleanupSelectedRunners = async () => {
     const names = [...selectedNames];
     if (names.length === 0) return;
-    const ok = confirm(`선택한 Runner 컨테이너 ${names.length}개를 삭제하시겠습니까? PlayOps/Other 컨테이너는 삭제 대상에서 제외됩니다.`);
+    const ok = confirm(`선택한 Runner 컨테이너 ${names.length}개를 삭제하시겠습니까? AI-TestOps/Other 컨테이너는 삭제 대상에서 제외됩니다.`);
     if (!ok) return;
     setLoading(true);
     try {
@@ -337,7 +337,7 @@ export function RunnerContainersPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Runner 컨테이너 관리</h2>
-          <p className="text-sm text-muted-foreground mt-1">Runner, PlayOps 자체 컨테이너, 기타 Docker 컨테이너 상태를 확인합니다.</p>
+          <p className="text-sm text-muted-foreground mt-1">Runner, AI-TestOps 자체 컨테이너, 기타 Docker 컨테이너 상태를 확인합니다.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="sm" variant="outline" onClick={refreshDockerOverview} disabled={loading}>
@@ -367,7 +367,7 @@ export function RunnerContainersPage() {
             ['전체', counts.total],
             ['실행 중', counts.running],
             ['Runner', counts.runner],
-            ['PlayOps', counts.playops],
+            ['AI-TestOps', counts.playops],
             ['DB', counts.db],
             ['Other', counts.other],
             ['CPU', formatPercent(totals.cpuPercent)],

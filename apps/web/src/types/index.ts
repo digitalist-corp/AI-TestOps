@@ -439,10 +439,36 @@ export interface AiChatMessage {
   content: string;
   /** 클라이언트에서 생성한 오류 안내 메시지. 서버 히스토리로는 보내지 않는다. */
   error?: boolean;
+  /** 이 답변을 만드는 동안 AI가 실제로 수행하거나 제안한 작업. */
+  actions?: AiChatAction[];
+}
+
+/**
+ * AI가 대화 중에 수행한 작업 한 건.
+ *
+ * FIX_TEST · GENERATE_SCENARIO 는 AI 작업이 만들어진 것으로, 사람이 승인해야 반영된다.
+ * RUN_PROPOSAL 은 아직 아무것도 하지 않은 상태의 실행 제안이다.
+ */
+export interface AiChatAction {
+  type: 'FIX_TEST' | 'GENERATE_SCENARIO' | 'RUN_PROPOSAL';
+  status: 'CREATED' | 'PROPOSED' | 'FAILED';
+  label: string;
+  detail?: string | null;
+  jobId?: number | null;
+  projectId?: string | null;
+  specPath?: string | null;
+  grep?: string | null;
+}
+
+export interface AiChatResponse {
+  answer: string;
+  actions?: AiChatAction[];
 }
 
 export interface AiChatRequest {
   executionId?: number;
+  /** 지금 열어 둔 프로젝트. 서버가 이 프로젝트의 최근 실행 로그를 스스로 찾아 붙인다. */
+  projectId?: string;
   question: string;
   userLevel: UserLevel;
   provider?: AiModelProvider;
@@ -480,6 +506,21 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   templateId: 'default',
   scaffoldOnCreate: true,
 };
+
+export interface AiAvailability {
+  claude: boolean;
+  gpt: boolean;
+  anyConfigured: boolean;
+  defaultProvider: 'CLAUDE' | 'GPT';
+}
+
+export interface SiteCheckResult {
+  reachable: boolean;
+  statusCode?: number | null;
+  title?: string | null;
+  finalUrl?: string | null;
+  message?: string | null;
+}
 
 export type AiModelProvider = 'CLAUDE' | 'GPT';
 
@@ -520,9 +561,46 @@ export interface AiProviderSettingsResponse {
   openaiMasked: string;
   claudeWorkspaceId?: string;
   updatedAt?: string;
+  defaultProvider?: 'CLAUDE' | 'GPT';
+  claudeInputPrice?: number | null;
+  claudeOutputPrice?: number | null;
+  openaiInputPrice?: number | null;
+  openaiOutputPrice?: number | null;
+}
+
+export interface AiUsageProvider {
+  provider: 'CLAUDE' | 'GPT';
+  calls: number;
+  failedCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  priceConfigured: boolean;
+}
+
+export interface AiUsageFeature {
+  feature: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface AiUsageSummary {
+  days: number;
+  from: string;
+  totalCalls: number;
+  estimatedCostUsd: number;
+  priceConfigured: boolean;
+  providers: AiUsageProvider[];
+  features: AiUsageFeature[];
 }
 
 export interface AiProviderSettingsRequest {
+  defaultProvider?: 'CLAUDE' | 'GPT';
+  claudeInputPrice?: number;
+  claudeOutputPrice?: number;
+  openaiInputPrice?: number;
+  openaiOutputPrice?: number;
   claudeApiKey?: string;
   openaiApiKey?: string;
   claudeWorkspaceId?: string;

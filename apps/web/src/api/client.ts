@@ -26,7 +26,10 @@ import type {
   ScenarioTree,
   ScenarioUsageRequest,
   ScaffoldResult,
+  AiAvailability,
+  AiUsageSummary,
   ServiceHealth,
+  SiteCheckResult,
   User,
 } from '@/types';
 
@@ -83,6 +86,12 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
   const res = await fetch(path, { ...fetchOptions, headers, credentials: 'omit' });
 
   if (res.status === 401) {
+    // 로그인처럼 토큰 없이 부르는 요청은 화면을 옮기지 않고 오류만 돌려준다.
+    // (그러지 않으면 비밀번호를 틀렸을 때 페이지가 새로고침되어 오류가 보이지 않는다)
+    if (!includeAuth) {
+      const err = await res.json().catch(() => ({ message: '' }));
+      throw new Error(err.message || '사용자명 또는 비밀번호가 올바르지 않습니다.');
+    }
     clearStoredAuth();
     window.location.href = '/login';
     throw new Error('Unauthorized');
@@ -153,6 +162,14 @@ export const api = {
     }),
 
   getProjects: () => request<Project[]>('/api/projects'),
+  getAiAvailability: () =>
+    request<AiAvailability>('/api/ai/availability'),
+
+  getAiUsage: (days = 30) =>
+    request<AiUsageSummary>(`/api/ai/usage?days=${days}`),
+
+  checkSite: (url: string) =>
+    request<SiteCheckResult>(`/api/projects/site-check?url=${encodeURIComponent(url)}`),
 
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
 
@@ -399,7 +416,7 @@ export const api = {
         body: JSON.stringify(data),
       }),
     chat: (data: AiChatRequest) =>
-      request<{ answer: string }>('/api/ai/chat', {
+      request<import('@/types').AiChatResponse>('/api/ai/chat', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
@@ -445,6 +462,8 @@ export const api = {
       }),
     listByProject: (projectId: string) =>
       request<import('@/types').AiJob[]>(`/api/projects/${projectId}/ai-jobs`),
+    /** 작업 한 건의 현재 상태. 채팅 패널의 작업 카드가 이걸 주기적으로 읽는다. */
+    get: (id: number) => request<import('@/types').AiJob>(`/api/ai-jobs/${id}`),
     needsReview: () => request<import('@/types').AiJob[]>('/api/ai-jobs/needs-review'),
     diff: (id: number) => request<import('@/types').AiJobFileDiff[]>(`/api/ai-jobs/${id}/diff`),
     approve: (id: number) =>

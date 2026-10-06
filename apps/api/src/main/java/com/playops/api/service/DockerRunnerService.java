@@ -91,7 +91,7 @@ public class DockerRunnerService {
         command.add(containerWorkDir);
         command.add("-e");
         command.add("NODE_VERSION=" + RuntimeVersions.NODE_VERSION);
-        // 러너 컨테이너 기본 bridge 네트워크에서도 PlayOps 자기 자신(host의 web 컨테이너 포트)에
+        // 러너 컨테이너 기본 bridge 네트워크에서도 AI-TestOps 자기 자신(host의 web 컨테이너 포트)에
         // baseUrl로 접근할 수 있도록 host-gateway를 뚫어준다. dogfooding 프로젝트(playops-self)가
         // http://host.docker.internal:{WEB_PORT}를 baseUrl로 쓰기 위한 전제 조건.
         command.add("--add-host");
