@@ -146,7 +146,7 @@ public class DataLoader implements CommandLineRunner {
         if (isNew || project.getEnvVariables() == null || project.getEnvVariables().isBlank()) {
             project.setEnvVariables("{}");
         }
-        project.setTimeout(300);
+        project.setTimeout("playops-self".equals(projectId) ? 600 : 300);
         project.setParallelLimit(1);
         project.setBaseUrl(baseUrl);
         project.setRunnerLifecycle(runnerLifecycle);
@@ -159,6 +159,9 @@ public class DataLoader implements CommandLineRunner {
     private void migrateDemoDefaults(Project project) {
         project.setNodeVersion(RuntimeVersions.NODE_VERSION);
         project.setPlaywrightVersion(RuntimeVersions.PLAYWRIGHT_VERSION);
+        if ("playops-self".equals(project.getProjectId())) {
+            project.setTimeout(600);
+        }
         if (project.getEnvVariables() == null || project.getEnvVariables().isBlank()) {
             project.setEnvVariables("{}");
         }
