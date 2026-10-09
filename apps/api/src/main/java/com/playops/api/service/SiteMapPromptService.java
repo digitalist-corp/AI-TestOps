@@ -3,9 +3,11 @@ package com.playops.api.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playops.api.entity.ScenarioOrigin;
+import com.playops.api.entity.SiteLayout;
 import com.playops.api.entity.SiteNode;
 import com.playops.api.entity.SiteNodeEdit;
 import com.playops.api.repository.ScenarioOriginRepository;
+import com.playops.api.repository.SiteLayoutRepository;
 import com.playops.api.repository.SiteNodeEditRepository;
 import com.playops.api.repository.SiteNodeRepository;
 import org.springframework.stereotype.Service;
@@ -42,10 +44,12 @@ public class SiteMapPromptService {
     private final SiteNodeRepository nodeRepository;
     private final SiteNodeEditRepository editRepository;
     private final ScenarioOriginRepository originRepository;
+    private final SiteLayoutRepository layoutRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SiteMapPromptService(SiteNodeRepository nodeRepository, SiteNodeEditRepository editRepository,
-                                ScenarioOriginRepository originRepository) {
+                                ScenarioOriginRepository originRepository, SiteLayoutRepository layoutRepository) {
+        this.layoutRepository = layoutRepository;
         this.nodeRepository = nodeRepository;
         this.editRepository = editRepository;
         this.originRepository = originRepository;
@@ -63,6 +67,7 @@ public class SiteMapPromptService {
             return "";
         }
         boolean picked = routeKeys != null && !routeKeys.isEmpty();
+        List<String> described = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
         List<String> pathOnly = new ArrayList<>();
         for (SiteNode node : nodes) {
@@ -76,7 +81,9 @@ public class SiteMapPromptService {
                 continue;
             }
             sb.append(block);
+            described.add(node.getRouteKey());
         }
+        sb.append(describeLayouts(projectId, described, MAX_CONTEXT_CHARS - sb.length()));
         if (!pathOnly.isEmpty()) {
             sb.append("그 밖의 화면(경로만): ").append(String.join(", ", pathOnly)).append('\n');
         }
@@ -110,6 +117,35 @@ public class SiteMapPromptService {
         return nodeRepository.findByProjectIdOrderByRouteKey(projectId).stream()
                 .filter(node -> !node.isStale() && !excluded.contains(node.getRouteKey()))
                 .toList();
+    }
+
+    /** 자세히 적은 화면을 감싸는 공용 영역. 메뉴로 다른 화면에 가는 테스트를 만들 때 쓴다. */
+    private String describeLayouts(String projectId, List<String> describedRoutes, int budget) {
+        StringBuilder sb = new StringBuilder();
+        for (SiteLayout layout : layoutRepository.findByProjectId(projectId)) {
+            List<String> routes = readStrings(layout.getRouteKeys());
+            if (routes.stream().noneMatch(describedRoutes::contains)) {
+                continue;
+            }
+            StringBuilder block = new StringBuilder("공용 영역 — 다음 화면에서 항상 보인다: ")
+                    .append(String.join(", ", routes)).append('\n');
+            for (Map<String, Object> element : read(layout.getElements())) {
+                if (element.get("selector") instanceof String selector) {
+                    block.append("- ").append(element.get("kind") == null ? "요소" : element.get("kind"))
+                            .append(": ").append(selector).append('\n');
+                }
+            }
+            for (Map<String, Object> link : read(layout.getLinks())) {
+                if (link.get("to") instanceof String to && link.get("selector") instanceof String selector) {
+                    block.append("이동: ").append(selector).append(" → ").append(to).append('\n');
+                }
+            }
+            block.append('\n');
+            if (sb.length() + block.length() <= budget) {
+                sb.append(block);
+            }
+        }
+        return sb.toString();
     }
 
     private String describe(SiteNode node) {
@@ -155,6 +191,11 @@ public class SiteMapPromptService {
         Set<String> known = new HashSet<>();
         for (SiteNode node : nodeRepository.findByProjectIdOrderByRouteKey(projectId)) {
             for (Map<String, Object> element : read(node.getElements())) {
+                known.addAll(keysOf(element));
+            }
+        }
+        for (SiteLayout layout : layoutRepository.findByProjectId(projectId)) {
+            for (Map<String, Object> element : read(layout.getElements())) {
                 known.addAll(keysOf(element));
             }
         }

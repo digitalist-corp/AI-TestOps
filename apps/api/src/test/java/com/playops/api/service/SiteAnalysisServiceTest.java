@@ -25,7 +25,7 @@ class SiteAnalysisServiceTest {
 
     private final SiteNodeRepository nodeRepository = mock(SiteNodeRepository.class);
     private final SiteAnalysisService service = new SiteAnalysisService(
-            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, null, null);
+            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, null, null, null);
 
     private static SiteNode node(String routeKey, String firstSeen) {
         SiteNode node = new SiteNode();

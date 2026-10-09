@@ -730,6 +730,15 @@ export interface SiteMap {
   analysis: SiteMapAnalysis;
   nodes: SiteMapNode[];
   edges: SiteMapEdge[];
+  layouts: SiteMapLayout[];
+}
+
+/** 여러 화면을 감싸는 공용 영역(상단 메뉴, 사이드바). routeKeys 의 화면 어디서든 links 의 화면으로 갈 수 있다. */
+export interface SiteMapLayout {
+  sourceFile: string;
+  routeKeys: string[];
+  elementCount: number;
+  links: { to: string; label: string | null; selector: string | null }[];
 }
 
 /** 지금 돌고 있는 구조 분석 (프로젝트 목록 · 상단의 진행 배지용). */

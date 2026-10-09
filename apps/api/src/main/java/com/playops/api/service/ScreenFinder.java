@@ -52,7 +52,14 @@ public class ScreenFinder {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** 화면 하나. routeKey 는 재분석해도 같은 화면을 가리키는 키다 (예: /products/:id). */
-    public record Screen(String routeKey, String sourceFile) {}
+    /**
+     * @param layoutFiles 이 화면을 감싸는 공용 레이아웃 파일 (바깥쪽부터). 상단 메뉴나 사이드바가 여기에 있다.
+     */
+    public record Screen(String routeKey, String sourceFile, List<String> layoutFiles) {
+        public Screen(String routeKey, String sourceFile) {
+            this(routeKey, sourceFile, List.of());
+        }
+    }
 
     public record Result(String framework, String appRoot, List<Screen> screens, boolean partial, List<String> warnings) {}
 
@@ -145,7 +152,7 @@ public class ScreenFinder {
                 }
                 String route = nextRoute(dir.relativize(file.getParent()), true);
                 if (route != null) {
-                    screens.put(route, new Screen(route, relative(repoRoot, file)));
+                    screens.put(route, new Screen(route, relative(repoRoot, file), nextLayouts(repoRoot, dir, file.getParent())));
                 }
             }
         }
@@ -166,10 +173,42 @@ public class ScreenFinder {
                         : (rel.getParent() == null ? Path.of(stem) : rel.getParent().resolve(stem));
                 String route = nextRoute(routePath, false);
                 if (route != null) {
-                    screens.putIfAbsent(route, new Screen(route, relative(repoRoot, file)));
+                    // pages 방식에서는 _app 이 모든 화면을 감싼다.
+                    List<String> layouts = new ArrayList<>();
+                    for (String ext : EXTENSIONS) {
+                        Path app = dir.resolve("_app" + ext);
+                        if (Files.isRegularFile(app) && !Files.isSymbolicLink(app)) {
+                            layouts.add(relative(repoRoot, app));
+                            break;
+                        }
+                    }
+                    screens.putIfAbsent(route, new Screen(route, relative(repoRoot, file), layouts));
                 }
             }
         }
+    }
+
+    /** app 폴더부터 화면 폴더까지 내려오며 만나는 layout 파일 (바깥쪽부터). */
+    private static List<String> nextLayouts(Path repoRoot, Path appRouterDir, Path pageDir) {
+        List<String> layouts = new ArrayList<>();
+        Path current = appRouterDir;
+        List<Path> chain = new ArrayList<>(List.of(current));
+        for (Path part : appRouterDir.relativize(pageDir)) {
+            if (!part.toString().isEmpty()) {
+                current = current.resolve(part);
+                chain.add(current);
+            }
+        }
+        for (Path dir : chain) {
+            for (String ext : EXTENSIONS) {
+                Path layout = dir.resolve("layout" + ext);
+                if (Files.isRegularFile(layout) && !Files.isSymbolicLink(layout)) {
+                    layouts.add(relative(repoRoot, layout));
+                    break;
+                }
+            }
+        }
+        return layouts;
     }
 
     /** 폴더 경로를 라우트로 바꾼다. (group) 은 빼고 [id] 는 :id 로 쓴다. 화면이 아닌 폴더면 null. */
@@ -222,17 +261,28 @@ public class ScreenFinder {
             }
             Map<String, String> imports = importsOf(source);
             // 한 파일 안에서는 뒤에 나온 정의가 이긴다 (레이아웃 라우트 안의 index 라우트가 실제 화면이다).
-            Map<String, Path> inThisFile = new LinkedHashMap<>();
+            Map<String, Screen> inThisFile = new LinkedHashMap<>();
             for (RouteTag route : parseRoutes(source)) {
                 String resolved = resolveImport(appDir, file, imports.get(route.component()));
-                inThisFile.put(route.path(), resolved != null ? Path.of(resolved) : file);
+                String screenFile = relative(repoRoot, resolved != null ? Path.of(resolved) : file);
+                List<String> layouts = new ArrayList<>();
+                for (String layout : route.layouts()) {
+                    String layoutFile = resolveImport(appDir, file, imports.get(layout));
+                    if (layoutFile != null) {
+                        String rel = relative(repoRoot, Path.of(layoutFile));
+                        if (!rel.equals(screenFile) && !layouts.contains(rel)) {
+                            layouts.add(rel);
+                        }
+                    }
+                }
+                inThisFile.put(route.path(), new Screen(route.path(), screenFile, layouts));
             }
-            for (Map.Entry<String, Path> entry : inThisFile.entrySet()) {
+            for (Map.Entry<String, Screen> entry : inThisFile.entrySet()) {
                 Screen existing = screens.get(entry.getKey());
                 // 같은 경로가 다른 파일에도 있으면, 라우트를 다시 품은 껍데기(<App> 등)가 아닌 쪽이 화면이다.
                 if (existing == null || (isRouterShell(repoRoot.resolve(existing.sourceFile()))
-                        && !isRouterShell(entry.getValue()))) {
-                    screens.put(entry.getKey(), new Screen(entry.getKey(), relative(repoRoot, entry.getValue())));
+                        && !isRouterShell(repoRoot.resolve(entry.getValue().sourceFile())))) {
+                    screens.put(entry.getKey(), entry.getValue());
                 }
             }
         }
@@ -250,7 +300,10 @@ public class ScreenFinder {
         }
     }
 
-    record RouteTag(String path, String component) {}
+    /** @param layouts 이 라우트를 감싸는 상위 라우트의 컴포넌트 이름 (바깥쪽부터) */
+    record RouteTag(String path, String component, List<String> layouts) {}
+
+    private record Parent(String path, String component) {}
 
     /**
      * 소스에서 &lt;Route&gt; 태그를 순서대로 읽어 중첩된 경로를 합친다.
@@ -258,7 +311,7 @@ public class ScreenFinder {
      */
     List<RouteTag> parseRoutes(String source) {
         List<RouteTag> routes = new ArrayList<>();
-        Deque<String> parents = new ArrayDeque<>();
+        Deque<Parent> parents = new ArrayDeque<>();
         int i = 0;
         while (i < source.length()) {
             int open = source.indexOf("<Route", i);
@@ -294,16 +347,23 @@ public class ScreenFinder {
             Matcher pathMatcher = PATH_ATTR.matcher(plain);
             String path = pathMatcher.find() ? firstGroup(pathMatcher) : null;
             boolean index = INDEX_ATTR.matcher(plain).find();
-            String parentPath = parents.isEmpty() ? "" : parents.peek();
+            String parentPath = parents.isEmpty() ? "" : parents.peek().path();
             String fullPath = index ? joinPath(parentPath, "") : path == null ? parentPath : joinPath(parentPath, path);
 
             String component = componentOf(element);
             boolean hasPath = path != null || index;
             if (hasPath && component != null && !fullPath.contains("*")) {
-                routes.add(new RouteTag(fullPath.isEmpty() ? "/" : fullPath, component));
+                List<String> layouts = new ArrayList<>();
+                parents.descendingIterator().forEachRemaining(parent -> {
+                    if (parent.component() != null) {
+                        layouts.add(parent.component());
+                    }
+                });
+                routes.add(new RouteTag(fullPath.isEmpty() ? "/" : fullPath, component, layouts));
             }
             if (!selfClosing) {
-                parents.push(fullPath);
+                // 다른 곳으로 보내기만 하는 라우트(Navigate)는 componentOf 가 null 을 주므로 레이아웃이 되지 않는다.
+                parents.push(new Parent(fullPath, component));
             }
             i = end + 1;
         }

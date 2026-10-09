@@ -75,6 +75,7 @@ class ScreenFinderTest {
                   );
                 }
                 """);
+        write("apps/web/src/components/Layout.tsx", "export function Layout() { return null; }");
         for (String page : List.of("LoginPage", "ProjectsPage", "ProjectDetailPage", "UsersPage")) {
             write("apps/web/src/pages/" + page + ".tsx", "export function " + page + "() { return null; }");
         }
@@ -83,6 +84,11 @@ class ScreenFinderTest {
 
         assertThat(result.framework()).isEqualTo(ScreenFinder.REACT_ROUTER);
         assertThat(result.appRoot()).isEqualTo("apps/web");
+        // 경로 없는 레이아웃 라우트 안의 화면은 Layout 이 감싼다. 감싸는 컴포넌트(ProtectedRoute)가 아니라 안쪽의 Layout 이다.
+        assertThat(result.screens()).filteredOn(screen -> screen.routeKey().equals("/login"))
+                .allSatisfy(screen -> assertThat(screen.layoutFiles()).isEmpty());
+        assertThat(result.screens()).filteredOn(screen -> !screen.routeKey().equals("/login"))
+                .allSatisfy(screen -> assertThat(screen.layoutFiles()).containsExactly("apps/web/src/components/Layout.tsx"));
         assertThat(byRoute(result)).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "/login", "apps/web/src/pages/LoginPage.tsx",
                 "/projects", "apps/web/src/pages/ProjectsPage.tsx",
@@ -146,6 +152,7 @@ class ScreenFinderTest {
         write("app/page.tsx", "");
         write("app/layout.tsx", "");
         write("app/(shop)/products/[id]/page.tsx", "");
+        write("app/(shop)/layout.tsx", "");
         write("app/blog/[...slug]/page.tsx", "");
         write("app/_private/page.tsx", "");
         write("app/api/health/route.ts", "");
@@ -154,6 +161,9 @@ class ScreenFinderTest {
         ScreenFinder.Result result = finder.find(repo);
 
         assertThat(result.framework()).isEqualTo(ScreenFinder.NEXT);
+        assertThat(result.screens()).filteredOn(screen -> screen.routeKey().equals("/products/:id"))
+                .allSatisfy(screen -> assertThat(screen.layoutFiles())
+                        .containsExactly("app/layout.tsx", "app/(shop)/layout.tsx"));
         assertThat(byRoute(result)).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "/", "app/page.tsx",
                 "/products/:id", "app/(shop)/products/[id]/page.tsx",

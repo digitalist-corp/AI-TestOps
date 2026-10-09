@@ -6,6 +6,7 @@ import com.playops.api.config.PlayOpsProperties;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.SiteAnalysisRun;
 import com.playops.api.entity.SiteEdge;
+import com.playops.api.entity.SiteLayout;
 import com.playops.api.entity.SiteNode;
 import com.playops.api.entity.SiteNodeEdit;
 import com.playops.api.exception.ApiException;
@@ -13,6 +14,7 @@ import com.playops.api.repository.ProjectRepository;
 import com.playops.api.repository.ScenarioOriginRepository;
 import com.playops.api.repository.SiteAnalysisRunRepository;
 import com.playops.api.repository.SiteEdgeRepository;
+import com.playops.api.repository.SiteLayoutRepository;
 import com.playops.api.repository.SiteNodeEditRepository;
 import com.playops.api.repository.SiteNodeRepository;
 import org.slf4j.Logger;
@@ -54,6 +56,7 @@ public class SiteAnalysisService {
     private final ScreenExtractor screenExtractor;
     private final SiteEdgeRepository edgeRepository;
     private final ScenarioOriginRepository originRepository;
+    private final SiteLayoutRepository layoutRepository;
     private final SiteAnalysisRunRepository runRepository;
     private final SiteNodeRepository nodeRepository;
     private final SiteNodeEditRepository editRepository;
@@ -65,8 +68,9 @@ public class SiteAnalysisService {
                                ScreenFinder screenFinder, ScreenExtractor screenExtractor,
                                SiteAnalysisRunRepository runRepository, SiteNodeRepository nodeRepository,
                                SiteNodeEditRepository editRepository, SiteEdgeRepository edgeRepository,
-                               ScenarioOriginRepository originRepository) {
+                               ScenarioOriginRepository originRepository, SiteLayoutRepository layoutRepository) {
         this.originRepository = originRepository;
+        this.layoutRepository = layoutRepository;
         this.projectService = projectService;
         this.projectRepository = projectRepository;
         this.gitRepositoryService = gitRepositoryService;
@@ -98,7 +102,14 @@ public class SiteAnalysisService {
 
     public record Edge(String from, String to, String kind, String label, String selector) {}
 
-    public record SiteMap(String projectId, Source source, Analysis analysis, List<Node> nodes, List<Edge> edges) {}
+    /**
+     * 여러 화면을 감싸는 공용 영역(상단 메뉴, 사이드바). routeKeys 의 화면 어디서든 links 의 화면으로 갈 수 있다.
+     * 화면마다 전환으로 복제하지 않고 따로 내준다.
+     */
+    public record Layout(String sourceFile, List<String> routeKeys, int elementCount, List<Map<String, Object>> links) {}
+
+    public record SiteMap(String projectId, Source source, Analysis analysis, List<Node> nodes, List<Edge> edges,
+                          List<Layout> layouts) {}
 
     /** 화면 하나의 상세. elements 는 저장된 JSON 을 그대로 내준다. */
     public record NodeDetail(Node node, List<Map<String, Object>> elements, List<Edge> edges) {}
@@ -126,7 +137,11 @@ public class SiteAnalysisService {
                         readStrings(run.getWarnings()), run.getErrorMessage(),
                         run.getStartedAt(), run.getFinishedAt()))
                 .orElse(new Analysis("NONE", null, null, false, 0, 0, 0, null, List.of(), null, null, null));
-        return new SiteMap(projectId, sourceOf(project), analysis, nodes, edgesOf(projectId, null));
+        List<Layout> layouts = layoutRepository.findByProjectId(projectId).stream()
+                .map(layout -> new Layout(layout.getSourceFile(), readStrings(layout.getRouteKeys()),
+                        readElements(layout.getElements()).size(), readElements(layout.getLinks())))
+                .toList();
+        return new SiteMap(projectId, sourceOf(project), analysis, nodes, edgesOf(projectId, null), layouts);
     }
 
     public List<Running> running() {
@@ -286,7 +301,8 @@ public class SiteAnalysisService {
             runRepository.save(run);
 
             List<String> warnings = new ArrayList<>(found.warnings());
-            readScreens(run, project, source, found, nodes, warnings);
+            int layoutCalls = readLayouts(project, source, found, nodes, warnings);
+            readScreens(run, project, source, found, nodes, warnings, layoutCalls);
             rebuildEdges(run.getProjectId(), nodes);
             run.setWarnings(objectMapper.writeValueAsString(warnings));
             run.setStatus(SiteAnalysisRun.COMPLETED);
@@ -304,6 +320,7 @@ public class SiteAnalysisService {
         nodeRepository.deleteAll(nodeRepository.findByProjectIdOrderByRouteKey(projectId));
         editRepository.deleteAll(editRepository.findByProjectId(projectId));
         originRepository.deleteAll(originRepository.findByProjectId(projectId));
+        layoutRepository.deleteAll(layoutRepository.findByProjectId(projectId));
         runRepository.deleteAll(runRepository.findByProjectId(projectId));
     }
 
@@ -359,13 +376,76 @@ public class SiteAnalysisService {
     }
 
     /**
+     * 화면을 감싸는 공용 레이아웃(상단 메뉴, 사이드바)을 읽는다. 레이아웃 파일 하나에 한 번만 읽고,
+     * 그 레이아웃이 감싸는 화면 목록과 함께 저장한다. 화면과 같은 방식으로 묶음이 같으면 건너뛴다.
+     *
+     * @return LLM 을 부른 횟수
+     */
+    private int readLayouts(Project project, Path source, ScreenFinder.Result found,
+                            Map<String, SiteNode> nodes, List<String> warnings) throws IOException {
+        Map<String, List<String>> routesByLayout = new LinkedHashMap<>();
+        for (ScreenFinder.Screen screen : found.screens()) {
+            if (!nodes.containsKey(screen.routeKey())) {
+                continue;
+            }
+            for (String layoutFile : screen.layoutFiles()) {
+                routesByLayout.computeIfAbsent(layoutFile, key -> new ArrayList<>()).add(screen.routeKey());
+            }
+        }
+        Map<String, SiteLayout> existing = new HashMap<>();
+        for (SiteLayout layout : layoutRepository.findByProjectId(project.getProjectId())) {
+            existing.put(layout.getSourceFile(), layout);
+        }
+        List<String> knownRoutes = new ArrayList<>(nodes.keySet());
+        int llmCalls = 0;
+        for (Map.Entry<String, List<String>> entry : routesByLayout.entrySet()) {
+            SiteLayout layout = existing.remove(entry.getKey());
+            if (layout == null) {
+                layout = new SiteLayout();
+                layout.setProjectId(project.getProjectId());
+                layout.setSourceFile(entry.getKey());
+            }
+            layout.setRouteKeys(objectMapper.writeValueAsString(entry.getValue()));
+            Map<String, String> bundle = screenExtractor.bundle(source, found.appRoot(), entry.getKey());
+            String hash = screenExtractor.hash(bundle);
+            if (!bundle.isEmpty() && !hash.equals(layout.getContentHash())) {
+                try {
+                    llmCalls++;
+                    ScreenExtractor.Extraction extraction = screenExtractor.extract(project.getAiModelProvider(),
+                            project.getProjectId(), "여러 화면에 공통으로 보이는 영역 (" + entry.getKey() + ")", knownRoutes, bundle);
+                    List<Map<String, Object>> elements = extraction.elements();
+                    for (Map<String, Object> element : elements) {
+                        SelectorBuilder.apply(element);
+                        element.put("verification", "UNVERIFIED");
+                    }
+                    SelectorBuilder.markDuplicates(elements);
+                    List<Map<String, Object>> links = new ArrayList<>();
+                    for (Map<String, Object> link : extraction.links()) {
+                        Map<String, Object> withSelector = new LinkedHashMap<>(link);
+                        withSelector.put("selector", selectorForLabel(elements, link.get("label")));
+                        links.add(withSelector);
+                    }
+                    layout.setElements(objectMapper.writeValueAsString(elements));
+                    layout.setLinks(objectMapper.writeValueAsString(links));
+                    layout.setContentHash(hash);
+                } catch (RuntimeException e) {
+                    warnings.add(entry.getKey() + " 공용 영역을 읽지 못했습니다: " + e.getMessage());
+                }
+            }
+            layoutRepository.save(layout);
+        }
+        layoutRepository.deleteAll(existing.values()); // 더는 어떤 화면도 감싸지 않는 레이아웃
+        return llmCalls;
+    }
+
+    /**
      * 화면마다 파일 묶음을 LLM 에 보여 주고 요소를 채운다. 묶음이 지난번과 같으면 부르지 않는다.
      * 한 화면에서 실패해도 나머지는 계속하고, 그 화면은 이전 내용을 그대로 둔다.
      */
     private void readScreens(SiteAnalysisRun run, Project project, Path source, ScreenFinder.Result found,
-                             Map<String, SiteNode> nodes, List<String> warnings) throws IOException {
+                             Map<String, SiteNode> nodes, List<String> warnings, int callsSoFar) throws IOException {
         List<String> knownRoutes = new ArrayList<>(nodes.keySet());
-        int llmCalls = 0;
+        int llmCalls = callsSoFar;
         int processed = 0;
         for (SiteNode node : nodes.values()) {
             Map<String, String> bundle = screenExtractor.bundle(source, found.appRoot(), node.getSourceFile());
@@ -426,7 +506,7 @@ public class SiteAnalysisService {
                 edge.setToRouteKey(to);
                 String label = link.get("label") instanceof String value ? value : null;
                 edge.setLabel(label);
-                edge.setSelector(selectorForLabel(node, label));
+                edge.setSelector(selectorForLabel(readElements(node.getElements()), label));
                 byTarget.putIfAbsent(to, edge); // 같은 두 화면 사이의 링크는 하나로 합친다.
             }
             edges.addAll(byTarget.values());
@@ -434,12 +514,12 @@ public class SiteAnalysisService {
         edgeRepository.saveAll(edges);
     }
 
-    /** 링크의 글자와 이름이 같은 요소가 화면에 있으면 그 셀렉터를 전환에 붙인다. */
-    private String selectorForLabel(SiteNode node, String label) {
-        if (label == null) {
+    /** 링크의 글자와 이름이 같은 요소가 있으면 그 셀렉터를 붙인다. */
+    private static String selectorForLabel(List<Map<String, Object>> elements, Object label) {
+        if (!(label instanceof String)) {
             return null;
         }
-        for (Map<String, Object> element : readElements(node.getElements())) {
+        for (Map<String, Object> element : elements) {
             if (label.equals(element.get("name")) || label.equals(element.get("text"))) {
                 return element.get("selector") instanceof String selector ? selector : null;
             }

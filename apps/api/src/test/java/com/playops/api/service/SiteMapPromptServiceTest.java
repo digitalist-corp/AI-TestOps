@@ -19,7 +19,8 @@ class SiteMapPromptServiceTest {
     private final SiteNodeRepository nodes = mock(SiteNodeRepository.class);
     private final SiteNodeEditRepository edits = mock(SiteNodeEditRepository.class);
     private final ScenarioOriginRepository origins = mock(ScenarioOriginRepository.class);
-    private final SiteMapPromptService service = new SiteMapPromptService(nodes, edits, origins);
+    private final com.playops.api.repository.SiteLayoutRepository layouts = mock(com.playops.api.repository.SiteLayoutRepository.class);
+    private final SiteMapPromptService service = new SiteMapPromptService(nodes, edits, origins, layouts);
 
     private static SiteNode node(String route, String title, String elements, String links) {
         SiteNode node = new SiteNode();
@@ -146,5 +147,24 @@ class SiteMapPromptServiceTest {
         service.applyResults("p", List.of(new SiteMapPromptService.CaseOutcome("tests/handwritten.spec.ts", "PASSED", null)));
 
         assertThat(savedNode("/login").getElements()).doesNotContain("verification");
+    }
+
+    @Test
+    void addsSharedMenuOfTheDescribedScreensAndTreatsItsSelectorsAsKnown() {
+        com.playops.api.entity.SiteLayout layout = new com.playops.api.entity.SiteLayout();
+        layout.setSourceFile("src/components/Layout.tsx");
+        layout.setRouteKeys("[\"/signup\"]");
+        layout.setElements("[{\"kind\":\"link\",\"role\":\"link\",\"name\":\"게시판\","
+                + "\"selector\":\"getByRole('link', { name: '게시판', exact: true })\"}]");
+        layout.setLinks("[{\"to\":\"/login\",\"label\":\"게시판\",\"selector\":\"getByRole('link', { name: '게시판', exact: true })\"}]");
+        when(layouts.findByProjectId("p")).thenReturn(List.of(layout));
+
+        // 메뉴가 감싸는 화면(/signup)을 자세히 적을 때만 메뉴도 적는다.
+        assertThat(service.context("p", List.of("/signup")))
+                .contains("공용 영역 — 다음 화면에서 항상 보인다: /signup")
+                .contains("이동: getByRole('link', { name: '게시판', exact: true }) → /login");
+        assertThat(service.context("p", List.of("/login"))).doesNotContain("공용 영역");
+
+        assertThat(service.check("p", "await page.getByRole('link', { name: '게시판' }).click();").unknown()).isEmpty();
     }
 }

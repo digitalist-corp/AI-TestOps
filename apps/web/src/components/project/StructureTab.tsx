@@ -256,6 +256,31 @@ export function StructureTab({ projectId }: { projectId: string }) {
         )}
       </section>
 
+      {siteMap.layouts.map((layout) => (
+        <section key={layout.sourceFile} className="rounded-lg border border-border bg-card p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-sm font-semibold text-foreground">
+              공용 메뉴 · 화면 {layout.routeKeys.length}개에서 보임
+            </h3>
+            <span className="font-mono text-xs text-muted-foreground">{layout.sourceFile}</span>
+          </div>
+          {layout.links.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">다른 화면으로 가는 링크를 찾지 못했습니다.</p>
+          ) : (
+            <ul className="mt-3 space-y-1.5">
+              {layout.links.map((link, index) => (
+                <li key={index} className="flex flex-col gap-0.5 @3xl:flex-row @3xl:items-center @3xl:gap-3">
+                  <span className="shrink-0 font-mono text-sm text-foreground">→ {link.to}</span>
+                  <code className="min-w-0 break-all text-xs text-muted-foreground">
+                    {link.selector ?? (link.label ? `"${link.label}" (셀렉터를 만들 수 없음)` : '셀렉터를 만들 수 없음')}
+                  </code>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ))}
+
       <section className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-3">
           <h3 className="text-sm font-semibold text-foreground">
