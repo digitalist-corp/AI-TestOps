@@ -34,5 +34,9 @@ public record ProjectRequest(
         String repositoryUrl,
         String repositoryBranch,
         // write-only: 응답으로는 절대 돌려주지 않는다. null이면 기존 토큰 유지, ""(빈 문자열)이면 연동 해제.
-        String repositoryToken
+        String repositoryToken,
+        // 구조 분석이 읽을 앱 소스 저장소. 등록할 때만 쓴다 (등록 직후 분석을 시작한다). 이후 변경은 구조 탭에서 한다.
+        String sourceRepositoryUrl,
+        String sourceRepositoryBranch,
+        String sourceRepositoryToken
 ) {}

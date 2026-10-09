@@ -22,6 +22,10 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
     title: '소스 탐색기',
     body: '테스트 코드를 직접 열고 고치는 편집기입니다. 고칠 내용을 말로 설명하고 싶다면 왼쪽 AI에게 파일 이름과 함께 요청하세요.',
   },
+  structure: {
+    title: '구조',
+    body: '앱의 소스 저장소를 읽어 어떤 화면이 있는지 찾아 둔 곳이에요. AI가 테스트를 만들 때 이 정보를 근거로 삼습니다. 코드가 바뀌면 다시 분석하세요.',
+  },
   scenarios: {
     title: '시나리오',
     body: 'spec 파일을 분석해 테스트 케이스 목록을 보여주는 곳이에요. 케이스를 골라 바로 실행할 수 있습니다.',

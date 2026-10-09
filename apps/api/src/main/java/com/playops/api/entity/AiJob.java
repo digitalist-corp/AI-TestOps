@@ -33,6 +33,10 @@ public class AiJob {
     @Column(name = "target_spec_path", length = 500)
     private String targetSpecPath;
 
+    /** 시나리오 생성 때 사용자가 고른 화면의 routeKey (JSON 배열). 고르지 않았으면 null. */
+    @Column(name = "route_keys", columnDefinition = "TEXT")
+    private String routeKeys;
+
     @Column(name = "failed_execution_id")
     private Long failedExecutionId;
 
@@ -123,6 +127,8 @@ public class AiJob {
     public void setInstruction(String instruction) { this.instruction = instruction; }
 
     public String getTargetSpecPath() { return targetSpecPath; }
+    public String getRouteKeys() { return routeKeys; }
+    public void setRouteKeys(String routeKeys) { this.routeKeys = routeKeys; }
     public void setTargetSpecPath(String targetSpecPath) { this.targetSpecPath = targetSpecPath; }
 
     public Long getFailedExecutionId() { return failedExecutionId; }

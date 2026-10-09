@@ -40,6 +40,7 @@ public class AiJobService {
     private final SlackNotificationService slackNotificationService;
     private final GitCommitService gitCommitService;
     private final LlmGatewayService llmGatewayService;
+    private final SiteMapPromptService siteMapPromptService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -62,6 +63,7 @@ public class AiJobService {
             SlackNotificationService slackNotificationService,
             GitCommitService gitCommitService,
             LlmGatewayService llmGatewayService,
+            SiteMapPromptService siteMapPromptService,
             @Lazy AiJobService self
     ) {
         this.aiJobRepository = aiJobRepository;
@@ -73,6 +75,7 @@ public class AiJobService {
         this.slackNotificationService = slackNotificationService;
         this.gitCommitService = gitCommitService;
         this.llmGatewayService = llmGatewayService;
+        this.siteMapPromptService = siteMapPromptService;
         this.self = self;
     }
 
@@ -164,6 +167,12 @@ public class AiJobService {
      * 이후 검토/승인/git-commit 파이프라인은 전부 재사용된다.
      */
     public AiJob createTemplateGenerateJob(String projectId, String targetSpecPath, String instruction, Long requestedBy) {
+        return createTemplateGenerateJob(projectId, targetSpecPath, instruction, null, requestedBy);
+    }
+
+    /** @param routeKeys 구조 분석에서 고른 화면. null 이나 빈 목록이면 분석된 모든 화면을 참고한다. */
+    public AiJob createTemplateGenerateJob(String projectId, String targetSpecPath, String instruction,
+                                           List<String> routeKeys, Long requestedBy) {
         Project project = projectService.getProject(projectId);
         if (targetSpecPath == null || targetSpecPath.isBlank()) {
             throw new ApiException(400, "생성할 spec 파일 경로를 입력하세요.");
@@ -182,6 +191,11 @@ public class AiJobService {
         job.setStatus(AiJobStatus.RUNNING);
         job.setInstruction(instruction);
         job.setTargetSpecPath(normalizedPath);
+        if (routeKeys != null && !routeKeys.isEmpty()) {
+            try {
+                job.setRouteKeys(objectMapper.writeValueAsString(routeKeys));
+            } catch (IOException ignored) {}
+        }
         job.setAiModelProvider(project.getAiModelProvider());
         job.setRequestedBy(requestedBy);
         job = aiJobRepository.save(job);
@@ -206,7 +220,7 @@ public class AiJobService {
 
         String generatedContent;
         try {
-            generatedContent = generateSpecContent(project, job.getTargetSpecPath(), job.getInstruction());
+            generatedContent = generateSpecContent(project, job.getTargetSpecPath(), job.getInstruction(), routeKeysOf(job));
         } catch (Exception e) {
             markError(job, "AI 생성 실패: " + e.getMessage());
             return;
@@ -233,6 +247,13 @@ public class AiJobService {
                 fileChanges, 1, project.getAiMaxIterations());
         List<String> allFlags = new ArrayList<>(assessment.hardGateFlags());
         allFlags.addAll(assessment.softNotes());
+        // 화면 정보에 없는 셀렉터는 지어냈을 수 있으니 검토자에게 알린다. 어느 화면의 셀렉터를 썼는지도 남긴다.
+        SiteMapPromptService.SelectorCheck check = siteMapPromptService.check(project.getProjectId(), generatedContent);
+        if (!check.unknown().isEmpty() && !siteMapPromptService.context(project.getProjectId(), List.of()).isBlank()) {
+            allFlags.add("화면 정보에 없는 셀렉터 " + check.unknown().size() + "개: "
+                    + String.join(", ", check.unknown().subList(0, Math.min(5, check.unknown().size()))));
+        }
+        siteMapPromptService.recordOrigin(project.getProjectId(), job.getTargetSpecPath(), routeKeysOf(job), check.used());
         try {
             job.setRiskFlags(objectMapper.writeValueAsString(allFlags));
         } catch (IOException ignored) {}
@@ -256,7 +277,16 @@ public class AiJobService {
         );
     }
 
-    private String generateSpecContent(Project project, String targetSpecPath, String instruction) {
+    private List<String> routeKeysOf(AiJob job) {
+        try {
+            return job.getRouteKeys() == null ? List.of()
+                    : objectMapper.readValue(job.getRouteKeys(), new com.fasterxml.jackson.core.type.TypeReference<>() {});
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
+    private String generateSpecContent(Project project, String targetSpecPath, String instruction, List<String> routeKeys) {
         String systemPrompt = """
                 You are an expert QA automation engineer specializing in Playwright v%s and TypeScript,
                 working inside an existing AI-TestOps-managed test project.
@@ -265,12 +295,31 @@ public class AiJobService {
                 Return ONLY the raw TypeScript code for that file — no markdown code fences, no explanation, no JSON wrapper.
                 """.formatted(project.getPlaywrightVersion(), targetSpecPath);
 
+        // 구조 분석 결과가 있으면 추측 대신 코드에서 확인한 셀렉터를 쓰게 한다.
+        String screens = siteMapPromptService.context(project.getProjectId(), routeKeys);
+        if (!screens.isBlank()) {
+            systemPrompt += """
+
+                    The user message includes a "화면 정보" section. It lists the app's screens and the locators
+                    that were confirmed to exist in the app's source code.
+                    - To click, fill, or otherwise act on the page, use ONLY locators listed there, written exactly as listed
+                      (prefix them with `page.`). Do not invent locators or CSS selectors.
+                    - If the request needs an element that is not listed, leave that step out and say so in a code comment
+                      rather than guessing a locator.
+                    - Navigate with `page.goto('<route>')` using the listed routes. A route with a `:param` needs a real value;
+                      skip it unless the request or the project description provides one.
+                    - A locator marked as appearing several times on the screen must be narrowed (for example with `.first()`),
+                      and one marked as conditional must not be assumed to be present.
+                    """;
+        }
+
         String userPrompt = "프로젝트명: " + project.getProjectName()
                 + "\n프로젝트 설명: " + (project.getDescription() != null ? project.getDescription() : "-")
                 + "\n테스트 목적: " + (project.getTestPurpose() != null ? project.getTestPurpose() : "-")
                 + "\nBase URL: " + (project.getBaseUrl() != null ? project.getBaseUrl() : "-")
                 + "\n생성할 파일 경로: " + targetSpecPath
-                + "\n요구사항: " + instruction;
+                + "\n요구사항: " + instruction
+                + (screens.isBlank() ? "" : "\n\n화면 정보\n" + screens);
 
         String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt,
                 "코드 수정", project.getProjectId());

@@ -84,6 +84,16 @@ public class Project {
     @Column(name = "repository_token_encrypted", columnDefinition = "TEXT")
     private String repositoryTokenEncrypted;
 
+    /** 구조 분석이 읽을 앱 소스 저장소. 위의 repository* 는 Playwright 테스트 코드 저장소다. */
+    @Column(name = "source_repository_url", length = 500)
+    private String sourceRepositoryUrl;
+
+    @Column(name = "source_repository_branch", length = 100)
+    private String sourceRepositoryBranch;
+
+    @Column(name = "source_repository_token_encrypted", columnDefinition = "TEXT")
+    private String sourceRepositoryTokenEncrypted;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "runner_lifecycle", length = 20)
     private RunnerLifecycle runnerLifecycle = RunnerLifecycle.PERSISTENT;
@@ -212,6 +222,12 @@ public class Project {
     public String getRepositoryTokenEncrypted() { return repositoryTokenEncrypted; }
     public void setRepositoryTokenEncrypted(String repositoryTokenEncrypted) { this.repositoryTokenEncrypted = repositoryTokenEncrypted; }
 
+    public String getSourceRepositoryUrl() { return sourceRepositoryUrl; }
+    public void setSourceRepositoryUrl(String sourceRepositoryUrl) { this.sourceRepositoryUrl = sourceRepositoryUrl; }
+    public String getSourceRepositoryBranch() { return sourceRepositoryBranch; }
+    public void setSourceRepositoryBranch(String sourceRepositoryBranch) { this.sourceRepositoryBranch = sourceRepositoryBranch; }
+    public String getSourceRepositoryTokenEncrypted() { return sourceRepositoryTokenEncrypted; }
+    public void setSourceRepositoryTokenEncrypted(String value) { this.sourceRepositoryTokenEncrypted = value; }
     public boolean isRepositoryConnected() { return repositoryUrl != null && !repositoryUrl.isBlank(); }
 
     public RunnerLifecycle getRunnerLifecycle() {

@@ -31,6 +31,9 @@ import type {
   ServiceHealth,
   SiteCheckResult,
   User,
+  RunningAnalysis,
+  SiteMap,
+  SiteMapNodeDetail,
 } from '@/types';
 
 const TOKEN_KEY = 'playops_token';
@@ -40,7 +43,7 @@ const USER_KEY = 'playops_user';
 // 전송 페이로드에서 아예 제외해 서버가 기존에 저장된 토큰을 그대로 유지하도록 한다.
 function serializeProjectForm(data: ProjectFormData | Partial<ProjectFormData>): string {
   return JSON.stringify(data, (key, value) =>
-    key === 'repositoryToken' && value === '' ? undefined : value
+    (key === 'repositoryToken' || key === 'sourceRepositoryToken') && value === '' ? undefined : value
   );
 }
 
@@ -172,6 +175,24 @@ export const api = {
     request<SiteCheckResult>(`/api/projects/site-check?url=${encodeURIComponent(url)}`),
 
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
+
+  getSiteMap: (projectId: string) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap`),
+
+  // token 은 write-only: undefined 면 기존 토큰 유지, 값을 주면 교체.
+  updateSiteMapSource: (projectId: string, source: { url: string; branch: string; token?: string }) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/source`, {
+      method: 'PUT',
+      body: JSON.stringify(source),
+    }),
+
+  getSiteMapNode: (projectId: string, routeKey: string) =>
+    request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`),
+
+  getRunningAnalyses: () => request<RunningAnalysis[]>('/api/sitemap/running'),
+
+  analyzeSiteMap: (projectId: string) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze`, { method: 'POST' }),
 
   createProject: (data: ProjectFormData) =>
     request<Project>('/api/projects', { method: 'POST', body: serializeProjectForm(data) }),
@@ -454,7 +475,7 @@ export const api = {
       }),
     createTemplateGenerate: (
       projectId: string,
-      data: { targetSpecPath: string; instruction: string }
+      data: { targetSpecPath: string; instruction: string; routeKeys?: string[] }
     ) =>
       request<import('@/types').AiJob>(`/api/projects/${projectId}/ai-jobs/template-generate`, {
         method: 'POST',
