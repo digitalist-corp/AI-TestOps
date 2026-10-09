@@ -219,6 +219,98 @@ public class SiteMapPromptService {
         }
     }
 
+    // ---------------------------------------------------------------- 실행 결과로 확인
+
+    /** 테스트 케이스 하나의 결과. file 은 Playwright 리포트에 적힌 spec 경로다. */
+    public record CaseOutcome(String file, String status, String errorMessage) {}
+
+    /**
+     * 실행 결과로 요소의 확인 상태를 바꾼다. 코드에서 뽑은 셀렉터는 실제 화면에서 본 적이 없으므로
+     * 여기서 처음으로 맞는지 틀린지가 가려진다.
+     *
+     * - spec 의 케이스가 모두 통과했으면 그 spec 이 쓴 셀렉터는 전부 PASSED.
+     * - 실패한 케이스가 있으면, 오류 메시지에 적힌 셀렉터만 FAILED 로 바꾼다. 나머지는 통과했는지
+     *   알 수 없으므로 건드리지 않는다.
+     */
+    public void applyResults(String projectId, List<CaseOutcome> outcomes) {
+        List<SiteNode> nodes = null;
+        Set<SiteNode> changed = new LinkedHashSet<>();
+        for (ScenarioOrigin origin : originRepository.findByProjectId(projectId)) {
+            List<CaseOutcome> mine = outcomes.stream()
+                    .filter(o -> o.file() != null
+                            && (origin.getSpecPath().equals(o.file()) || origin.getSpecPath().endsWith("/" + o.file())))
+                    .filter(o -> !"SKIPPED".equals(o.status()))
+                    .toList();
+            if (mine.isEmpty()) {
+                continue;
+            }
+            Set<String> used = new HashSet<>(readStrings(origin.getSelectorKeys()));
+            Set<String> failed = new HashSet<>();
+            boolean anyFailed = false;
+            for (CaseOutcome outcome : mine) {
+                if ("FAILED".equals(outcome.status())) {
+                    anyFailed = true;
+                    failed.addAll(keysIn(outcome.errorMessage()));
+                }
+            }
+            failed.retainAll(used);
+            Set<String> target = anyFailed ? failed : used;
+            String status = anyFailed ? "FAILED" : "PASSED";
+            if (target.isEmpty()) {
+                continue;
+            }
+            if (nodes == null) {
+                nodes = nodeRepository.findByProjectIdOrderByRouteKey(projectId);
+            }
+            List<String> routes = readStrings(origin.getRouteKeys());
+            for (SiteNode node : nodes) {
+                if (!routes.isEmpty() && !routes.contains(node.getRouteKey())) {
+                    continue; // 화면을 골라 만든 테스트면 그 화면의 요소만 바꾼다.
+                }
+                List<Map<String, Object>> elements = read(node.getElements());
+                boolean touched = false;
+                for (Map<String, Object> element : elements) {
+                    if (keysOf(element).stream().anyMatch(target::contains) && !status.equals(element.get("verification"))) {
+                        element.put("verification", status);
+                        touched = true;
+                    }
+                }
+                if (touched) {
+                    try {
+                        node.setElements(objectMapper.writeValueAsString(elements));
+                        changed.add(node);
+                    } catch (IOException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            }
+        }
+        if (!changed.isEmpty()) {
+            nodeRepository.saveAll(changed);
+        }
+    }
+
+    /** 글 안에 적힌 셀렉터 호출을 키로 바꾼다 (Playwright 오류 메시지의 "waiting for getByRole(...)" 등). */
+    private static Set<String> keysIn(String text) {
+        Set<String> keys = new HashSet<>();
+        if (text == null) {
+            return keys;
+        }
+        Matcher m = SELECTOR_CALL.matcher(text);
+        while (m.find()) {
+            keys.add(selectorKey(m.group(1), unescape(m.group(3)), m.group(5) == null ? null : unescape(m.group(5))));
+        }
+        return keys;
+    }
+
+    private List<String> readStrings(String json) {
+        try {
+            return json == null || json.isBlank() ? List.of() : objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (IOException e) {
+            return List.of();
+        }
+    }
+
     private List<Map<String, Object>> read(String json) {
         try {
             return json == null || json.isBlank() ? List.of() : objectMapper.readValue(json, new TypeReference<>() {});

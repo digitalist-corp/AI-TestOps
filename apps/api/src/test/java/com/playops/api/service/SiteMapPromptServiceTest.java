@@ -18,8 +18,8 @@ class SiteMapPromptServiceTest {
 
     private final SiteNodeRepository nodes = mock(SiteNodeRepository.class);
     private final SiteNodeEditRepository edits = mock(SiteNodeEditRepository.class);
-    private final SiteMapPromptService service =
-            new SiteMapPromptService(nodes, edits, mock(ScenarioOriginRepository.class));
+    private final ScenarioOriginRepository origins = mock(ScenarioOriginRepository.class);
+    private final SiteMapPromptService service = new SiteMapPromptService(nodes, edits, origins);
 
     private static SiteNode node(String route, String title, String elements, String links) {
         SiteNode node = new SiteNode();
@@ -97,5 +97,54 @@ class SiteMapPromptServiceTest {
         assertThat(check.unknown().get(0)).contains("made-up");
         assertThat(check.unknown().get(1)).contains(".btn-primary");
         assertThat(check.unknown().get(2)).contains("heading");
+    }
+
+    private com.playops.api.entity.ScenarioOrigin origin(String specPath, String routeKeys, String selectorKeys) {
+        com.playops.api.entity.ScenarioOrigin origin = new com.playops.api.entity.ScenarioOrigin();
+        origin.setProjectId("p");
+        origin.setSpecPath(specPath);
+        origin.setRouteKeys(routeKeys);
+        origin.setSelectorKeys(selectorKeys);
+        return origin;
+    }
+
+    private SiteNode savedNode(String route) {
+        return nodes.findByProjectIdOrderByRouteKey("p").stream().filter(n -> n.getRouteKey().equals(route)).findFirst().orElseThrow();
+    }
+
+    @Test
+    void marksEverySelectorOfAPassingSpecAsPassed() {
+        when(origins.findByProjectId("p")).thenReturn(List.of(
+                origin("tests/login.spec.ts", "[\"/login\"]", "[\"testid|login-email\",\"role|button|Sign in\"]")));
+
+        // Playwright 리포트는 testDir 기준 경로를 적는다 ("login.spec.ts").
+        service.applyResults("p", List.of(new SiteMapPromptService.CaseOutcome("login.spec.ts", "PASSED", null)));
+
+        long passed = savedNode("/login").getElements().split("\"verification\":\"PASSED\"", -1).length - 1;
+        assertThat(passed).isEqualTo(2);                          // 쓴 셀렉터 둘만. "삭제" 버튼과 셀렉터 없는 요소는 그대로
+    }
+
+    @Test
+    void marksOnlyTheSelectorNamedInTheErrorAsFailed() {
+        when(origins.findByProjectId("p")).thenReturn(List.of(
+                origin("tests/login.spec.ts", "[]", "[\"testid|login-email\",\"role|button|Sign in\"]")));
+
+        service.applyResults("p", List.of(new SiteMapPromptService.CaseOutcome("tests/login.spec.ts", "FAILED",
+                "TimeoutError: locator.click: Timeout 30000ms exceeded.\nCall log:\n"
+                        + "  - waiting for getByRole('button', { name: 'Sign in', exact: true })")));
+
+        String elements = savedNode("/login").getElements();
+        assertThat(elements.split("\"verification\":\"FAILED\"", -1).length - 1).isEqualTo(1);
+        assertThat(elements).doesNotContain("\"verification\":\"PASSED\"");   // 통과했는지 알 수 없는 것은 건드리지 않는다
+    }
+
+    @Test
+    void ignoresSpecsThatWereNotGeneratedFromScreenInfo() {
+        when(origins.findByProjectId("p")).thenReturn(List.of(
+                origin("tests/login.spec.ts", "[]", "[\"testid|login-email\"]")));
+
+        service.applyResults("p", List.of(new SiteMapPromptService.CaseOutcome("tests/handwritten.spec.ts", "PASSED", null)));
+
+        assertThat(savedNode("/login").getElements()).doesNotContain("verification");
     }
 }
