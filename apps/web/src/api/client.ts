@@ -31,6 +31,7 @@ import type {
   ServiceHealth,
   SiteCheckResult,
   User,
+  RunningAnalysis,
   SiteMap,
   SiteMapNodeDetail,
 } from '@/types';
@@ -42,7 +43,7 @@ const USER_KEY = 'playops_user';
 // 전송 페이로드에서 아예 제외해 서버가 기존에 저장된 토큰을 그대로 유지하도록 한다.
 function serializeProjectForm(data: ProjectFormData | Partial<ProjectFormData>): string {
   return JSON.stringify(data, (key, value) =>
-    key === 'repositoryToken' && value === '' ? undefined : value
+    (key === 'repositoryToken' || key === 'sourceRepositoryToken') && value === '' ? undefined : value
   );
 }
 
@@ -187,6 +188,8 @@ export const api = {
 
   getSiteMapNode: (projectId: string, routeKey: string) =>
     request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`),
+
+  getRunningAnalyses: () => request<RunningAnalysis[]>('/api/sitemap/running'),
 
   analyzeSiteMap: (projectId: string) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze`, { method: 'POST' }),
@@ -472,7 +475,7 @@ export const api = {
       }),
     createTemplateGenerate: (
       projectId: string,
-      data: { targetSpecPath: string; instruction: string }
+      data: { targetSpecPath: string; instruction: string; routeKeys?: string[] }
     ) =>
       request<import('@/types').AiJob>(`/api/projects/${projectId}/ai-jobs/template-generate`, {
         method: 'POST',

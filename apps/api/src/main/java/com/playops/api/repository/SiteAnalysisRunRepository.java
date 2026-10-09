@@ -10,4 +10,5 @@ public interface SiteAnalysisRunRepository extends JpaRepository<SiteAnalysisRun
     Optional<SiteAnalysisRun> findFirstByProjectIdOrderByIdDesc(String projectId);
     boolean existsByProjectIdAndStatus(String projectId, String status);
     List<SiteAnalysisRun> findByStatus(String status);
+    List<SiteAnalysisRun> findByProjectId(String projectId);
 }

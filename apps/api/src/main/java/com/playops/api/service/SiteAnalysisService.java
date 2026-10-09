@@ -10,6 +10,7 @@ import com.playops.api.entity.SiteNode;
 import com.playops.api.entity.SiteNodeEdit;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.ProjectRepository;
+import com.playops.api.repository.ScenarioOriginRepository;
 import com.playops.api.repository.SiteAnalysisRunRepository;
 import com.playops.api.repository.SiteEdgeRepository;
 import com.playops.api.repository.SiteNodeEditRepository;
@@ -52,6 +53,7 @@ public class SiteAnalysisService {
     private final ScreenFinder screenFinder;
     private final ScreenExtractor screenExtractor;
     private final SiteEdgeRepository edgeRepository;
+    private final ScenarioOriginRepository originRepository;
     private final SiteAnalysisRunRepository runRepository;
     private final SiteNodeRepository nodeRepository;
     private final SiteNodeEditRepository editRepository;
@@ -62,7 +64,9 @@ public class SiteAnalysisService {
                                SecretCipherService secretCipherService, PlayOpsProperties properties,
                                ScreenFinder screenFinder, ScreenExtractor screenExtractor,
                                SiteAnalysisRunRepository runRepository, SiteNodeRepository nodeRepository,
-                               SiteNodeEditRepository editRepository, SiteEdgeRepository edgeRepository) {
+                               SiteNodeEditRepository editRepository, SiteEdgeRepository edgeRepository,
+                               ScenarioOriginRepository originRepository) {
+        this.originRepository = originRepository;
         this.projectService = projectService;
         this.projectRepository = projectRepository;
         this.gitRepositoryService = gitRepositoryService;
@@ -83,8 +87,11 @@ public class SiteAnalysisService {
     public record Source(String url, String branch, boolean tokenSet, boolean usesProjectRepository) {}
 
     public record Analysis(String status, String commitSha, String framework, boolean partial, int screenCount,
-                           int processedCount, int llmCalls,
+                           int processedCount, int llmCalls, Long etaSeconds,
                            List<String> warnings, String errorMessage, Instant startedAt, Instant finishedAt) {}
+
+    /** 목록 화면의 진행 배지용. 진행 중인 분석만 내준다. */
+    public record Running(String projectId, int screenCount, int processedCount, Long etaSeconds) {}
 
     public record Node(String routeKey, String title, String sourceFile, String origin, boolean stale,
                        int elementCount, boolean excluded, String note) {}
@@ -115,11 +122,35 @@ public class SiteAnalysisService {
         }
         Analysis analysis = runRepository.findFirstByProjectIdOrderByIdDesc(projectId)
                 .map(run -> new Analysis(run.getStatus(), run.getCommitSha(), run.getFramework(), run.isPartial(),
-                        run.getScreenCount(), run.getProcessedCount(), run.getLlmCalls(),
+                        run.getScreenCount(), run.getProcessedCount(), run.getLlmCalls(), etaSeconds(run, Instant.now()),
                         readStrings(run.getWarnings()), run.getErrorMessage(),
                         run.getStartedAt(), run.getFinishedAt()))
-                .orElse(new Analysis("NONE", null, null, false, 0, 0, 0, List.of(), null, null, null));
+                .orElse(new Analysis("NONE", null, null, false, 0, 0, 0, null, List.of(), null, null, null));
         return new SiteMap(projectId, sourceOf(project), analysis, nodes, edgesOf(projectId, null));
+    }
+
+    public List<Running> running() {
+        Instant now = Instant.now();
+        return runRepository.findByStatus(SiteAnalysisRun.RUNNING).stream()
+                .map(run -> new Running(run.getProjectId(), run.getScreenCount(), run.getProcessedCount(), etaSeconds(run, now)))
+                .toList();
+    }
+
+    /**
+     * 남은 시간(초). 화면을 하나라도 읽은 뒤에만 낸다 — 그 전에는 화면이 몇 개인지, 하나에 얼마나 걸리는지 몰라
+     * 숫자를 지어내게 된다. 화면 하나에 걸린 평균 시간을 남은 화면 수에 곱하고, 마지막 화면을 읽은 뒤
+     * 흐른 시간을 뺀다. 그래서 다음 화면을 기다리는 동안에도 숫자가 줄어든다.
+     */
+    static Long etaSeconds(SiteAnalysisRun run, Instant now) {
+        int done = run.getProcessedCount();
+        int total = run.getScreenCount();
+        if (!SiteAnalysisRun.RUNNING.equals(run.getStatus()) || done <= 0 || total <= done) {
+            return null;
+        }
+        Instant progressAt = run.getProgressAt() != null ? run.getProgressAt() : now;
+        double perScreenMs = (double) java.time.Duration.between(run.getStartedAt(), progressAt).toMillis() / done;
+        long sinceProgressMs = java.time.Duration.between(progressAt, now).toMillis();
+        return Math.max(1, Math.round((perScreenMs * (total - done) - sinceProgressMs) / 1000));
     }
 
     private Node toNode(SiteNode node, SiteNodeEdit edit) {
@@ -265,6 +296,15 @@ public class SiteAnalysisService {
             log.warn("구조 분석 실패 (project={}): {}", run.getProjectId(), e.getMessage());
             fail(run, e.getMessage());
         }
+    }
+
+    /** 프로젝트를 지울 때 그 프로젝트의 구조 데이터도 지운다. 같은 id 로 다시 만들었을 때 옛 화면이 보이면 안 된다. */
+    public void forget(String projectId) {
+        edgeRepository.deleteAll(edgeRepository.findByProjectId(projectId));
+        nodeRepository.deleteAll(nodeRepository.findByProjectIdOrderByRouteKey(projectId));
+        editRepository.deleteAll(editRepository.findByProjectId(projectId));
+        originRepository.deleteAll(originRepository.findByProjectId(projectId));
+        runRepository.deleteAll(runRepository.findByProjectId(projectId));
     }
 
     /** 서버가 꺼지면서 끝나지 못한 실행을 정리한다. 그대로 두면 "이미 진행 중"으로 막혀 다시 분석할 수 없다. */

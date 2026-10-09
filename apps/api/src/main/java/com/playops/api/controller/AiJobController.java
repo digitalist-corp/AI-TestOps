@@ -51,6 +51,7 @@ public class AiJobController {
                 projectId,
                 body.getTargetSpecPath(),
                 body.getInstruction(),
+                body.getRouteKeys(),
                 user != null ? user.getId() : null
         );
         return AiJobResponse.from(job);

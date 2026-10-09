@@ -234,6 +234,9 @@ function validateExecutionEnvironment(form: ProjectFormData): string | null {
   if (form.repositoryUrl.trim() && !/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?\/?$/.test(form.repositoryUrl.trim())) {
     return 'GitHub 주소는 https://github.com/{owner}/{repo} 형식이어야 합니다.';
   }
+  if (form.sourceRepositoryUrl.trim() && !/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+(\.git)?\/?$/.test(form.sourceRepositoryUrl.trim())) {
+    return '앱 소스 저장소 주소는 https://github.com/{owner}/{repo} 형식이어야 합니다.';
+  }
   if (form.loginSetupSpecPath.trim() && form.storageStateMaxAgeMinutes < 1) {
     return '세션 유효 시간은 1분 이상이어야 합니다.';
   }
@@ -298,6 +301,9 @@ export function ProjectFormDialog({
         repositoryUrl: initial.repositoryUrl ?? '',
         repositoryBranch: initial.repositoryBranch ?? '',
         repositoryToken: '',
+        sourceRepositoryUrl: '',
+        sourceRepositoryBranch: '',
+        sourceRepositoryToken: '',
         runnerLifecycle: initial.runnerLifecycle ?? 'PERSISTENT',
         dockerEnabled: initial.dockerEnabled,
         templateId: 'default',
@@ -630,6 +636,51 @@ export function ProjectFormDialog({
                 </div>
               )}
             </section>
+
+            {creating && (
+              <section className="space-y-3 rounded-md border border-border bg-card p-5">
+                <div className="flex items-center gap-2">
+                  <Github className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="text-[15px] font-bold text-foreground">
+                    앱 소스 저장소 <span className="font-normal text-muted-foreground">(선택)</span>
+                  </h3>
+                </div>
+                <p className="text-[13px] text-muted-foreground">
+                  테스트할 앱의 소스 코드가 있는 저장소입니다. 넣어 두면 등록 직후 코드를 읽어 어떤 화면과 버튼이 있는지
+                  찾아 두고, AI 가 그 정보로 테스트를 만듭니다. React Router 와 Next.js 를 읽을 수 있습니다.
+                  나중에 코드 → 구조 탭에서 연결해도 됩니다.
+                </p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+                  <div className="md:col-span-4">
+                    <Input
+                      aria-label="앱 소스 저장소 주소"
+                      value={form.sourceRepositoryUrl}
+                      onChange={(e) => update('sourceRepositoryUrl', e.target.value)}
+                      placeholder="https://github.com/owner/app"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Input
+                      aria-label="앱 소스 저장소 브랜치"
+                      value={form.sourceRepositoryBranch}
+                      onChange={(e) => update('sourceRepositoryBranch', e.target.value)}
+                      placeholder="브랜치 (기본값)"
+                      disabled={!form.sourceRepositoryUrl.trim()}
+                    />
+                  </div>
+                </div>
+                {form.sourceRepositoryUrl.trim() && (
+                  <Input
+                    aria-label="앱 소스 저장소 액세스 토큰"
+                    type="password"
+                    value={form.sourceRepositoryToken}
+                    onChange={(e) => update('sourceRepositoryToken', e.target.value)}
+                    placeholder="ghp_... (Public 저장소는 비워두세요)"
+                    autoComplete="off"
+                  />
+                )}
+              </section>
+            )}
 
             {/* 3. 어떻게 실행할 것인가 */}
             <section className="space-y-3 rounded-md border border-border bg-card p-5">

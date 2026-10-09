@@ -44,6 +44,10 @@ public class SiteAnalysisRun {
     @Column(name = "processed_count")
     private Integer processedCount = 0;
 
+    /** 마지막으로 화면 하나를 다 읽은 시각. 남은 시간을 이 시점 기준으로 계산해야 기다리는 동안 숫자가 늘지 않는다. */
+    @Column(name = "progress_at")
+    private Instant progressAt;
+
     /** 이번 분석에서 LLM 을 부른 횟수. 파일이 안 바뀐 화면은 부르지 않는다. */
     @Column(name = "llm_calls")
     private Integer llmCalls = 0;
@@ -75,7 +79,11 @@ public class SiteAnalysisRun {
     public int getScreenCount() { return screenCount; }
     public void setScreenCount(int screenCount) { this.screenCount = screenCount; }
     public int getProcessedCount() { return processedCount == null ? 0 : processedCount; }
-    public void setProcessedCount(int processedCount) { this.processedCount = processedCount; }
+    public void setProcessedCount(int processedCount) {
+        this.processedCount = processedCount;
+        this.progressAt = Instant.now();
+    }
+    public Instant getProgressAt() { return progressAt; }
     public int getLlmCalls() { return llmCalls == null ? 0 : llmCalls; }
     public void setLlmCalls(int llmCalls) { this.llmCalls = llmCalls; }
     public String getWarnings() { return warnings; }

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, GitBranch, Loader2, Network, RefreshCw, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch, Loader2, Network, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMap, SiteMapNodeDetail } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import { formatEta } from '@/components/project/AnalysisProgress';
 
 const POLL_INTERVAL_MS = 2000;
 
@@ -29,6 +30,8 @@ export function StructureTab({ projectId }: { projectId: string }) {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [openRoute, setOpenRoute] = useState<string | null>(null);
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
+  const [instruction, setInstruction] = useState('');
+  const [createdJob, setCreatedJob] = useState<{ id: number; specPath: string } | null>(null);
 
   const apply = useCallback((next: SiteMap) => {
     setSiteMap(next);
@@ -59,7 +62,29 @@ export function StructureTab({ projectId }: { projectId: string }) {
     }
     setOpenRoute(routeKey);
     setDetail(null);
+    setInstruction('');
+    setCreatedJob(null);
     api.getSiteMapNode(projectId, routeKey).then(setDetail).catch((e: Error) => setError(e.message));
+  };
+
+  /** 고른 화면의 정보로 테스트 생성을 요청한다. 만들어진 코드는 AI 검토에서 승인해야 반영된다. */
+  const generateFor = async (routeKey: string) => {
+    const slug = routeKey.replace(/[:*]/g, '').split('/').filter(Boolean).join('-') || 'home';
+    const specPath = `tests/${slug}.spec.ts`;
+    setBusy(true);
+    setError('');
+    try {
+      const job = await api.aiJobs.createTemplateGenerate(projectId, {
+        targetSpecPath: specPath,
+        instruction: instruction.trim() || `${routeKey} 화면의 주요 요소가 보이고 기본 동작이 되는지 확인한다.`,
+        routeKeys: [routeKey],
+      });
+      setCreatedJob({ id: job.id, specPath });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '요청에 실패했습니다.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const run = async (action: () => Promise<SiteMap>) => {
@@ -168,6 +193,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
                 {analysis.screenCount > 0
                   ? `화면 읽는 중 ${analysis.processedCount}/${analysis.screenCount}`
                   : '저장소 받는 중'}
+                {analysis.etaSeconds != null && ` · ${formatEta(analysis.etaSeconds)}`}
               </Badge>
             )}
             {analysis.status === 'COMPLETED' && (
@@ -304,6 +330,33 @@ export function StructureTab({ projectId }: { projectId: string }) {
                           </li>
                         ))}
                       </ul>
+                    )}
+                    {detail && detail.elements.some((element) => element.selector) && (
+                      <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3 @3xl:flex-row @3xl:items-center">
+                        {createdJob ? (
+                          <p className="text-xs text-foreground">
+                            AI 작업 #{createdJob.id} 을 만들었습니다 ({createdJob.specPath}). 생성이 끝나면{' '}
+                            <a className="font-semibold text-primary underline" href="/ai-jobs">
+                              AI 검토
+                            </a>
+                            에서 승인해야 프로젝트에 추가됩니다.
+                          </p>
+                        ) : (
+                          <>
+                            <Input
+                              aria-label="테스트로 확인할 내용"
+                              className="@3xl:flex-1"
+                              value={instruction}
+                              onChange={(e) => setInstruction(e.target.value)}
+                              placeholder="무엇을 확인할까요? 비워 두면 주요 요소와 기본 동작을 확인합니다"
+                            />
+                            <Button size="sm" disabled={busy} onClick={() => generateFor(node.routeKey)}>
+                              <Sparkles className="h-3.5 w-3.5" />
+                              이 화면으로 테스트 만들기
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     )}
                     {detail && detail.edges.filter((edge) => edge.from === node.routeKey).length > 0 && (
                       <p className="mt-3 text-xs text-muted-foreground">

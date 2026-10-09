@@ -15,6 +15,8 @@ import { ResultsTab } from '@/components/project/ResultsTab';
 import { AiAnalysisTab } from '@/components/project/AiAnalysisTab';
 import { SchedulesTab } from '@/components/project/SchedulesTab';
 import { StructureTab } from '@/components/project/StructureTab';
+import { AnalysisProgress } from '@/components/project/AnalysisProgress';
+import { useRunningAnalyses } from '@/hooks/useRunningAnalyses';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import type { ExecutionDetail } from '@/types';
 import {
@@ -124,6 +126,7 @@ function isActiveExecution(execution: Execution) {
 }
 
 export function ProjectDetailPage() {
+  const runningAnalyses = useRunningAnalyses();
   const { projectId, tab: tabParam } = useParams<{ projectId: string; tab: string }>();
   const navigate = useNavigate();
   const activeTab: ProjectTabId = isValidProjectTab(tabParam) ? tabParam : DEFAULT_PROJECT_TAB;
@@ -477,6 +480,14 @@ export function ProjectDetailPage() {
           <span className={cn('mt-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium', runnerActivityColor[runnerActivity])}>
             {runnerBadgeLabel}
           </span>
+          {projectId && runningAnalyses[projectId] && (
+            <AnalysisProgress
+              className="ml-2 mt-2"
+              screenCount={runningAnalyses[projectId].screenCount}
+              processedCount={runningAnalyses[projectId].processedCount}
+              etaSeconds={runningAnalyses[projectId].etaSeconds}
+            />
+          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
         <Button

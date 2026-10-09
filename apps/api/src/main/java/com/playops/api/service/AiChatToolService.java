@@ -43,12 +43,15 @@ public class AiChatToolService {
     private final FileStorageService fileStorageService;
     private final ExecutionQueryService executionQueryService;
     private final AiJobService aiJobService;
+    private final SiteMapPromptService siteMapPromptService;
 
     public AiChatToolService(
             FileStorageService fileStorageService,
             ExecutionQueryService executionQueryService,
-            AiJobService aiJobService
+            AiJobService aiJobService,
+            SiteMapPromptService siteMapPromptService
     ) {
+        this.siteMapPromptService = siteMapPromptService;
         this.fileStorageService = fileStorageService;
         this.executionQueryService = executionQueryService;
         this.aiJobService = aiJobService;
@@ -165,9 +168,19 @@ public class AiChatToolService {
                         LlmToolSpec.schema(
                                 withProjectId(Map.of(
                                         "specPath", LlmToolSpec.string("새로 만들 파일 경로. 예: tests/checkout.spec.ts"),
-                                        "instruction", LlmToolSpec.string("어떤 시나리오를 만들지에 대한 설명")
+                                        "instruction", LlmToolSpec.string("어떤 시나리오를 만들지에 대한 설명"),
+                                        "routes", LlmToolSpec.string("테스트할 화면의 경로를 쉼표로 구분. get_sitemap 이 알려 준 경로만 쓴다. 예: /login,/signup. 모르면 비운다")
                                 )),
                                 "specPath", "instruction")
+                ),
+                new LlmToolSpec(
+                        "get_sitemap",
+                        "앱의 소스 코드를 분석해 찾아 둔 화면 목록을 본다. route 를 주면 그 화면의 요소와 셀렉터까지 본다. "
+                                + "어떤 화면이 있는지, 화면에 무엇이 있는지 물을 때와 시나리오를 만들기 전에 쓴다.",
+                        LlmToolSpec.schema(
+                                withProjectId(Map.of(
+                                        "route", LlmToolSpec.string("자세히 볼 화면의 경로. 비우면 전체 목록")
+                                )))
                 ),
                 new LlmToolSpec(
                         "propose_test_run",
@@ -208,6 +221,7 @@ public class AiChatToolService {
             case "get_execution_detail" -> executionDetail(call);
             case "fix_test" -> fixTest(call, context);
             case "generate_scenario" -> generateScenario(call, context);
+            case "get_sitemap" -> siteMap(call, context);
             case "propose_test_run" -> proposeTestRun(call, context);
             case "get_job_status" -> jobStatus(call);
             default -> "알 수 없는 도구입니다: " + call.name();
@@ -303,13 +317,27 @@ public class AiChatToolService {
             return "specPath 와 instruction 이 모두 필요합니다.";
         }
         String projectId = context.projectIdFor(call);
+        String routes = call.arg("routes");
+        List<String> routeKeys = routes == null ? List.of()
+                : java.util.Arrays.stream(routes.split(",")).map(String::trim).filter(r -> !r.isEmpty()).toList();
         AiJob job = aiJobService.createTemplateGenerateJob(
-                projectId, specPath, instruction, context.userId);
+                projectId, specPath, instruction, routeKeys, context.userId);
         context.actions.add(AiChatAction.created(
                 "GENERATE_SCENARIO", specPath + " 생성 요청", summarize(instruction), job.getId(),
                 projectId, specPath));
         return "AI 작업 #" + job.getId() + " 을 만들었습니다. 생성 경로는 " + specPath + " 이고, "
                 + "'AI 검토' 화면에서 승인해야 프로젝트에 추가됩니다.";
+    }
+
+    private String siteMap(LlmToolCall call, ToolContext context) {
+        String projectId = context.projectIdFor(call);
+        String route = call.arg("route");
+        String text = route == null ? siteMapPromptService.overview(projectId)
+                : siteMapPromptService.context(projectId, List.of(route));
+        if (text.isBlank()) {
+            return "아직 구조 분석 결과가 없습니다. 프로젝트의 '코드 > 구조' 탭에서 소스 저장소를 연결하고 분석을 시작해야 합니다.";
+        }
+        return truncate(text);
     }
 
     private String proposeTestRun(LlmToolCall call, ToolContext context) {

@@ -25,7 +25,7 @@ class SiteAnalysisServiceTest {
 
     private final SiteNodeRepository nodeRepository = mock(SiteNodeRepository.class);
     private final SiteAnalysisService service = new SiteAnalysisService(
-            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, null);
+            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, null, null);
 
     private static SiteNode node(String routeKey, String firstSeen) {
         SiteNode node = new SiteNode();
@@ -79,6 +79,31 @@ class SiteAnalysisServiceTest {
                 .contains("\"selector\":\"getByTestId('login-email')\"").contains("\"verification\":\"PASSED\"")
                 .contains("getByRole('button', { name: '로그인', exact: true })").contains("\"verification\":\"UNVERIFIED\"");
         assertThat(login.getLinks()).contains("/signup");
+    }
+
+    @Test
+    void estimatesRemainingTimeOnlyAfterAtLeastOneScreenIsRead() {
+        java.time.Instant now = java.time.Instant.parse("2026-10-09T10:00:30Z");
+        com.playops.api.entity.SiteAnalysisRun run = new com.playops.api.entity.SiteAnalysisRun();
+        org.springframework.test.util.ReflectionTestUtils.setField(run, "startedAt", now.minusSeconds(30));
+        run.setScreenCount(9);
+
+        assertThat(SiteAnalysisService.etaSeconds(run, now)).isNull();      // 아직 하나도 못 읽음
+
+        run.setProcessedCount(3);                                           // 30초에 3개 → 남은 6개는 60초
+        org.springframework.test.util.ReflectionTestUtils.setField(run, "progressAt", now);
+        assertThat(SiteAnalysisService.etaSeconds(run, now)).isEqualTo(60L);
+        // 다음 화면을 기다리는 동안에는 줄어든다. 예상보다 오래 걸려도 0 아래로 가지 않는다.
+        assertThat(SiteAnalysisService.etaSeconds(run, now.plusSeconds(8))).isEqualTo(52L);
+        assertThat(SiteAnalysisService.etaSeconds(run, now.plusSeconds(500))).isEqualTo(1L);
+
+        run.setProcessedCount(9);
+        assertThat(SiteAnalysisService.etaSeconds(run, now)).isNull();      // 다 읽음
+
+        run.setProcessedCount(3);
+        org.springframework.test.util.ReflectionTestUtils.setField(run, "progressAt", now);
+        run.setStatus(com.playops.api.entity.SiteAnalysisRun.COMPLETED);
+        assertThat(SiteAnalysisService.etaSeconds(run, now)).isNull();      // 진행 중이 아님
     }
 
     @Test

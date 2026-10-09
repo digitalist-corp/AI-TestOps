@@ -9,7 +9,8 @@ import {
   TriangleAlert,
   Trash2,
 } from 'lucide-react';
-import type { DockerStatus, ExecutionStatus, Project, RunnerActivity } from '@/types';
+import type { DockerStatus, ExecutionStatus, Project, RunnerActivity, RunningAnalysis } from '@/types';
+import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import {
@@ -161,6 +162,7 @@ export function ProjectCard({
   project,
   running,
   justCreated,
+  analysis,
   onOpen,
   onRun,
   onEnv,
@@ -171,6 +173,8 @@ export function ProjectCard({
   project: Project;
   running: boolean;
   justCreated: boolean;
+  /** 이 프로젝트의 구조 분석이 돌고 있으면 그 진행 상황 */
+  analysis?: RunningAnalysis;
   onOpen: () => void;
   onRun: () => void;
   onEnv: () => void;
@@ -215,6 +219,16 @@ export function ProjectCard({
           <Chip tone={healthTone[projectHealth(project)]}>{healthLabel[projectHealth(project)]}</Chip>
         </div>
       </div>
+
+      {analysis && (
+        <div className="mx-4 mt-3">
+          <AnalysisProgress
+            screenCount={analysis.screenCount}
+            processedCount={analysis.processedCount}
+            etaSeconds={analysis.etaSeconds}
+          />
+        </div>
+      )}
 
       {/* 최근 실행 — 카드에서 가장 크게 읽혀야 하는 정보 */}
       <div className="mx-4 mt-3 rounded-sm border border-border bg-background px-3 py-2.5">

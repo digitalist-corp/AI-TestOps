@@ -246,6 +246,10 @@ export interface ProjectFormData {
   repositoryBranch: string;
   // write-only: 비워두면 기존 토큰 유지, 값을 입력하면 교체. repositoryUrl을 지우면 연동 자체가 해제됨.
   repositoryToken: string;
+  // 구조 분석이 읽을 앱 소스 저장소. 등록할 때만 보낸다 (이후 변경은 구조 탭에서).
+  sourceRepositoryUrl: string;
+  sourceRepositoryBranch: string;
+  sourceRepositoryToken: string;
   runnerLifecycle: RunnerLifecycle;
   dockerEnabled: boolean;
   templateId: string;
@@ -501,6 +505,9 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   repositoryUrl: '',
   repositoryBranch: '',
   repositoryToken: '',
+  sourceRepositoryUrl: '',
+  sourceRepositoryBranch: '',
+  sourceRepositoryToken: '',
   runnerLifecycle: 'PERSISTENT',
   dockerEnabled: false,
   templateId: 'default',
@@ -697,6 +704,8 @@ export interface SiteMapAnalysis {
   processedCount: number;
   /** 이번 분석에서 AI 를 부른 횟수. 파일이 안 바뀐 화면은 부르지 않는다 */
   llmCalls: number;
+  /** 남은 시간(초). 화면을 하나라도 읽은 뒤에만 나온다 */
+  etaSeconds: number | null;
   warnings: string[];
   errorMessage: string | null;
   startedAt: string | null;
@@ -721,6 +730,14 @@ export interface SiteMap {
   analysis: SiteMapAnalysis;
   nodes: SiteMapNode[];
   edges: SiteMapEdge[];
+}
+
+/** 지금 돌고 있는 구조 분석 (프로젝트 목록 · 상단의 진행 배지용). */
+export interface RunningAnalysis {
+  projectId: string;
+  screenCount: number;
+  processedCount: number;
+  etaSeconds: number | null;
 }
 
 export interface SiteMapEdge {
