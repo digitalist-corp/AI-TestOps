@@ -41,6 +41,14 @@ public class SiteNode {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String elements = "[]";
 
+    /** 이 화면에서 다른 화면으로 가는 링크 (JSON 배열). 전환(site_edge)은 분석할 때마다 여기서 다시 만든다. */
+    @Column(columnDefinition = "TEXT")
+    private String links;
+
+    /** 요소를 뽑을 때 읽은 파일 묶음의 해시. 같으면 LLM 을 다시 부르지 않는다. */
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
     @Column(name = "first_seen_commit", length = 64)
     private String firstSeenCommit;
 
@@ -66,6 +74,10 @@ public class SiteNode {
     public void setAuthRequired(Boolean authRequired) { this.authRequired = authRequired; }
     public String getElements() { return elements; }
     public void setElements(String elements) { this.elements = elements; }
+    public String getLinks() { return links; }
+    public void setLinks(String links) { this.links = links; }
+    public String getContentHash() { return contentHash; }
+    public void setContentHash(String contentHash) { this.contentHash = contentHash; }
     public String getFirstSeenCommit() { return firstSeenCommit; }
     public void setFirstSeenCommit(String firstSeenCommit) { this.firstSeenCommit = firstSeenCommit; }
     public String getLastSeenCommit() { return lastSeenCommit; }

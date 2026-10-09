@@ -32,6 +32,7 @@ import type {
   SiteCheckResult,
   User,
   SiteMap,
+  SiteMapNodeDetail,
 } from '@/types';
 
 const TOKEN_KEY = 'playops_token';
@@ -183,6 +184,9 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(source),
     }),
+
+  getSiteMapNode: (projectId: string, routeKey: string) =>
+    request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`),
 
   analyzeSiteMap: (projectId: string) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze`, { method: 'POST' }),

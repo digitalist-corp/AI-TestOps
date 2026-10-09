@@ -40,6 +40,14 @@ public class SiteAnalysisRun {
     @Column(name = "screen_count", nullable = false)
     private int screenCount = 0;
 
+    /** 요소까지 읽은 화면 수 (진행 표시용). 컬럼이 나중에 추가되어 예전 행은 null 이다. */
+    @Column(name = "processed_count")
+    private Integer processedCount = 0;
+
+    /** 이번 분석에서 LLM 을 부른 횟수. 파일이 안 바뀐 화면은 부르지 않는다. */
+    @Column(name = "llm_calls")
+    private Integer llmCalls = 0;
+
     /** JSON 문자열 배열 */
     @Column(columnDefinition = "TEXT")
     private String warnings;
@@ -66,6 +74,10 @@ public class SiteAnalysisRun {
     public void setPartial(boolean partial) { this.partial = partial; }
     public int getScreenCount() { return screenCount; }
     public void setScreenCount(int screenCount) { this.screenCount = screenCount; }
+    public int getProcessedCount() { return processedCount == null ? 0 : processedCount; }
+    public void setProcessedCount(int processedCount) { this.processedCount = processedCount; }
+    public int getLlmCalls() { return llmCalls == null ? 0 : llmCalls; }
+    public void setLlmCalls(int llmCalls) { this.llmCalls = llmCalls; }
     public String getWarnings() { return warnings; }
     public void setWarnings(String warnings) { this.warnings = warnings; }
     public String getErrorMessage() { return errorMessage; }

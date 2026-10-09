@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GitBranch, Loader2, Network, RefreshCw, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, GitBranch, Loader2, Network, RefreshCw, TriangleAlert } from 'lucide-react';
 import { api } from '@/api/client';
-import type { SiteMap } from '@/types';
+import type { SiteMap, SiteMapNodeDetail } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -27,6 +27,8 @@ export function StructureTab({ projectId }: { projectId: string }) {
   const [branch, setBranch] = useState('');
   const [token, setToken] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [openRoute, setOpenRoute] = useState<string | null>(null);
+  const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
 
   const apply = useCallback((next: SiteMap) => {
     setSiteMap(next);
@@ -49,6 +51,16 @@ export function StructureTab({ projectId }: { projectId: string }) {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [running, projectId]);
+
+  const toggleNode = (routeKey: string) => {
+    if (openRoute === routeKey) {
+      setOpenRoute(null);
+      return;
+    }
+    setOpenRoute(routeKey);
+    setDetail(null);
+    api.getSiteMapNode(projectId, routeKey).then(setDetail).catch((e: Error) => setError(e.message));
+  };
 
   const run = async (action: () => Promise<SiteMap>) => {
     setBusy(true);
@@ -153,7 +165,9 @@ export function StructureTab({ projectId }: { projectId: string }) {
             {analysis.status === 'RUNNING' && (
               <Badge variant="info">
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                분석 중
+                {analysis.screenCount > 0
+                  ? `화면 읽는 중 ${analysis.processedCount}/${analysis.screenCount}`
+                  : '저장소 받는 중'}
               </Badge>
             )}
             {analysis.status === 'COMPLETED' && (
@@ -172,6 +186,11 @@ export function StructureTab({ projectId }: { projectId: string }) {
             )}
             {analysis.finishedAt && (
               <span className="text-xs text-muted-foreground">{formatTime(analysis.finishedAt)}</span>
+            )}
+            {analysis.status === 'COMPLETED' && (
+              <span className="text-xs text-muted-foreground">
+                {analysis.llmCalls === 0 ? '바뀐 화면 없음 (AI 호출 0회)' : `AI 호출 ${analysis.llmCalls}회`}
+              </span>
             )}
           </div>
           <Button
@@ -192,7 +211,8 @@ export function StructureTab({ projectId }: { projectId: string }) {
 
         {analysis.status === 'RUNNING' && (
           <p className="mt-3 text-xs text-muted-foreground">
-            저장소를 받아 화면을 찾고 있습니다. 보통 1분 안에 끝납니다.
+            저장소를 받아 화면을 찾고, 화면마다 AI 가 코드를 읽어 요소를 뽑습니다. 화면 하나에 10초쯤 걸리고,
+            지난번과 코드가 같은 화면은 건너뜁니다.
           </p>
         )}
         {analysis.status === 'FAILED' && analysis.errorMessage && (
@@ -212,7 +232,9 @@ export function StructureTab({ projectId }: { projectId: string }) {
 
       <section className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-3">
-          <h3 className="text-sm font-semibold text-foreground">화면 {nodes.length}개</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            화면 {nodes.length}개 · 전환 {siteMap.edges.length}개
+          </h3>
         </div>
         {nodes.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">
@@ -221,21 +243,79 @@ export function StructureTab({ projectId }: { projectId: string }) {
         ) : (
           <ul className="divide-y divide-border">
             {nodes.map((node) => (
-              <li
-                key={node.routeKey}
-                className="flex flex-col gap-1 px-4 py-2.5 @3xl:flex-row @3xl:items-center @3xl:justify-between @3xl:gap-4"
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate font-mono text-sm text-foreground">{node.routeKey}</span>
-                  {node.stale && (
-                    <Badge variant="warning" title="마지막 분석에서 코드에 없던 화면입니다">
-                      코드에서 사라짐
-                    </Badge>
-                  )}
-                </div>
-                <span className="truncate font-mono text-xs text-muted-foreground" title={node.sourceFile ?? ''}>
-                  {node.sourceFile ?? '-'}
-                </span>
+              <li key={node.routeKey}>
+                <button
+                  type="button"
+                  aria-expanded={openRoute === node.routeKey}
+                  onClick={() => toggleNode(node.routeKey)}
+                  className="flex w-full flex-col gap-1 px-4 py-2.5 text-left hover:bg-accent/40 @3xl:flex-row @3xl:items-center @3xl:justify-between @3xl:gap-4"
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    {openRoute === node.routeKey ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="truncate font-mono text-sm text-foreground">{node.routeKey}</span>
+                    {node.title && <span className="truncate text-xs text-muted-foreground">{node.title}</span>}
+                    <Badge>요소 {node.elementCount}</Badge>
+                    {node.stale && (
+                      <Badge variant="warning" title="마지막 분석에서 코드에 없던 화면입니다">
+                        코드에서 사라짐
+                      </Badge>
+                    )}
+                  </span>
+                  <span className="truncate font-mono text-xs text-muted-foreground" title={node.sourceFile ?? ''}>
+                    {node.sourceFile ?? '-'}
+                  </span>
+                </button>
+                {openRoute === node.routeKey && (
+                  <div className="border-t border-border bg-muted/30 px-4 py-3">
+                    {!detail ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    ) : detail.elements.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        코드에서 확인된 요소가 없습니다. 글자가 변수나 번역 함수로 만들어지는 화면은 요소를 뽑지 못합니다.
+                      </p>
+                    ) : (
+                      <ul className="space-y-1.5">
+                        {detail.elements.map((element, index) => (
+                          <li key={index} className="flex flex-col gap-0.5 @3xl:flex-row @3xl:items-center @3xl:gap-3">
+                            <span className="flex shrink-0 items-center gap-1.5">
+                              <Badge>{element.kind ?? '요소'}</Badge>
+                              {element.verification === 'PASSED' && <Badge variant="success">확인됨</Badge>}
+                              {element.verification === 'FAILED' && <Badge variant="destructive">실패</Badge>}
+                              {element.duplicate && (
+                                <Badge variant="warning" title="같은 화면에 셀렉터가 같은 요소가 또 있습니다">
+                                  겹침
+                                </Badge>
+                              )}
+                              {element.conditional && (
+                                <Badge title="목록 반복이나 조건에 따라 보이는 요소입니다">조건부</Badge>
+                              )}
+                            </span>
+                            <code className="min-w-0 break-all text-xs text-foreground">
+                              {element.selector ?? '셀렉터를 만들 수 없음'}
+                            </code>
+                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground @3xl:ml-auto">
+                              {element.file.split('/').pop()}
+                              {element.line ? `:${element.line}` : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {detail && detail.edges.filter((edge) => edge.from === node.routeKey).length > 0 && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        이동:{' '}
+                        {detail.edges
+                          .filter((edge) => edge.from === node.routeKey)
+                          .map((edge) => edge.to)
+                          .join(', ')}
+                      </p>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>

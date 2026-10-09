@@ -21,6 +21,10 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
     @Value("${anthropic.model:claude-sonnet-5}")
     private String claudeModel = "claude-sonnet-5";
 
+    /** 생각(thinking)을 하는 모델은 답보다 먼저 이 한도를 쓰므로, 낮게 잡으면 답이 중간에 잘린다. */
+    @Value("${anthropic.max-tokens:16000}")
+    private int maxTokens = 16000;
+
     @Override
     public AiModelProvider provider() {
         return AiModelProvider.CLAUDE;
@@ -31,7 +35,7 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
                           List<LlmToolSpec> tools) {
         Map<String, Object> body = new HashMap<>();
         body.put("model", claudeModel);
-        body.put("max_tokens", 4096);
+        body.put("max_tokens", maxTokens);
         body.put("system", systemPrompt);
         body.put("messages", toPayloadMessages(messages));
         if (tools != null && !tools.isEmpty()) {

@@ -395,7 +395,7 @@ public class ScreenFinder {
     }
 
     /** 컴포넌트 이름 → import 경로. */
-    private static Map<String, String> importsOf(String source) {
+    static Map<String, String> importsOf(String source) {
         Map<String, String> imports = new LinkedHashMap<>();
         Matcher named = NAMED_IMPORT.matcher(source);
         while (named.find()) {
@@ -419,7 +419,7 @@ public class ScreenFinder {
     }
 
     /** import 경로를 실제 파일로 바꾼다. 패키지이거나 찾지 못하면 null. */
-    private static String resolveImport(Path appDir, Path fromFile, String spec) {
+    static String resolveImport(Path appDir, Path fromFile, String spec) {
         if (spec == null) {
             return null;
         }
@@ -477,7 +477,7 @@ public class ScreenFinder {
         }
     }
 
-    private static String read(Path file) throws IOException {
+    static String read(Path file) throws IOException {
         if (Files.size(file) > MAX_FILE_BYTES) {
             throw new IOException("파일이 너무 큽니다: " + file);
         }

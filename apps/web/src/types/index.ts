@@ -693,6 +693,10 @@ export interface SiteMapAnalysis {
   framework: 'NEXT' | 'REACT_ROUTER' | null;
   partial: boolean;
   screenCount: number;
+  /** 요소까지 읽은 화면 수 (진행 표시용) */
+  processedCount: number;
+  /** 이번 분석에서 AI 를 부른 횟수. 파일이 안 바뀐 화면은 부르지 않는다 */
+  llmCalls: number;
   warnings: string[];
   errorMessage: string | null;
   startedAt: string | null;
@@ -716,4 +720,39 @@ export interface SiteMap {
   source: SiteMapSource;
   analysis: SiteMapAnalysis;
   nodes: SiteMapNode[];
+  edges: SiteMapEdge[];
+}
+
+export interface SiteMapEdge {
+  from: string;
+  to: string;
+  kind: string;
+  label: string | null;
+  selector: string | null;
+}
+
+export interface SiteMapElement {
+  kind: string | null;
+  role: string | null;
+  name: string | null;
+  text: string | null;
+  label: string | null;
+  placeholder: string | null;
+  testId: string | null;
+  /** 코드에 있는 속성으로 조립한 Playwright 셀렉터. 만들 수 없으면 null */
+  selector: string | null;
+  selectorKind: string | null;
+  /** 같은 화면에 셀렉터가 같은 요소가 또 있다 */
+  duplicate: boolean;
+  /** 목록 반복이나 조건에 따라 보이는 요소 */
+  conditional: boolean;
+  file: string;
+  line: number | null;
+  verification: 'UNVERIFIED' | 'PASSED' | 'FAILED';
+}
+
+export interface SiteMapNodeDetail {
+  node: SiteMapNode;
+  elements: SiteMapElement[];
+  edges: SiteMapEdge[];
 }

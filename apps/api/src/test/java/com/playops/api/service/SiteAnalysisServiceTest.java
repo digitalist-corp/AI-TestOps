@@ -25,7 +25,7 @@ class SiteAnalysisServiceTest {
 
     private final SiteNodeRepository nodeRepository = mock(SiteNodeRepository.class);
     private final SiteAnalysisService service = new SiteAnalysisService(
-            null, null, null, null, null, null, new ScreenFinder(), null, nodeRepository, null);
+            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, null);
 
     private static SiteNode node(String routeKey, String firstSeen) {
         SiteNode node = new SiteNode();
@@ -60,6 +60,25 @@ class SiteAnalysisServiceTest {
         assertThat(byRoute.get("/signup").getFirstSeenCommit()).isEqualTo(SHA_B);
         assertThat(byRoute.get("/legacy").isStale()).isTrue();
         assertThat(byRoute.get("/legacy").getLastSeenCommit()).isEqualTo(SHA_A);
+    }
+
+    @Test
+    void buildsSelectorsAndCarriesOverVerificationOfUnchangedSelectors() throws IOException {
+        SiteNode login = node("/login", SHA_A);
+        login.setElements("[{\"selector\":\"getByTestId('login-email')\",\"verification\":\"PASSED\"}]");
+
+        service.applyExtraction(login, new ScreenExtractor.Extraction("로그인", false,
+                new java.util.ArrayList<>(List.of(
+                        new java.util.HashMap<>(Map.of("testId", "login-email")),
+                        new java.util.HashMap<>(Map.of("role", "button", "name", "로그인")))),
+                List.of(Map.of("to", "/signup"))), "hash-1");
+
+        assertThat(login.getTitle()).isEqualTo("로그인");
+        assertThat(login.getContentHash()).isEqualTo("hash-1");
+        assertThat(login.getElements())
+                .contains("\"selector\":\"getByTestId('login-email')\"").contains("\"verification\":\"PASSED\"")
+                .contains("getByRole('button', { name: '로그인', exact: true })").contains("\"verification\":\"UNVERIFIED\"");
+        assertThat(login.getLinks()).contains("/signup");
     }
 
     @Test
