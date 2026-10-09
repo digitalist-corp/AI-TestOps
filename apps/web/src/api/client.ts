@@ -31,6 +31,7 @@ import type {
   ServiceHealth,
   SiteCheckResult,
   User,
+  SiteMap,
 } from '@/types';
 
 const TOKEN_KEY = 'playops_token';
@@ -172,6 +173,19 @@ export const api = {
     request<SiteCheckResult>(`/api/projects/site-check?url=${encodeURIComponent(url)}`),
 
   getProject: (id: string) => request<Project>(`/api/projects/${id}`),
+
+  getSiteMap: (projectId: string) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap`),
+
+  // token 은 write-only: undefined 면 기존 토큰 유지, 값을 주면 교체.
+  updateSiteMapSource: (projectId: string, source: { url: string; branch: string; token?: string }) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/source`, {
+      method: 'PUT',
+      body: JSON.stringify(source),
+    }),
+
+  analyzeSiteMap: (projectId: string) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze`, { method: 'POST' }),
 
   createProject: (data: ProjectFormData) =>
     request<Project>('/api/projects', { method: 'POST', body: serializeProjectForm(data) }),

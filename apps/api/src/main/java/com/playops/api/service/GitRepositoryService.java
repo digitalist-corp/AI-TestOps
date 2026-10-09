@@ -75,9 +75,20 @@ public class GitRepositoryService {
      */
     public void cloneRepository(Project project, String decryptedToken) {
         String projectId = project.getProjectId();
-        String slug = validateAndNormalize(project.getRepositoryUrl());
-        String branch = validateBranch(project.getRepositoryBranch());
-        String containerWorkDir = dockerRunnerService.containerWorkDir(projectId);
+        cloneInto(projectId, project.getRepositoryUrl(), project.getRepositoryBranch(), decryptedToken,
+                dockerRunnerService.containerWorkDir(projectId), dockerRunnerService.projectVolumeArgs(projectId));
+    }
+
+    /**
+     * 같은 격리 컨테이너로 임의의 폴더에 복제한다. 폴더의 기존 내용은 지운다.
+     *
+     * @param containerWorkDir clone 컨테이너 안에서 본 대상 폴더
+     * @param volumeArgs       그 폴더를 컨테이너에 보이게 하는 docker 인자
+     */
+    public void cloneInto(String projectId, String repositoryUrl, String rawBranch, String decryptedToken,
+                          String containerWorkDir, List<String> volumeArgs) {
+        String slug = validateAndNormalize(repositoryUrl);
+        String branch = validateBranch(rawBranch);
 
         sandboxProxyService.ensureReady();
 
@@ -113,7 +124,7 @@ public class GitRepositoryService {
             command.add("-e");
             command.add("GIT_TOKEN=" + decryptedToken);
         }
-        command.addAll(dockerRunnerService.projectVolumeArgs(projectId));
+        command.addAll(volumeArgs);
         command.add("-w");
         command.add(containerWorkDir);
         command.add("--entrypoint");

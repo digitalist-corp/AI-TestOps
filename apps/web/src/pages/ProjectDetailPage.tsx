@@ -14,6 +14,7 @@ import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
 import { ResultsTab } from '@/components/project/ResultsTab';
 import { AiAnalysisTab } from '@/components/project/AiAnalysisTab';
 import { SchedulesTab } from '@/components/project/SchedulesTab';
+import { StructureTab } from '@/components/project/StructureTab';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import type { ExecutionDetail } from '@/types';
 import {
@@ -675,6 +676,10 @@ export function ProjectDetailPage() {
               selectedExecutionId={selectedExecutionId}
               onSelectExecution={handleSelectExecution}
             />
+          )}
+
+          {activeTab === 'structure' && projectId && (
+            <StructureTab projectId={projectId} />
           )}
 
           {activeTab === 'schedules' && projectId && (

@@ -677,3 +677,43 @@ export interface CreateAiJobRequest {
   targetSpecPath: string;
   instruction: string;
 }
+
+/** 저장소 코드 분석으로 만든 화면 구조. */
+export interface SiteMapSource {
+  url: string | null;
+  branch: string | null;
+  tokenSet: boolean;
+  /** 소스 저장소를 따로 연결하지 않아 프로젝트 저장소를 읽는 경우 */
+  usesProjectRepository: boolean;
+}
+
+export interface SiteMapAnalysis {
+  status: 'NONE' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  commitSha: string | null;
+  framework: 'NEXT' | 'REACT_ROUTER' | null;
+  partial: boolean;
+  screenCount: number;
+  warnings: string[];
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface SiteMapNode {
+  routeKey: string;
+  title: string | null;
+  sourceFile: string | null;
+  origin: string;
+  /** 마지막 분석에서 코드에 없던 화면 */
+  stale: boolean;
+  elementCount: number;
+  excluded: boolean;
+  note: string | null;
+}
+
+export interface SiteMap {
+  projectId: string;
+  source: SiteMapSource;
+  analysis: SiteMapAnalysis;
+  nodes: SiteMapNode[];
+}
