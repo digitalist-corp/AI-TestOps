@@ -177,12 +177,10 @@ export function Layout() {
     : toggleAiPanel;
 
   // 하단 리소스 바가 캔버스 영역에만 걸리도록 왼쪽 여백을 셸이 알려준다.
-  const shellLeft = RAIL_WIDTH + (overlayMode || aiCollapsed ? 0 : panelWidth);
 
   return (
     <div
       className="relative flex h-screen overflow-hidden"
-      style={{ '--shell-left': `${shellLeft}px` } as React.CSSProperties}
     >
       <AppRail admin={admin} aiCollapsed={!panelOpen} onToggleAi={handleTogglePanel} />
 
@@ -219,14 +217,16 @@ export function Layout() {
         {inProjectWorkspace && activeProjectId && (
           <SubTabBar projectId={activeProjectId} currentTab={currentTab} />
         )}
-        {/* @container — 아래 화면들은 창 폭이 아니라 이 캔버스 폭을 기준으로 배치된다 */}
-        <main className="@container flex-1 overflow-auto pb-16">
-          <Outlet />
-        </main>
+        {/* 리소스 바를 본문 아래에 붙여 둔다. 화면 위에 띄우면 바가 여러 줄로 늘어날 때 본문 아래쪽을 덮는다 */}
+        <div className="relative min-h-0 flex-1">
+          {/* @container — 아래 화면들은 창 폭이 아니라 이 캔버스 폭을 기준으로 배치된다 */}
+          <main className="@container h-full overflow-auto pb-16">
+            <Outlet />
+          </main>
+          <HelpMenu pathname={location.pathname} projectTab={inProjectWorkspace ? currentTab : undefined} />
+        </div>
+        <ResourceStatusBar />
       </div>
-
-      <ResourceStatusBar />
-      <HelpMenu pathname={location.pathname} projectTab={inProjectWorkspace ? currentTab : undefined} />
       <ProjectSwitcherDialog
         open={projectSwitcherOpen}
         onOpenChange={setProjectSwitcherOpen}

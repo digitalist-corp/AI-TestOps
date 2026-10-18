@@ -34,7 +34,7 @@ export function TopBar({
   const projectLabel = activeProject?.projectName ?? activeProjectId;
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+    <header className="@container flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
       <button
         type="button"
         onClick={onOpenProjectSwitcher}
@@ -60,6 +60,8 @@ export function TopBar({
               <NavLink
                 key={id}
                 to={projectTabPath(activeProjectId, tabs[0])}
+                aria-label={label}
+                title={label}
                 className={cn(
                   'flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors',
                   active
@@ -68,7 +70,8 @@ export function TopBar({
                 )}
               >
                 <Icon className="h-4 w-4" />
-                {label}
+                {/* 상단 바가 좁으면 탭 이름이 잘려 보이므로, 지금 탭만 이름을 남기고 나머지는 아이콘만 둔다 */}
+                <span className={active ? undefined : 'hidden @min-[56rem]:inline'}>{label}</span>
               </NavLink>
             );
           })}
