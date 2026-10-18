@@ -5,7 +5,9 @@ import com.playops.api.exception.ApiException;
 import com.playops.api.llm.LlmClient;
 import com.playops.api.llm.LlmCredentials;
 import com.playops.api.llm.LlmMessage;
+import com.playops.api.llm.LlmResult;
 import com.playops.api.llm.LlmRole;
+import com.playops.api.repository.AiUsageRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -25,11 +27,12 @@ class LlmGatewayServiceTest {
     private final AiProviderSettingsService settingsService = mock(AiProviderSettingsService.class);
     private final LlmClient claudeClient = mock(LlmClient.class);
     private final LlmClient gptClient = mock(LlmClient.class);
+    private final AiUsageRepository usageRepository = mock(AiUsageRepository.class);
 
     private LlmGatewayService gatewayWithBothClients() {
         when(claudeClient.provider()).thenReturn(AiModelProvider.CLAUDE);
         when(gptClient.provider()).thenReturn(AiModelProvider.GPT);
-        return new LlmGatewayService(List.of(claudeClient, gptClient), settingsService);
+        return new LlmGatewayService(List.of(claudeClient, gptClient), settingsService, usageRepository);
     }
 
     @SuppressWarnings("unchecked")
@@ -42,7 +45,7 @@ class LlmGatewayServiceTest {
         LlmGatewayService gateway = gatewayWithBothClients();
         when(settingsService.getDecryptedKey(AiModelProvider.CLAUDE)).thenReturn("claude-key");
         when(settingsService.getClaudeWorkspaceIdOrNull()).thenReturn("ws-1");
-        when(claudeClient.chat(any(), any(), any())).thenReturn("claude answer");
+        when(claudeClient.chat(any(), any(), any())).thenReturn(LlmResult.of("claude answer"));
 
         String answer = gateway.chat(AiModelProvider.CLAUDE, "sys", List.of(LlmMessage.user("hi")));
 
@@ -58,7 +61,7 @@ class LlmGatewayServiceTest {
     void dispatchesToGptClientWithoutWorkspaceId() {
         LlmGatewayService gateway = gatewayWithBothClients();
         when(settingsService.getDecryptedKey(AiModelProvider.GPT)).thenReturn("openai-key");
-        when(gptClient.chat(any(), any(), any())).thenReturn("gpt answer");
+        when(gptClient.chat(any(), any(), any())).thenReturn(LlmResult.of("gpt answer"));
 
         String answer = gateway.chat(AiModelProvider.GPT, "sys", List.of(LlmMessage.user("hi")));
 
@@ -74,7 +77,7 @@ class LlmGatewayServiceTest {
     void singlePromptOverloadSendsExactlyOneUserMessage() {
         LlmGatewayService gateway = gatewayWithBothClients();
         when(settingsService.getDecryptedKey(AiModelProvider.CLAUDE)).thenReturn("claude-key");
-        when(claudeClient.chat(any(), any(), any())).thenReturn("ok");
+        when(claudeClient.chat(any(), any(), any())).thenReturn(LlmResult.of("ok"));
 
         gateway.chat(AiModelProvider.CLAUDE, "sys", "질문입니다");
 
@@ -86,10 +89,22 @@ class LlmGatewayServiceTest {
     @Test
     void unregisteredProviderThrowsBadRequest() {
         when(claudeClient.provider()).thenReturn(AiModelProvider.CLAUDE);
-        LlmGatewayService gateway = new LlmGatewayService(List.of(claudeClient), settingsService);
+        LlmGatewayService gateway = new LlmGatewayService(List.of(claudeClient), settingsService, usageRepository);
 
         assertThatThrownBy(() -> gateway.chat(AiModelProvider.GPT, "sys", "질문"))
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).getStatus()).isEqualTo(400));
+    }
+
+    /** 공급자를 정하지 않은 호출은 AI 설정의 기본 공급자로 간다. */
+    @Test
+    void nullProviderGoesToTheConfiguredDefault() {
+        LlmGatewayService gateway = gatewayWithBothClients();
+        when(settingsService.getDefaultProvider()).thenReturn(AiModelProvider.GPT);
+        when(settingsService.getDecryptedKey(AiModelProvider.GPT)).thenReturn("openai-key");
+        when(gptClient.chat(any(), any(), any())).thenReturn(LlmResult.of("gpt answer"));
+
+        assertThat(gateway.chat(null, "sys", "질문")).isEqualTo("gpt answer");
+        verify(claudeClient, never()).chat(any(), any(), any());
     }
 }

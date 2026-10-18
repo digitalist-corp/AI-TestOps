@@ -682,7 +682,7 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'settings' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-6">
               <div>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="font-medium">환경 정보</h3>
