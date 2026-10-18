@@ -5,7 +5,6 @@ import com.playops.api.dto.ExecutionDetailResponse;
 import com.playops.api.dto.ExecutionResponse;
 import com.playops.api.entity.AiModelProvider;
 import com.playops.api.entity.ExecutionStatus;
-import com.playops.api.entity.Project;
 import com.playops.api.exception.ApiException;
 import com.playops.api.llm.LlmMessage;
 import com.playops.api.llm.LlmRole;
@@ -32,13 +31,16 @@ class AiAnalysisServiceTest {
     private final LlmGatewayService llmGatewayService = mock(LlmGatewayService.class);
     private final ProjectService projectService = mock(ProjectService.class);
     private final AiProviderSettingsService aiProviderSettingsService = mock(AiProviderSettingsService.class);
+    // 도구 목록이 비어 있으면 채팅은 도구 없이 한 번만 호출한다 (mock 의 기본 반환값이 빈 목록)
+    private final AiChatToolService aiChatToolService = mock(AiChatToolService.class);
 
     private final AiAnalysisService service = new AiAnalysisService(
             executionQueryService,
             executionLogService,
             llmGatewayService,
             projectService,
-            aiProviderSettingsService
+            aiProviderSettingsService,
+            aiChatToolService
     );
 
     @SuppressWarnings("unchecked")
@@ -70,12 +72,12 @@ class AiAnalysisServiceTest {
                 new AiChatRequest.ChatHistoryMessage("SYSTEM", "무시되어야 함"),
                 new AiChatRequest.ChatHistoryMessage("user", "  ")
         ));
-        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList())).thenReturn("답변");
+        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList(), any(), any())).thenReturn("답변");
 
-        assertThat(service.chat(request)).isEqualTo("답변");
+        assertThat(service.chat(request, null).answer()).isEqualTo("답변");
 
         ArgumentCaptor<List<LlmMessage>> messages = messageCaptor();
-        verify(llmGatewayService).chat(eq(AiModelProvider.CLAUDE), anyString(), messages.capture());
+        verify(llmGatewayService).chat(eq(AiModelProvider.CLAUDE), anyString(), messages.capture(), any(), any());
         assertThat(messages.getValue()).containsExactly(
                 new LlmMessage(LlmRole.USER, "첫 질문"),
                 new LlmMessage(LlmRole.ASSISTANT, "첫 답변"),
@@ -92,12 +94,12 @@ class AiAnalysisServiceTest {
                 new AiChatRequest.ChatHistoryMessage("user", "질문"),
                 new AiChatRequest.ChatHistoryMessage("assistant", "답변")
         ));
-        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList())).thenReturn("ok");
+        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList(), any(), any())).thenReturn("ok");
 
-        service.chat(request);
+        service.chat(request, null);
 
         ArgumentCaptor<List<LlmMessage>> messages = messageCaptor();
-        verify(llmGatewayService).chat(eq(AiModelProvider.CLAUDE), anyString(), messages.capture());
+        verify(llmGatewayService).chat(eq(AiModelProvider.CLAUDE), anyString(), messages.capture(), any(), any());
         assertThat(messages.getValue()).containsExactly(
                 new LlmMessage(LlmRole.USER, "질문"),
                 new LlmMessage(LlmRole.ASSISTANT, "답변"),
@@ -107,7 +109,7 @@ class AiAnalysisServiceTest {
 
     @Test
     void blankQuestionIsRejectedWithBadRequest() {
-        assertThatThrownBy(() -> service.chat(chatRequest("   ")))
+        assertThatThrownBy(() -> service.chat(chatRequest("   "), null))
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).getStatus()).isEqualTo(400))
                 .hasMessage("질문을 입력해주세요.");
@@ -115,40 +117,39 @@ class AiAnalysisServiceTest {
         verifyNoInteractions(llmGatewayService);
     }
 
+    /** 프로젝트에 박힌 기본값(CLAUDE)이 아니라 AI 설정에서 고른 기본 공급자를 쓴다. */
     @Test
-    void fallsBackToProjectProviderWhenRequestProviderIsBlank() {
+    void usesTheConfiguredDefaultProviderEvenForAProjectExecution() {
         AiChatRequest request = chatRequest("질문");
         request.setExecutionId(7L);
-
-        Project project = new Project();
-        project.setAiModelProvider(AiModelProvider.GPT);
         when(executionQueryService.getDetail(7L)).thenReturn(detailFor("demo"));
-        when(projectService.getProject("demo")).thenReturn(project);
-        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList())).thenReturn("답변");
+        when(aiProviderSettingsService.getDefaultProvider()).thenReturn(AiModelProvider.GPT);
+        when(aiProviderSettingsService.hasKey(AiModelProvider.GPT)).thenReturn(true);
+        when(aiProviderSettingsService.hasKey(AiModelProvider.CLAUDE)).thenReturn(true);
+        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList(), any(), any())).thenReturn("답변");
 
-        service.chat(request);
+        service.chat(request, null);
 
-        verify(llmGatewayService).chat(eq(AiModelProvider.GPT), anyString(), anyList());
+        verify(llmGatewayService).chat(eq(AiModelProvider.GPT), anyString(), anyList(), any(), any());
     }
 
     @Test
     void fallsBackToTheOnlyProviderThatHasAKeyConfigured() {
         when(aiProviderSettingsService.hasKey(AiModelProvider.CLAUDE)).thenReturn(false);
         when(aiProviderSettingsService.hasKey(AiModelProvider.GPT)).thenReturn(true);
-        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList())).thenReturn("답변");
+        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList(), any(), any())).thenReturn("답변");
 
-        service.chat(chatRequest("질문"));
+        service.chat(chatRequest("질문"), null);
 
-        verify(llmGatewayService).chat(eq(AiModelProvider.GPT), anyString(), anyList());
-        verifyNoInteractions(projectService);
+        verify(llmGatewayService).chat(eq(AiModelProvider.GPT), anyString(), anyList(), any(), any());
     }
 
     @Test
     void unexpectedGatewayFailureBecomesBadGatewayWithoutFakeAnswer() {
-        when(llmGatewayService.chat(any(AiModelProvider.class), anyString(), anyList()))
+        when(llmGatewayService.chat(any(), anyString(), anyList(), any(), any()))
                 .thenThrow(new RuntimeException("connection reset"));
 
-        assertThatThrownBy(() -> service.chat(chatRequest("질문")))
+        assertThatThrownBy(() -> service.chat(chatRequest("질문"), null))
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).getStatus()).isEqualTo(502))
                 .hasMessageContaining("connection reset");

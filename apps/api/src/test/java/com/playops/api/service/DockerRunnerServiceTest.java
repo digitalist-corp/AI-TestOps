@@ -124,6 +124,7 @@ class DockerRunnerServiceTest {
                 "--user", "0",
                 "-w", "/projects/demo",
                 "-e", "NODE_VERSION=22",
+                "--add-host", "host.docker.internal:host-gateway",
                 RUNNER_IMAGE,
                 "tail", "-f", "/dev/null"
         ));
