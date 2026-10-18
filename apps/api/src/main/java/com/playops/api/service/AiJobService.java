@@ -110,7 +110,7 @@ public class AiJobService {
         job.setInstruction(instruction);
         job.setTargetSpecPath(targetSpecPath);
         job.setFailedExecutionId(failedExecutionId);
-        job.setAiModelProvider(project.getAiModelProvider());
+        job.setAiModelProvider(llmGatewayService.defaultProvider());
         job.setRequestedBy(requestedBy);
         job.setCallbackToken(UUID.randomUUID().toString());
         job.setCallbackTokenExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
@@ -182,7 +182,7 @@ public class AiJobService {
         job.setStatus(AiJobStatus.RUNNING);
         job.setInstruction(instruction);
         job.setTargetSpecPath(normalizedPath);
-        job.setAiModelProvider(project.getAiModelProvider());
+        job.setAiModelProvider(llmGatewayService.defaultProvider());
         job.setRequestedBy(requestedBy);
         job = aiJobRepository.save(job);
 
@@ -272,7 +272,7 @@ public class AiJobService {
                 + "\n생성할 파일 경로: " + targetSpecPath
                 + "\n요구사항: " + instruction;
 
-        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt,
+        String raw = llmGatewayService.chat(null, systemPrompt, userPrompt,
                 "코드 수정", project.getProjectId());
         return stripMarkdownFence(raw);
     }
