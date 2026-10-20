@@ -246,6 +246,10 @@ export interface ProjectFormData {
   repositoryBranch: string;
   // write-only: 비워두면 기존 토큰 유지, 값을 입력하면 교체. repositoryUrl을 지우면 연동 자체가 해제됨.
   repositoryToken: string;
+  // 구조 분석이 읽을 앱 소스 저장소. 등록할 때만 보낸다 (이후 변경은 구조 탭에서).
+  sourceRepositoryUrl: string;
+  sourceRepositoryBranch: string;
+  sourceRepositoryToken: string;
   runnerLifecycle: RunnerLifecycle;
   dockerEnabled: boolean;
   templateId: string;
@@ -501,6 +505,9 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   repositoryUrl: '',
   repositoryBranch: '',
   repositoryToken: '',
+  sourceRepositoryUrl: '',
+  sourceRepositoryBranch: '',
+  sourceRepositoryToken: '',
   runnerLifecycle: 'PERSISTENT',
   dockerEnabled: false,
   templateId: 'default',
@@ -676,4 +683,102 @@ export interface CreateAiJobRequest {
   failedExecutionId?: number;
   targetSpecPath: string;
   instruction: string;
+}
+
+/** 저장소 코드 분석으로 만든 화면 구조. */
+export interface SiteMapSource {
+  url: string | null;
+  branch: string | null;
+  tokenSet: boolean;
+  /** 소스 저장소를 따로 연결하지 않아 프로젝트 저장소를 읽는 경우 */
+  usesProjectRepository: boolean;
+}
+
+export interface SiteMapAnalysis {
+  status: 'NONE' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  commitSha: string | null;
+  framework: 'NEXT' | 'REACT_ROUTER' | null;
+  partial: boolean;
+  screenCount: number;
+  /** 요소까지 읽은 화면 수 (진행 표시용) */
+  processedCount: number;
+  /** 이번 분석에서 AI 를 부른 횟수. 파일이 안 바뀐 화면은 부르지 않는다 */
+  llmCalls: number;
+  /** 남은 시간(초). 화면을 하나라도 읽은 뒤에만 나온다 */
+  etaSeconds: number | null;
+  warnings: string[];
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface SiteMapNode {
+  routeKey: string;
+  title: string | null;
+  sourceFile: string | null;
+  origin: string;
+  /** 마지막 분석에서 코드에 없던 화면 */
+  stale: boolean;
+  elementCount: number;
+  excluded: boolean;
+  note: string | null;
+}
+
+export interface SiteMap {
+  projectId: string;
+  source: SiteMapSource;
+  analysis: SiteMapAnalysis;
+  nodes: SiteMapNode[];
+  edges: SiteMapEdge[];
+  layouts: SiteMapLayout[];
+}
+
+/** 여러 화면을 감싸는 공용 영역(상단 메뉴, 사이드바). routeKeys 의 화면 어디서든 links 의 화면으로 갈 수 있다. */
+export interface SiteMapLayout {
+  sourceFile: string;
+  routeKeys: string[];
+  elementCount: number;
+  links: { to: string; label: string | null; selector: string | null }[];
+}
+
+/** 지금 돌고 있는 구조 분석 (프로젝트 목록 · 상단의 진행 배지용). */
+export interface RunningAnalysis {
+  projectId: string;
+  screenCount: number;
+  processedCount: number;
+  etaSeconds: number | null;
+}
+
+export interface SiteMapEdge {
+  from: string;
+  to: string;
+  kind: string;
+  label: string | null;
+  selector: string | null;
+}
+
+export interface SiteMapElement {
+  kind: string | null;
+  role: string | null;
+  name: string | null;
+  text: string | null;
+  label: string | null;
+  placeholder: string | null;
+  testId: string | null;
+  /** 코드에 있는 속성으로 조립한 Playwright 셀렉터. 만들 수 없으면 null */
+  selector: string | null;
+  selectorKind: string | null;
+  /** 같은 화면에 셀렉터가 같은 요소가 또 있다 */
+  duplicate: boolean;
+  /** 목록 반복이나 조건에 따라 보이는 요소 */
+  conditional: boolean;
+  file: string;
+  line: number | null;
+  verification: 'UNVERIFIED' | 'PASSED' | 'FAILED';
+}
+
+export interface SiteMapNodeDetail {
+  node: SiteMapNode;
+  elements: SiteMapElement[];
+  edges: SiteMapEdge[];
 }
