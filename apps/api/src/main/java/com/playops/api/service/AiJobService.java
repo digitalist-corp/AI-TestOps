@@ -113,7 +113,7 @@ public class AiJobService {
         job.setInstruction(instruction);
         job.setTargetSpecPath(targetSpecPath);
         job.setFailedExecutionId(failedExecutionId);
-        job.setAiModelProvider(project.getAiModelProvider());
+        job.setAiModelProvider(llmGatewayService.defaultProvider());
         job.setRequestedBy(requestedBy);
         job.setCallbackToken(UUID.randomUUID().toString());
         job.setCallbackTokenExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
@@ -196,7 +196,7 @@ public class AiJobService {
                 job.setRouteKeys(objectMapper.writeValueAsString(routeKeys));
             } catch (IOException ignored) {}
         }
-        job.setAiModelProvider(project.getAiModelProvider());
+        job.setAiModelProvider(llmGatewayService.defaultProvider());
         job.setRequestedBy(requestedBy);
         job = aiJobRepository.save(job);
 
@@ -321,7 +321,7 @@ public class AiJobService {
                 + "\n요구사항: " + instruction
                 + (screens.isBlank() ? "" : "\n\n화면 정보\n" + screens);
 
-        String raw = llmGatewayService.chat(project.getAiModelProvider(), systemPrompt, userPrompt,
+        String raw = llmGatewayService.chat(null, systemPrompt, userPrompt,
                 "코드 수정", project.getProjectId());
         return stripMarkdownFence(raw);
     }

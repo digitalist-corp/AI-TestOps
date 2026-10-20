@@ -8,7 +8,6 @@ import com.playops.api.dto.AiChatResponse;
 import com.playops.api.dto.ExecutionDetailResponse;
 import com.playops.api.dto.ExecutionResponse;
 import com.playops.api.entity.AiModelProvider;
-import com.playops.api.entity.Project;
 import com.playops.api.exception.ApiException;
 import com.playops.api.llm.LlmMessage;
 import com.playops.api.llm.LlmResult;
@@ -70,7 +69,7 @@ public class AiAnalysisService {
             }
         }
 
-        AiModelProvider provider = resolveProvider(request.getProvider(), detail);
+        AiModelProvider provider = resolveProvider(request.getProvider());
         String systemPrompt = buildPersonaPrompt(userLevel);
         String userPrompt = buildAnalysisPrompt(detail, logContent, userLevel, request.getAdditionalContext());
 
@@ -101,7 +100,7 @@ public class AiAnalysisService {
             recentExecutionId = findRecentExecutionId(request.getProjectId());
             detail = loadDetailOrNull(recentExecutionId);
         }
-        AiModelProvider provider = resolveProvider(request.getProvider(), detail);
+        AiModelProvider provider = resolveProvider(request.getProvider());
 
         String systemPrompt = buildChatSystemPrompt(userLevel, detail, request.getProjectId());
 
@@ -209,42 +208,26 @@ public class AiAnalysisService {
     }
 
     /**
-     * 공급자 결정 순서: 요청에 명시된 값 → 실행이 속한 프로젝트 설정 → 키가 등록된 첫 공급자 → CLAUDE.
-     * 마지막 CLAUDE 는 아무 키도 없을 때 "키 미등록" 400 이 그대로 드러나게 하기 위한 값이다.
+     * 공급자 결정 순서: 요청에 명시된 값 → 관리자 설정의 기본 공급자(키가 있을 때) → 키가 등록된 첫 공급자 → 기본 공급자.
+     * 마지막 값은 아무 키도 없을 때 "키 미등록" 400 이 그대로 드러나게 하기 위한 것이다.
      */
-    private AiModelProvider resolveProvider(String raw, ExecutionDetailResponse detail) {
+    private AiModelProvider resolveProvider(String raw) {
         AiModelProvider requested = parseProviderOrNull(raw);
         if (requested != null) {
             return requested;
         }
 
-        AiModelProvider fromProject = providerFromProject(detail);
-        if (fromProject != null) {
-            return fromProject;
+        // 관리자가 AI 설정에서 고른 기본 공급자를 먼저 쓴다. 그 키가 없을 때만 다른 공급자로 넘어간다.
+        AiModelProvider configured = aiProviderSettingsService.getDefaultProvider();
+        if (aiProviderSettingsService.hasKey(configured)) {
+            return configured;
         }
-
         for (AiModelProvider candidate : PROVIDER_PREFERENCE) {
             if (aiProviderSettingsService.hasKey(candidate)) {
                 return candidate;
             }
         }
-        return AiModelProvider.CLAUDE;
-    }
-
-    private AiModelProvider providerFromProject(ExecutionDetailResponse detail) {
-        if (detail == null || detail.execution() == null) {
-            return null;
-        }
-        String projectId = detail.execution().projectId();
-        if (projectId == null || projectId.isBlank()) {
-            return null;
-        }
-        try {
-            Project project = projectService.getProject(projectId);
-            return project != null ? project.getAiModelProvider() : null;
-        } catch (Exception ignored) {
-            return null;
-        }
+        return configured;
     }
 
     private AiModelProvider parseProviderOrNull(String raw) {

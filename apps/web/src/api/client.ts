@@ -101,8 +101,10 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message ?? 'Request failed');
+    // 터널(Cloudflare)이 502·504 를 자기 HTML 페이지로 바꾸면 서버가 보낸 메시지가 사라진다.
+    // 그때도 빈 오류가 되지 않게 상태 코드를 남긴다.
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `서버 응답 오류 (HTTP ${res.status})`);
   }
 
   if (res.status === 204) return undefined as T;
