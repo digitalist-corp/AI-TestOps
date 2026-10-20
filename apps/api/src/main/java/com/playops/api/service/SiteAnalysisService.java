@@ -411,7 +411,7 @@ public class SiteAnalysisService {
             if (!bundle.isEmpty() && !hash.equals(layout.getContentHash())) {
                 try {
                     llmCalls++;
-                    ScreenExtractor.Extraction extraction = screenExtractor.extract(project.getAiModelProvider(),
+                    ScreenExtractor.Extraction extraction = screenExtractor.extract(null,
                             project.getProjectId(), "여러 화면에 공통으로 보이는 영역 (" + entry.getKey() + ")", knownRoutes, bundle);
                     List<Map<String, Object>> elements = extraction.elements();
                     for (Map<String, Object> element : elements) {
@@ -454,7 +454,7 @@ public class SiteAnalysisService {
                 try {
                     llmCalls++;
                     ScreenExtractor.Extraction extraction = screenExtractor.extract(
-                            project.getAiModelProvider(), project.getProjectId(), node.getRouteKey(), knownRoutes, bundle);
+                            null, project.getProjectId(), node.getRouteKey(), knownRoutes, bundle);
                     applyExtraction(node, extraction, hash);
                     nodeRepository.save(node);
                 } catch (RuntimeException e) {
