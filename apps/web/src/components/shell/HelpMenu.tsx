@@ -52,7 +52,7 @@ export function HelpMenu({
   };
 
   return (
-    <div ref={containerRef} className="fixed bottom-16 right-5 z-50">
+    <div ref={containerRef} className="absolute bottom-4 right-5 z-20">
       {open && (
         <div className="absolute bottom-14 right-0 w-80 overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
           <div className="border-b border-border bg-accent/40 px-4 py-3">

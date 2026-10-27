@@ -9,6 +9,7 @@ import com.playops.api.entity.ProjectServerType;
 import com.playops.api.entity.RunnerActivity;
 import com.playops.api.entity.RunnerLifecycle;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 public record ProjectResponse(
@@ -45,6 +46,9 @@ public record ProjectResponse(
         ExecutionStatus latestExecutionStatus,
         Instant latestExecutionAt,
         Long latestExecutionDurationMs,
+        Long ownerUserId,
+        BigDecimal monthlyAiBudgetUsd,
+        Long version,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -109,6 +113,9 @@ public record ProjectResponse(
                 latestExecution != null ? latestExecution.getStatus() : null,
                 latestExecutionAt,
                 latestExecution != null ? latestExecution.getDurationMs() : null,
+                project.getOwnerUserId(),
+                project.getMonthlyAiBudgetUsd(),
+                project.getVersion(),
                 project.getCreatedAt(),
                 project.getUpdatedAt()
         );

@@ -175,6 +175,61 @@ public class AiRunnerDockerService {
         }
     }
 
+    /**
+     * 대상 사이트 탐색(SITE_ANALYSIS, analyze.js). LLM 을 부르지 않으므로 AiJob 행도, 콜백 토큰도 없다.
+     * job.json 은 호출자가 채워 jobDir 에 넘기고, 결과(result.json + screens/*.jpg)는 jobDir/result 에 남긴다 —
+     * 스크린샷을 구조 탭에서 보여 줘야 하므로 verify 와 달리 지우지 않는다.
+     *
+     * @return result.json 을 그대로 읽은 값
+     */
+    public Map<String, Object> runSiteAnalysisJob(Project project, Path jobDir, Map<String, Object> jobJson, int timeoutSeconds) {
+        Path resultDir = jobDir.resolve("result");
+        try {
+            Files.createDirectories(resultDir);
+            Map<String, Object> withType = new HashMap<>(jobJson);
+            withType.put("jobType", "SITE_ANALYSIS");
+            Files.writeString(jobDir.resolve("job.json"), objectMapper.writeValueAsString(withType), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new ApiException(500, "사이트 탐색 작업 디렉터리 준비 실패: " + e.getMessage());
+        }
+
+        ensureRunnerImage();
+
+        String containerJobDir = dockerRunnerService.directoryContainerPath(jobDir);
+        List<String> command = new ArrayList<>();
+        command.add("docker");
+        command.add("run");
+        command.add("--rm");
+        command.add("--name");
+        command.add("ai-site-" + project.getProjectId() + "-" + System.currentTimeMillis());
+        command.add("--network");
+        command.add("container:playops-api");
+        command.addAll(dockerRunnerService.directoryVolumeArgs(jobDir));
+        command.add("--user");
+        command.add("0");
+        command.add("-e");
+        command.add("AI_JOB_FILE=" + containerJobDir + "/job.json");
+        command.add("-e");
+        command.add("AI_JOB_RESULT_DIR=" + containerJobDir + "/result");
+        command.add(AI_RUNNER_IMAGE);
+
+        try {
+            log.info("사이트 탐색 컨테이너 실행 시작. project={}", project.getProjectId());
+            runProcessCommand(command, timeoutSeconds);
+        } catch (Exception e) {
+            // 탐색 도중 실패해도 analyze.js 가 result.json 에 오류를 남기므로, 있으면 그것을 돌려준다.
+            log.warn("사이트 탐색 컨테이너 비정상 종료. project={}: {}", project.getProjectId(), e.getMessage());
+        }
+        try {
+            String resultJson = Files.readString(resultDir.resolve("result.json"), StandardCharsets.UTF_8);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = objectMapper.readValue(resultJson, Map.class);
+            return parsed;
+        } catch (Exception e) {
+            throw new ApiException(500, "사이트 탐색 결과를 읽지 못했습니다. AI Runner 컨테이너를 실행할 수 있는지 확인하세요.");
+        }
+    }
+
     private void deleteRecursively(Path dir) throws java.io.IOException {
         if (!Files.exists(dir)) {
             return;

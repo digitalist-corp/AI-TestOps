@@ -4,13 +4,14 @@ import {
   CalendarClock,
   Container,
   LayoutDashboard,
+  Network,
   FolderTree,
   GitBranch,
   Play,
   Sparkles,
 } from 'lucide-react';
 
-export type ProjectTabId = 'dashboard' | 'source' | 'scenarios' | 'runs' | 'results' | 'ai-analysis' | 'schedules' | 'settings';
+export type ProjectTabId = 'dashboard' | 'source' | 'structure' | 'scenarios' | 'runs' | 'results' | 'ai-analysis' | 'schedules' | 'settings';
 
 export const PROJECT_WORKSPACE_TABS: {
   id: ProjectTabId;
@@ -29,6 +30,12 @@ export const PROJECT_WORKSPACE_TABS: {
     label: '코드',
     description: '직접 편집 · AI 수정 도움',
     icon: FolderTree,
+  },
+  {
+    id: 'structure',
+    label: '구조',
+    description: '저장소 코드에서 찾은 화면',
+    icon: Network,
   },
   {
     id: 'scenarios',

@@ -52,7 +52,7 @@ export type WorkspaceGroup = {
 
 export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, tabs: ['dashboard', 'ai-analysis'] },
-  { id: 'source', label: '코드', icon: FolderTree, tabs: ['source'] },
+  { id: 'source', label: '코드', icon: FolderTree, tabs: ['source', 'structure'] },
   { id: 'scenarios', label: '테스트', icon: GitBranch, tabs: ['scenarios'] },
   { id: 'runs', label: '실행', icon: Play, tabs: ['runs', 'results'] },
   { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'schedules'] },

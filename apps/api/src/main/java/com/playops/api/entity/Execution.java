@@ -73,6 +73,12 @@ public class Execution {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "schedule_id")
+    private Long scheduleId;
+
+    @Column(name = "scheduled_for")
+    private Instant scheduledFor;
+
     @PrePersist
     void onCreate() {
         createdAt = Instant.now();
@@ -133,4 +139,10 @@ public class Execution {
     public void setFinishedAt(Instant finishedAt) { this.finishedAt = finishedAt; }
 
     public Instant getCreatedAt() { return createdAt; }
+
+    public Long getScheduleId() { return scheduleId; }
+    public void setScheduleId(Long scheduleId) { this.scheduleId = scheduleId; }
+
+    public Instant getScheduledFor() { return scheduledFor; }
+    public void setScheduledFor(Instant scheduledFor) { this.scheduledFor = scheduledFor; }
 }

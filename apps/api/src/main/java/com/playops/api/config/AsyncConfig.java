@@ -40,6 +40,21 @@ public class AsyncConfig {
     }
 
     /**
+     * 등록 직후 첫 테스트 생성 파이프라인. 사이트 탐색 컨테이너와 테스트 실행이 끝날 때까지 스레드를 오래 붙잡으므로
+     * aiJobExecutor 와 나눠 둬야 CODE_FIX · 구조 탭 탐색을 막지 않는다.
+     */
+    @Bean(name = "aiBootstrapExecutor")
+    public ThreadPoolTaskExecutor aiBootstrapExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(2);
+        executor.setQueueCapacity(20);
+        executor.setThreadNamePrefix("playops-ai-bootstrap-");
+        executor.initialize();
+        return executor;
+    }
+
+    /**
      * AI 적용 사후 검증(안전망)은 검증용 Execution이 끝날 때까지 폴링하며 대기하는 스레드를 오래 붙잡는다.
      * aiJobExecutor(작업당 컨테이너 실행)와 별도 풀을 둬야 검증 대기가 새 CODE_FIX job 처리를 막지 않는다.
      */

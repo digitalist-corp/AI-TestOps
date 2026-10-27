@@ -28,6 +28,10 @@ public record AiJobResponse(
         PostApplyVerificationStatus postApplyVerificationStatus,
         Instant revertedAt,
         String appliedCommitSha,
+        Long requestedBy,
+        Long reviewedBy,
+        String rejectionReason,
+        Long version,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -51,6 +55,10 @@ public record AiJobResponse(
                 job.getPostApplyVerificationStatus(),
                 job.getRevertedAt(),
                 job.getAppliedCommitSha(),
+                job.getRequestedBy(),
+                job.getReviewedBy(),
+                job.getRejectionReason(),
+                job.getVersion(),
                 job.getCreatedAt(),
                 job.getUpdatedAt()
         );

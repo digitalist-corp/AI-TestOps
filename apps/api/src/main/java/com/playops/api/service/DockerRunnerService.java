@@ -516,6 +516,18 @@ public class DockerRunnerService {
         return List.of("--volumes-from", "playops-api");
     }
 
+    /** 임의의 호스트 폴더를 헬퍼 컨테이너의 /work 로 보이게 하는 docker 인자와 그 컨테이너 안 경로. */
+    public List<String> directoryVolumeArgs(java.nio.file.Path directory) {
+        if (isWindowsHost()) {
+            return List.of("-v", directory.toAbsolutePath().normalize().toString().replace('\\', '/') + ":/work");
+        }
+        return List.of("--volumes-from", "playops-api");
+    }
+
+    public String directoryContainerPath(java.nio.file.Path directory) {
+        return isWindowsHost() ? "/work" : directory.toAbsolutePath().normalize().toString();
+    }
+
     /** 러너 관련 서비스(clone 등)가 동일한 진행 로그 스트림에 라인을 추가할 수 있도록 공개한다. */
     public void logOperation(String projectId, String line) {
         appendOperationLog(projectId, line);

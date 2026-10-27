@@ -8,6 +8,7 @@ import com.playops.api.dto.AiEditAssistVerifyRequest;
 import com.playops.api.dto.AiEditAssistVerifyResponse;
 import com.playops.api.service.AiBootstrapService;
 import com.playops.api.service.AiEditAssistService;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -38,9 +39,17 @@ public class AiEditAssistController {
         return aiEditAssistService.verifyEdit(projectId, body.filePath(), body.proposedContent(), body.specPath());
     }
 
-    /** 프로젝트 등록 직후 AI가 초기 케이스를 만들고 곧바로 실행까지 시작한다. */
+    /**
+     * 프로젝트 등록 직후 첫 테스트 생성을 시작하고 바로 돌아온다.
+     * 사이트 탐색 → 코드 생성 → 실행 → 실패 시 자율 교정은 서버에서 이어지고, 진행 상황은 GET 으로 확인한다.
+     */
     @PostMapping("/bootstrap")
     public AiBootstrapResponse bootstrap(@PathVariable String projectId, @RequestBody AiBootstrapRequest body) {
-        return aiBootstrapService.bootstrap(projectId, body.instruction(), body.provider());
+        return aiBootstrapService.start(projectId, body.instruction(), body.provider());
+    }
+
+    @GetMapping("/bootstrap/{bootstrapId}")
+    public AiBootstrapResponse bootstrapStatus(@PathVariable String projectId, @PathVariable String bootstrapId) {
+        return aiBootstrapService.status(projectId, bootstrapId);
     }
 }

@@ -44,12 +44,12 @@ public class LlmGatewayService {
         }
     }
 
-    /** 단일 질문용 단축 호출. 사용자 메시지 한 건으로 변환해 위임한다. */
     /** 관리자가 AI 설정에서 고른 기본 공급자. 공급자를 정하지 않은 모든 AI 기능이 이것을 쓴다. */
     public AiModelProvider defaultProvider() {
         return aiProviderSettingsService.getDefaultProvider();
     }
 
+    /** 단일 질문용 단축 호출. 사용자 메시지 한 건으로 변환해 위임한다. */
     public String chat(AiModelProvider provider, String systemPrompt, String userPrompt) {
         return chat(provider, systemPrompt, List.of(LlmMessage.user(userPrompt)));
     }

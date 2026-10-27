@@ -44,6 +44,7 @@ public class TestExecutionService {
 
     private final ExecutionRepository executionRepository;
     private final ExecutionCaseResultRepository executionCaseResultRepository;
+    private final SiteMapPromptService siteMapPromptService;
     private final ProjectService projectService;
     private final PlayOpsProperties properties;
     private final ExecutionLogService logService;
@@ -63,8 +64,10 @@ public class TestExecutionService {
             DockerRunnerService dockerRunnerService,
             PlaywrightScenarioService scenarioService,
             SlackNotificationService slackNotificationService,
-            LoginSessionService loginSessionService
+            LoginSessionService loginSessionService,
+            SiteMapPromptService siteMapPromptService
     ) {
+        this.siteMapPromptService = siteMapPromptService;
         this.executionRepository = executionRepository;
         this.executionCaseResultRepository = executionCaseResultRepository;
         this.projectService = projectService;
@@ -497,6 +500,18 @@ public class TestExecutionService {
         }
         if (!results.isEmpty()) {
             executionCaseResultRepository.saveAll(results);
+            updateSelectorVerification(execution.getProjectId(), results);
+        }
+    }
+
+    /** 구조 분석으로 뽑은 셀렉터가 실제 화면에서 통했는지 기록한다. 부가 작업이라 실패해도 실행 결과에는 영향을 주지 않는다. */
+    private void updateSelectorVerification(String projectId, List<ExecutionCaseResult> results) {
+        try {
+            siteMapPromptService.applyResults(projectId, results.stream()
+                    .map(r -> new SiteMapPromptService.CaseOutcome(r.getSpecPath(), r.getStatus(), r.getErrorMessage()))
+                    .toList());
+        } catch (RuntimeException e) {
+            log.warn("셀렉터 확인 상태 갱신 실패 (project={}): {}", projectId, e.getMessage());
         }
     }
 

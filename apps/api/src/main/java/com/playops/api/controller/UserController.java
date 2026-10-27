@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/users")
+@RequestMapping({"/api/users", "/api/admin/users"})
 public class UserController {
 
     private final UserService userService;
@@ -43,6 +43,12 @@ public class UserController {
 
     @PutMapping("/{id}")
     public UserResponse update(@PathVariable Long id, @RequestBody UserUpdateRequest body, HttpServletRequest request) {
+        User actingUser = requireAdmin(request);
+        return userService.update(id, body, actingUser);
+    }
+
+    @PatchMapping("/{id}")
+    public UserResponse patch(@PathVariable Long id, @RequestBody UserUpdateRequest body, HttpServletRequest request) {
         User actingUser = requireAdmin(request);
         return userService.update(id, body, actingUser);
     }

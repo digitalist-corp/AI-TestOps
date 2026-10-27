@@ -15,8 +15,11 @@ public class UserSession {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(unique = true, length = 100)
     private String token;
+
+    @Column(name = "token_hash", unique = true, length = 64)
+    private String tokenHash;
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
@@ -30,6 +33,12 @@ public class UserSession {
     @Column(name = "last_accessed_at")
     private Instant lastAccessedAt;
 
+    @Column(name = "revoked_at")
+    private Instant revokedAt;
+
+    @Column(name = "user_agent", length = 500)
+    private String userAgent;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
@@ -42,6 +51,9 @@ public class UserSession {
     public String getToken() { return token; }
     public void setToken(String token) { this.token = token; }
 
+    public String getTokenHash() { return tokenHash; }
+    public void setTokenHash(String tokenHash) { this.tokenHash = tokenHash; }
+
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
 
@@ -52,4 +64,10 @@ public class UserSession {
 
     public Instant getLastAccessedAt() { return lastAccessedAt; }
     public void setLastAccessedAt(Instant lastAccessedAt) { this.lastAccessedAt = lastAccessedAt; }
+
+    public Instant getRevokedAt() { return revokedAt; }
+    public void setRevokedAt(Instant revokedAt) { this.revokedAt = revokedAt; }
+
+    public String getUserAgent() { return userAgent; }
+    public void setUserAgent(String userAgent) { this.userAgent = userAgent; }
 }

@@ -51,6 +51,7 @@ public class AiJobController {
                 projectId,
                 body.getTargetSpecPath(),
                 body.getInstruction(),
+                body.getRouteKeys(),
                 user != null ? user.getId() : null
         );
         return AiJobResponse.from(job);
@@ -86,19 +87,47 @@ public class AiJobController {
     }
 
     @PostMapping("/api/ai-jobs/{id}/approve")
-    public AiJobResponse approve(@PathVariable Long id, HttpServletRequest request) {
-        User user = requireAdmin(request);
-        return AiJobResponse.from(aiJobService.approve(id, user.getId()));
+    public AiJobResponse approve(
+            @PathVariable Long id,
+            @RequestBody(required = false) ApproveAiJobRequest body,
+            HttpServletRequest request
+    ) {
+        User user = requireAuthenticated(request);
+        Long expectedVersion = body != null ? body.expectedVersion() : null;
+        Boolean riskAcknowledged = body != null ? body.riskAcknowledged() : null;
+        return AiJobResponse.from(aiJobService.approve(
+                id,
+                user.getId(),
+                user.getRole(),
+                expectedVersion,
+                riskAcknowledged
+        ));
     }
 
     @PostMapping("/api/ai-jobs/{id}/reject")
-    public AiJobResponse reject(@PathVariable Long id, HttpServletRequest request) {
-        User user = requireAdmin(request);
-        return AiJobResponse.from(aiJobService.reject(id, user.getId()));
+    public AiJobResponse reject(
+            @PathVariable Long id,
+            @RequestBody(required = false) RejectAiJobRequest body,
+            HttpServletRequest request
+    ) {
+        User user = requireAuthenticated(request);
+        String reason = body != null ? body.reason() : null;
+        return AiJobResponse.from(aiJobService.reject(id, user.getId(), reason));
     }
+
+    public record ApproveAiJobRequest(Long expectedVersion, String baseCommitSha, Boolean riskAcknowledged) {}
+    public record RejectAiJobRequest(String reason) {}
 
     private User currentUser(HttpServletRequest request) {
         return (User) request.getAttribute("currentUser");
+    }
+
+    private User requireAuthenticated(HttpServletRequest request) {
+        User user = currentUser(request);
+        if (user == null) {
+            throw new ApiException(401, "UNAUTHENTICATED", "Authentication required");
+        }
+        return user;
     }
 
     private User requireAdmin(HttpServletRequest request) {

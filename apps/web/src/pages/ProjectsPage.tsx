@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderKanban, Loader2, Plus, RefreshCw, Search } from 'lucide-react';
 import { api } from '@/api/client';
+import { useRunningAnalyses } from '@/hooks/useRunningAnalyses';
 import { projectTabPath } from '@/config/projectWorkspace';
 import type { Project, ProjectFormData } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -40,6 +41,7 @@ function matchesQuery(project: Project, query: string) {
 }
 
 export function ProjectsPage() {
+  const runningAnalyses = useRunningAnalyses();
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -308,6 +310,7 @@ export function ProjectsPage() {
               project={project}
               running={testLoadingId === project.projectId}
               justCreated={project.projectId === justCreatedId}
+              analysis={runningAnalyses[project.projectId]}
               onOpen={() => navigate(projectTabPath(project.projectId, 'dashboard'))}
               onRun={() => handleRunProject(project)}
               onEnv={() => setEnvProject(project)}

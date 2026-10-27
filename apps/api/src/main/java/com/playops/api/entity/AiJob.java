@@ -33,6 +33,10 @@ public class AiJob {
     @Column(name = "target_spec_path", length = 500)
     private String targetSpecPath;
 
+    /** 시나리오 생성 때 사용자가 고른 화면의 routeKey (JSON 배열). 고르지 않았으면 null. */
+    @Column(name = "route_keys", columnDefinition = "TEXT")
+    private String routeKeys;
+
     @Column(name = "failed_execution_id")
     private Long failedExecutionId;
 
@@ -69,6 +73,9 @@ public class AiJob {
     @Column(name = "reviewed_by")
     private Long reviewedBy;
 
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
+
     /** git 연동된 프로젝트에서 이 job의 변경을 반영한 커밋 SHA. git 미연동 프로젝트는 계속 null(파일 스냅샷 방식 사용). */
     @Column(name = "applied_commit_sha", length = 100)
     private String appliedCommitSha;
@@ -86,6 +93,10 @@ public class AiJob {
 
     @Column(name = "revert_commit", length = 100)
     private String revertCommit;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -123,6 +134,8 @@ public class AiJob {
     public void setInstruction(String instruction) { this.instruction = instruction; }
 
     public String getTargetSpecPath() { return targetSpecPath; }
+    public String getRouteKeys() { return routeKeys; }
+    public void setRouteKeys(String routeKeys) { this.routeKeys = routeKeys; }
     public void setTargetSpecPath(String targetSpecPath) { this.targetSpecPath = targetSpecPath; }
 
     public Long getFailedExecutionId() { return failedExecutionId; }
@@ -158,6 +171,9 @@ public class AiJob {
     public Long getReviewedBy() { return reviewedBy; }
     public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
 
+    public String getRejectionReason() { return rejectionReason; }
+    public void setRejectionReason(String rejectionReason) { this.rejectionReason = rejectionReason; }
+
     public String getAppliedCommitSha() { return appliedCommitSha; }
     public void setAppliedCommitSha(String appliedCommitSha) { this.appliedCommitSha = appliedCommitSha; }
 
@@ -175,4 +191,7 @@ public class AiJob {
 
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public Long getVersion() { return version != null ? version : 0L; }
+    public void setVersion(Long version) { this.version = version != null ? version : 0L; }
 }
