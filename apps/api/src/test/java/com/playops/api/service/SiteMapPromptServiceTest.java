@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -166,5 +167,25 @@ class SiteMapPromptServiceTest {
         assertThat(service.context("p", List.of("/login"))).doesNotContain("공용 영역");
 
         assertThat(service.check("p", "await page.getByRole('link', { name: '게시판' }).click();").unknown()).isEmpty();
+    }
+
+    @Test
+    void siteScreenContextIncludesFormsAndAriaSnapshot() {
+        SiteNode home = node("/", "홈", """
+                [{"idx":0,"kind":"textbox","tag":"input","type":"email","label":"이메일","selector":"getByLabel('이메일', { exact: true })"},
+                 {"idx":1,"kind":"button","role":"button","name":"로그인","selector":"getByRole('button', { name: '로그인', exact: true })",
+                  "scope":{"role":"main","name":null}}]
+                """, "[]");
+        home.setOrigin("SITE");
+        home.setForms("[{\"idx\":0,\"fieldIdx\":[0],\"submitIdx\":[1]}]");
+        home.setAriaSnapshot("- main:\n  - button \"로그인\"");
+
+        String described = service.describe(home, SiteMapPromptService.ARIA_CHARS_FOR_GENERATION);
+
+        assertThat(described).contains("실제 사이트에서 확인")
+                .contains("[type=email]")
+                .contains("폼: 입력 getByLabel('이메일', { exact: true }) → 제출 getByRole('button', { name: '로그인', exact: true })")
+                .contains("접근성 트리(일부)");
+        assertThat(SiteMapPromptService.keysOf(Map.of("scope", Map.of("role", "main")))).contains("role|main|");
     }
 }

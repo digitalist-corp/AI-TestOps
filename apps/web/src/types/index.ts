@@ -547,11 +547,34 @@ export interface AiTemplateResponse {
   }[];
 }
 
+export type AiBootstrapPhase =
+  | 'ANALYZING_SITE'
+  | 'GENERATING'
+  | 'RUNNING'
+  | 'HEALING'
+  | 'PASSED'
+  | 'FAILED'
+  | 'ERROR';
+
+/** 첫 테스트 생성(사이트 탐색 → 코드 생성 → 실행 → 자율 교정)의 현재 상태. 시작 요청과 상태 조회가 같은 모양이다. */
 export interface AiBootstrapResponse {
-  executionId: number;
+  bootstrapId: string;
+  phase: AiBootstrapPhase;
+  /** 지금(또는 마지막으로) 몇 번째 자율 교정인지. 0 이면 교정 없이 첫 실행 */
+  healAttempt: number;
+  maxHealAttempts: number;
+  executionId: number | null;
   generatedFiles: string[];
-  specPath: string;
+  specPath: string | null;
+  /** 1회 실행 예상 시간 (최근 실행 이력 평균) */
   estimatedDurationMs: number;
+  /** 이번 생성에 쓴 사이트 탐색 결과. 이미 화면 정보가 있어 건너뛰었으면 null */
+  siteAnalysis: { mode: 'DOM' | 'VISUAL_REQUIRED' | 'ERROR'; pages: number; verifiedSelectors: number } | null;
+  warnings: string[];
+  error: string | null;
+  failureLog: string | null;
+  startedAt: string;
+  finishedAt: string | null;
 }
 
 export interface AiEditAssistVerifyResponse {
@@ -692,12 +715,15 @@ export interface SiteMapSource {
   tokenSet: boolean;
   /** 소스 저장소를 따로 연결하지 않아 프로젝트 저장소를 읽는 경우 */
   usesProjectRepository: boolean;
+  /** 프로젝트의 대상 사이트 주소. 있으면 소스 저장소 없이도 사이트 탐색을 할 수 있다 */
+  siteUrl: string | null;
 }
 
 export interface SiteMapAnalysis {
   status: 'NONE' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   commitSha: string | null;
-  framework: 'NEXT' | 'REACT_ROUTER' | null;
+  /** URL 은 소스 저장소 없이 대상 사이트를 브라우저로 탐색한 결과 */
+  framework: 'NEXT' | 'REACT_ROUTER' | 'URL' | null;
   partial: boolean;
   screenCount: number;
   /** 요소까지 읽은 화면 수 (진행 표시용) */
@@ -722,6 +748,9 @@ export interface SiteMapNode {
   elementCount: number;
   excluded: boolean;
   note: string | null;
+  /** 사이트 탐색(origin=SITE)으로 실제로 연 주소 */
+  url: string | null;
+  hasScreenshot: boolean;
 }
 
 export interface SiteMap {
@@ -772,13 +801,19 @@ export interface SiteMapElement {
   duplicate: boolean;
   /** 목록 반복이나 조건에 따라 보이는 요소 */
   conditional: boolean;
-  file: string;
-  line: number | null;
-  verification: 'UNVERIFIED' | 'PASSED' | 'FAILED';
+  /** 코드 분석 요소의 위치. 사이트 탐색(SITE) 요소는 없다 */
+  file?: string;
+  line?: number | null;
+  /** 사이트 탐색 요소의 순번 (forms 가 가리키는 값) */
+  idx?: number;
+  /** OBSERVED: 실제 사이트에서 이 요소 하나만 가리키는 것을 확인한 셀렉터 */
+  verification: 'UNVERIFIED' | 'OBSERVED' | 'PASSED' | 'FAILED';
 }
 
 export interface SiteMapNodeDetail {
   node: SiteMapNode;
   elements: SiteMapElement[];
   edges: SiteMapEdge[];
+  /** 사이트 탐색에서 모은 폼. fieldIdx · submitIdx 는 elements 의 idx 를 가리킨다 */
+  forms: { idx: number; fieldIdx: number[]; submitIdx: number[] }[];
 }

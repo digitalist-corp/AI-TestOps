@@ -43,6 +43,19 @@ public class AiProviderSettings {
     @Column(name = "openai_output_price")
     private Double openaiOutputPrice;
 
+    @Column(name = "claude_transport", length = 30)
+    private String claudeTransport = "ANTHROPIC";
+
+    @Column(name = "bedrock_region", length = 50)
+    private String bedrockRegion;
+
+    @Column(name = "bedrock_model", length = 200)
+    private String bedrockModel;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -77,6 +90,20 @@ public class AiProviderSettings {
 
     public String getClaudeWorkspaceId() { return claudeWorkspaceId; }
     public void setClaudeWorkspaceId(String claudeWorkspaceId) { this.claudeWorkspaceId = claudeWorkspaceId; }
+
+    public String getClaudeTransport() { return claudeTransport != null ? claudeTransport : "ANTHROPIC"; }
+    public void setClaudeTransport(String claudeTransport) {
+        this.claudeTransport = claudeTransport != null ? claudeTransport : "ANTHROPIC";
+    }
+
+    public String getBedrockRegion() { return bedrockRegion; }
+    public void setBedrockRegion(String bedrockRegion) { this.bedrockRegion = bedrockRegion; }
+
+    public String getBedrockModel() { return bedrockModel; }
+    public void setBedrockModel(String bedrockModel) { this.bedrockModel = bedrockModel; }
+
+    public Long getVersion() { return version != null ? version : 0L; }
+    public void setVersion(Long version) { this.version = version != null ? version : 0L; }
 
     public Instant getUpdatedAt() { return updatedAt; }
 }

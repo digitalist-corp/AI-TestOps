@@ -38,5 +38,6 @@ public record ProjectRequest(
         // 구조 분석이 읽을 앱 소스 저장소. 등록할 때만 쓴다 (등록 직후 분석을 시작한다). 이후 변경은 구조 탭에서 한다.
         String sourceRepositoryUrl,
         String sourceRepositoryBranch,
-        String sourceRepositoryToken
+        String sourceRepositoryToken,
+        Long version
 ) {}

@@ -145,16 +145,33 @@ public class FileStorageService {
 
     public Path resolveFile(String projectId, String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
-            throw new ApiException(400, "File path is required");
+            throw new ApiException(400, "PATH_NOT_ALLOWED", "File path is required");
         }
         String normalized = relativePath.replace('\\', '/').trim();
         if (normalized.startsWith("/") || normalized.contains("..")) {
-            throw new ApiException(400, "Invalid file path");
+            throw new ApiException(400, "PATH_NOT_ALLOWED", "Invalid file path");
         }
         Path projectPath = projectService.getProjectPath(projectId).toAbsolutePath().normalize();
         Path resolved = projectPath.resolve(normalized).normalize();
         if (!resolved.startsWith(projectPath)) {
-            throw new ApiException(400, "Invalid file path");
+            throw new ApiException(400, "PATH_NOT_ALLOWED", "Invalid file path");
+        }
+        try {
+            if (Files.exists(projectPath)) {
+                Path realProjectRoot = projectPath.toRealPath();
+                Path check = resolved;
+                while (check != null && !Files.exists(check)) {
+                    check = check.getParent();
+                }
+                if (check != null) {
+                    Path realCheck = check.toRealPath();
+                    if (!realCheck.startsWith(realProjectRoot)) {
+                        throw new ApiException(400, "PATH_NOT_ALLOWED", "Symlink escape detected");
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new ApiException(400, "PATH_NOT_ALLOWED", "Invalid file path");
         }
         return resolved;
     }

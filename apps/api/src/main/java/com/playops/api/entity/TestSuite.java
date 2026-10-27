@@ -35,6 +35,10 @@ public class TestSuite {
     @Column(name = "created_by")
     private Long createdBy;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -75,6 +79,9 @@ public class TestSuite {
 
     public Long getCreatedBy() { return createdBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
+
+    public Long getVersion() { return version != null ? version : 0L; }
+    public void setVersion(Long version) { this.version = version != null ? version : 0L; }
 
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

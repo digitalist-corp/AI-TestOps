@@ -27,6 +27,10 @@ public class SiteNodeEdit {
     @Column(length = 500)
     private String note;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
+
     public Long getId() { return id; }
     public String getProjectId() { return projectId; }
     public void setProjectId(String projectId) { this.projectId = projectId; }
@@ -36,4 +40,6 @@ public class SiteNodeEdit {
     public void setExcluded(boolean excluded) { this.excluded = excluded; }
     public String getNote() { return note; }
     public void setNote(String note) { this.note = note; }
+    public Long getVersion() { return version != null ? version : 0L; }
+    public void setVersion(Long version) { this.version = version != null ? version : 0L; }
 }

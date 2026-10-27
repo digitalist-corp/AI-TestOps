@@ -7,6 +7,9 @@ import com.playops.api.entity.AiJob;
 import com.playops.api.entity.AiJobStatus;
 import com.playops.api.entity.AiJobType;
 import com.playops.api.entity.Project;
+import com.playops.api.entity.User;
+import com.playops.api.entity.UserAuditAction;
+import com.playops.api.entity.UserRole;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.AiJobRepository;
 import org.slf4j.Logger;
@@ -295,13 +298,17 @@ public class AiJobService {
                 Return ONLY the raw TypeScript code for that file — no markdown code fences, no explanation, no JSON wrapper.
                 """.formatted(project.getPlaywrightVersion(), targetSpecPath);
 
-        // 구조 분석 결과가 있으면 추측 대신 코드에서 확인한 셀렉터를 쓰게 한다.
+        // 구조 분석(코드) 또는 사이트 탐색 결과가 있으면 추측 대신 확인된 셀렉터를 쓰게 한다.
+        // 소스 저장소가 없는 프로젝트도 사이트 탐색 화면(origin=SITE)이 같은 표로 들어오므로 따로 분기하지 않는다.
         String screens = siteMapPromptService.context(project.getProjectId(), routeKeys);
         if (!screens.isBlank()) {
             systemPrompt += """
 
                     The user message includes a "화면 정보" section. It lists the app's screens and the locators
-                    that were confirmed to exist in the app's source code.
+                    that were confirmed to exist — either in the app's source code, or (screens marked
+                    "실제 사이트에서 확인") by opening the live site and checking each locator matches exactly one element.
+                    Form lines ("폼:") list a form's inputs and its submit button; the accessibility tree excerpt shows
+                    what is actually rendered.
                     - To click, fill, or otherwise act on the page, use ONLY locators listed there, written exactly as listed
                       (prefix them with `page.`). Do not invent locators or CSS selectors.
                     - If the request needs an element that is not listed, leave that step out and say so in a code comment
@@ -546,9 +553,29 @@ public class AiJobService {
     }
 
     public AiJob approve(Long jobId, Long approvedByUserId) {
+        return approve(jobId, approvedByUserId, UserRole.ADMIN, null, null);
+    }
+
+    public AiJob approve(
+            Long jobId,
+            Long approvedByUserId,
+            UserRole reviewerRole,
+            Long expectedVersion,
+            Boolean riskAcknowledged
+    ) {
         AiJob job = getJobOrThrow(jobId);
         if (job.getStatus() != AiJobStatus.NEEDS_REVIEW) {
-            throw new ApiException(400, "검토 대기 상태의 job만 승인할 수 있습니다. 현재 상태: " + job.getStatus());
+            throw new ApiException(409, "STATE_CONFLICT", "검토 대기 상태의 job만 승인할 수 있습니다. 현재 상태: " + job.getStatus());
+        }
+        if (expectedVersion != null && !expectedVersion.equals(job.getVersion())) {
+            throw new ApiException(409, "STATE_CONFLICT", "작업 버전이 일치하지 않습니다. 이미 다른 요청에서 처리되었을 수 있습니다.");
+        }
+        // SEC-04 / TC-13: 작성자 본인 승인 금지 (4-eyes 원칙).
+        if (approvedByUserId != null && job.getRequestedBy() != null && approvedByUserId.equals(job.getRequestedBy())) {
+            throw new ApiException(403, "SELF_APPROVAL_FORBIDDEN", "작성자는 본인이 요청한 AI 변경 작업을 단독 승인할 수 없습니다.");
+        }
+        if (Boolean.FALSE.equals(riskAcknowledged)) {
+            throw new ApiException(400, "VALIDATION_ERROR", "위험 표시(riskFlags)를 확인해야 승인할 수 있습니다.");
         }
 
         Project project = projectService.getProject(job.getProjectId());
@@ -566,12 +593,22 @@ public class AiJobService {
     }
 
     public AiJob reject(Long jobId, Long rejectedByUserId) {
+        return reject(jobId, rejectedByUserId, null);
+    }
+
+    public AiJob reject(Long jobId, Long rejectedByUserId, String reason) {
         AiJob job = getJobOrThrow(jobId);
         if (job.getStatus() != AiJobStatus.NEEDS_REVIEW) {
-            throw new ApiException(400, "검토 대기 상태의 job만 거부할 수 있습니다. 현재 상태: " + job.getStatus());
+            throw new ApiException(409, "STATE_CONFLICT", "검토 대기 상태의 job만 거부할 수 있습니다. 현재 상태: " + job.getStatus());
+        }
+        if (reason != null && reason.length() > 500) {
+            throw new ApiException(400, "VALIDATION_ERROR", "거부 사유는 최대 500자까지 입력할 수 있습니다.");
         }
         job.setStatus(AiJobStatus.REJECTED);
         job.setReviewedBy(rejectedByUserId);
+        if (reason != null && !reason.isBlank()) {
+            job.setRejectionReason(reason.trim());
+        }
         return aiJobRepository.save(job);
     }
 

@@ -13,6 +13,7 @@ import com.playops.api.dto.ScaffoldRequest;
 import com.playops.api.dto.ScaffoldResponse;
 import com.playops.api.dto.SiteCheckResponse;
 import com.playops.api.entity.DockerStatus;
+import com.playops.api.entity.User;
 import com.playops.api.service.DockerRunnerService;
 import com.playops.api.service.LoginSessionService;
 import com.playops.api.service.PlaywrightTemplateService;
@@ -20,6 +21,7 @@ import com.playops.api.service.ProjectService;
 import com.playops.api.service.RunnerCapacityService;
 import com.playops.api.service.SiteAnalysisService;
 import com.playops.api.service.SiteCheckService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -57,8 +59,8 @@ public class ProjectController {
     }
 
     @GetMapping
-    public List<ProjectResponse> list() {
-        return projectService.findAll();
+    public List<ProjectResponse> list(HttpServletRequest httpRequest) {
+        return projectService.findAll(currentUser(httpRequest));
     }
 
     /** 등록 화면에서 대상 사이트 주소가 실제로 열리는지 확인한다. */
@@ -68,13 +70,13 @@ public class ProjectController {
     }
 
     @GetMapping("/{projectId}")
-    public ProjectResponse get(@PathVariable String projectId) {
-        return projectService.findById(projectId);
+    public ProjectResponse get(@PathVariable String projectId, HttpServletRequest httpRequest) {
+        return projectService.findById(projectId, currentUser(httpRequest));
     }
 
     @PostMapping
-    public ProjectResponse create(@RequestBody ProjectRequest request) {
-        ProjectResponse created = projectService.create(request);
+    public ProjectResponse create(@RequestBody ProjectRequest request, HttpServletRequest httpRequest) {
+        ProjectResponse created = projectService.create(request, currentUser(httpRequest));
         startSiteAnalysisIfSourceGiven(created.projectId(), request);
         return created;
     }
@@ -97,14 +99,18 @@ public class ProjectController {
     }
 
     @PutMapping("/{projectId}")
-    public ProjectResponse update(@PathVariable String projectId, @RequestBody ProjectRequest request) {
-        return projectService.update(projectId, request);
+    public ProjectResponse update(@PathVariable String projectId, @RequestBody ProjectRequest request, HttpServletRequest httpRequest) {
+        return projectService.update(projectId, request, currentUser(httpRequest));
     }
 
     @DeleteMapping("/{projectId}")
-    public void delete(@PathVariable String projectId) {
-        projectService.delete(projectId);
+    public void delete(@PathVariable String projectId, HttpServletRequest httpRequest) {
+        projectService.delete(projectId, currentUser(httpRequest));
         siteAnalysisService.forget(projectId);
+    }
+
+    private User currentUser(HttpServletRequest request) {
+        return request != null ? (User) request.getAttribute("currentUser") : null;
     }
 
     @PostMapping("/{projectId}/docker/start")
