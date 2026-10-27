@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import type { ServiceHealth, ServiceHealthItem } from '@/types';
 import { cn } from '@/lib/utils';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const ENV_FILE_PRESENT = import.meta.env.VITE_PLAYOPS_ENV_FILE_PRESENT === 'true';
 
@@ -197,7 +198,7 @@ export function LoginPage() {
   const troubleshoot = troubleshootMessage(services);
 
   return (
-    <div className="min-h-screen bg-card">
+    <div className="min-h-screen bg-card dark:bg-transparent">
       <div className="mx-auto grid min-h-screen w-full max-w-[1248px] items-center gap-12 px-6 py-12 lg:grid-cols-[1.1fr_minmax(0,420px)] lg:gap-16 lg:px-16">
         {/* 왼쪽 — 이 제품이 무엇을 하는지, 지금 쓸 수 있는 상태인지 */}
         <section className="space-y-8">
@@ -207,6 +208,7 @@ export function LoginPage() {
           </div>
 
           <div className="space-y-4">
+            <ConsoleEyebrow>SECURE ACCESS // TEST OPERATIONS CONSOLE</ConsoleEyebrow>
             <h1 className="text-[28px] font-bold leading-[1.3] tracking-[-0.01em] text-foreground sm:text-[32px] lg:text-[44px]">
               사이트 주소만 알려주면
               <br />

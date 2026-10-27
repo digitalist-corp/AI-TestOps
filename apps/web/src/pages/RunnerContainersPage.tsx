@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import type { DockerHostResource, DockerStatus, Project, RunnerCapacity, RunnerCapacityFormData, RunnerContainer } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const dockerStatusLabel: Record<DockerStatus, string> = {
   RUNNING: '실행 중',
@@ -336,6 +337,7 @@ export function RunnerContainersPage() {
     <div className="p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
+          <ConsoleEyebrow>INFRA // RUNNER CONTAINERS</ConsoleEyebrow>
           <h2 className="text-2xl font-bold text-foreground">Runner 컨테이너 관리</h2>
           <p className="text-sm text-muted-foreground mt-1">Runner, AI-TestOps 자체 컨테이너, 기타 Docker 컨테이너 상태를 확인합니다.</p>
         </div>

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/Label';
 import { getStoredAuth } from '@/api/client';
 import type { AiProviderSettingsResponse, AiUsageSummary } from '@/types';
 import { cn } from '@/lib/utils';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 type Provider = 'CLAUDE' | 'GPT';
 
@@ -112,6 +113,7 @@ export function AiSettingsPage() {
     <div className="@container space-y-5 p-6">
       <div className="flex flex-col gap-3 @min-[52rem]:flex-row @min-[52rem]:items-center @min-[52rem]:justify-between">
         <div>
+          <ConsoleEyebrow>SYSTEM // AI PROVIDERS</ConsoleEyebrow>
           <h2 className="text-[24px] font-bold leading-tight text-foreground">AI 설정</h2>
           <p className="mt-1 text-[15px] text-muted-foreground">
             어떤 AI를 쓸지 고르고, 토큰을 얼마나 썼는지 확인합니다.

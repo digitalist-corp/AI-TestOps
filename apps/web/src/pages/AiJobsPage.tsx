@@ -4,6 +4,7 @@ import { api, getStoredAuth } from '@/api/client';
 import type { AiJob, AiJobFileDiff } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const statusLabel: Record<AiJob['status'], string> = {
   PENDING: '대기 중',
@@ -174,6 +175,7 @@ export function AiJobsPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
+          <ConsoleEyebrow>OPERATIONS // AI REVIEW QUEUE</ConsoleEyebrow>
           <h2 className="text-2xl font-bold text-foreground">AI 검토 대기</h2>
           <p className="text-sm text-muted-foreground mt-1">
             AI가 생성한 코드 수정은 자동 적용되지 않고 여기서 사람이 승인해야 실제 파일에 반영됩니다.

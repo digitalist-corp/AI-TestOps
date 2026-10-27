@@ -751,6 +751,12 @@ export interface SiteMapNode {
   /** 사이트 탐색(origin=SITE)으로 실제로 연 주소 */
   url: string | null;
   hasScreenshot: boolean;
+  /** 로그인해야 열리는 화면 */
+  authRequired: boolean;
+  /** 테스트 실행으로 확인된(PASSED) · 실패한(FAILED) 요소 수. 나머지는 unverifiedCount (실측 OBSERVED 포함) */
+  passedCount: number;
+  failedCount: number;
+  unverifiedCount: number;
 }
 
 export interface SiteMap {
@@ -816,4 +822,16 @@ export interface SiteMapNodeDetail {
   edges: SiteMapEdge[];
   /** 사이트 탐색에서 모은 폼. fieldIdx · submitIdx 는 elements 의 idx 를 가리킨다 */
   forms: { idx: number; fieldIdx: number[]; submitIdx: number[] }[];
+  /** 이 화면을 골라 만든 테스트와 마지막 실행 결과 (최근 실행 순) */
+  tests: ScreenTestSummary[];
+}
+
+export interface ScreenTestSummary {
+  specPath: string;
+  /** 실행한 적이 없으면 null */
+  lastStatus: 'PASSED' | 'FAILED' | 'SKIPPED' | null;
+  lastRunAt: string | null;
+  executionId: number | null;
+  passedCases: number;
+  failedCases: number;
 }

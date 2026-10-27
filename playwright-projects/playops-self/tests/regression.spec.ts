@@ -103,6 +103,50 @@ test.describe.serial('PlayOps Self Regression', () => {
     await takeScreenshot(page, '10_results.png');
   });
 
+  test('구조 탭 그래프 및 경로 칩 확인', async ({ page }) => {
+    test.setTimeout(60000);
+    await login(page);
+
+    // 테스트 프로젝트(example.com)는 분석된 화면이 없으므로, 구조 응답만 고정된 화면 3개로 바꿔 그래프를 그린다.
+    const screen = (routeKey: string, failedCount = 0) => ({
+      routeKey, title: null, sourceFile: null, origin: 'CODE', stale: false, elementCount: 2, excluded: false,
+      note: null, url: null, hasScreenshot: false, authRequired: routeKey !== '/login',
+      passedCount: 2 - failedCount, failedCount, unverifiedCount: 0,
+    });
+    await page.route('**/api/projects/playops-full-test/sitemap', (route) =>
+      route.fulfill({
+        json: {
+          projectId: 'playops-full-test',
+          source: { url: null, branch: null, tokenSet: false, usesProjectRepository: false, siteUrl: 'https://example.com' },
+          analysis: {
+            status: 'COMPLETED', commitSha: null, framework: 'URL', partial: false, screenCount: 3, processedCount: 3,
+            llmCalls: 0, etaSeconds: null, warnings: [], errorMessage: null, startedAt: null, finishedAt: null,
+          },
+          nodes: [screen('/login'), screen('/projects'), screen('/projects/:id', 1)],
+          edges: [
+            { from: '/login', to: '/projects', kind: 'link', label: '로그인', selector: null },
+            { from: '/projects', to: '/projects/:id', kind: 'link', label: '열기', selector: null },
+          ],
+          layouts: [],
+        },
+      })
+    );
+
+    await page.goto('/projects/playops-full-test/structure');
+    const graph = page.getByTestId('structure-graph');
+    await expect(graph).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId('structure-screen-node')).toHaveCount(3);
+    await expect(page.locator('[data-route="/projects/:id"]')).toHaveAttribute('data-status', 'failed');
+
+    // 목록 → 상세 → 로그인: 마지막 구간은 직접 전환이 없어 경고가 뜬다.
+    for (const route of ['/projects', '/projects/:id', '/login']) {
+      await page.locator(`[data-route="${route}"]`).getByRole('button', { name: /경로에 추가/ }).click();
+    }
+    await expect(page.getByTestId('structure-path-chip')).toHaveCount(3);
+    await expect(page.getByTestId('structure-path-broken')).toBeVisible();
+    await takeScreenshot(page, '11_structure_graph.png');
+  });
+
   test('게시판 등록 확인', async ({ page }) => {
     test.setTimeout(60000);
     await login(page);
