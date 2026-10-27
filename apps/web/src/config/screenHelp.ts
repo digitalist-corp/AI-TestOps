@@ -64,13 +64,6 @@ const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
     },
   },
   {
-    prefix: '/board',
-    help: {
-      title: '공지 / 게시판',
-      body: '팀 공지와 문의를 남기는 곳입니다. 사용 중 막히는 부분도 여기에 적어주세요.',
-    },
-  },
-  {
     prefix: '/templates',
     help: {
       title: 'Playwright 템플릿',

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bell, Cpu, Database, HardDrive, RefreshCw } from 'lucide-react';
+import { Activity, AlertTriangle, Cpu, Database, HardDrive, RefreshCw } from 'lucide-react';
 import { api } from '@/api/client';
-import type { BoardPost, DockerHostResource, RunnerCapacity } from '@/types';
+import type { DockerHostResource, RunnerCapacity } from '@/types';
 import { cn } from '@/lib/utils';
 
 type ResourceLevel = 'normal' | 'warning' | 'critical';
@@ -61,21 +61,18 @@ const valueTone: Record<ResourceLevel, string> = {
 export function ResourceStatusBar() {
   const [hostResources, setHostResources] = useState<DockerHostResource | null>(null);
   const [capacity, setCapacity] = useState<RunnerCapacity | null>(null);
-  const [notices, setNotices] = useState<BoardPost[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastCheckedAt, setLastCheckedAt] = useState<Date | null>(null);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const [nextHostResources, nextCapacity, nextNotices] = await Promise.all([
+      const [nextHostResources, nextCapacity] = await Promise.all([
         api.getDockerHostResources().catch(() => null),
         api.getRunnerCapacity().catch(() => null),
-        api.getVisibleNotices().catch(() => []),
       ]);
       setHostResources(nextHostResources);
       setCapacity(nextCapacity);
-      setNotices(nextNotices);
       setLastCheckedAt(new Date());
     } catch {
       setLastCheckedAt(new Date());
@@ -106,14 +103,12 @@ export function ResourceStatusBar() {
           : 'normal';
 
     const overallLevel = [cpuLevel, memoryLevel, storageLevel, queueLevel].reduce(worseLevel, 'normal');
-    const activeNotice = notices[0];
     const alertMessage =
       overallLevel === 'critical'
         ? '긴급: 서버 자원 또는 Runner 대기열을 확인하세요'
         : overallLevel === 'warning'
           ? '주의: 자원 사용량이 높아지고 있습니다'
           : '';
-    const notice = activeNotice ? `공지: ${activeNotice.title}` : '공지 없음';
 
     return {
       cpuPercent,
@@ -125,9 +120,8 @@ export function ResourceStatusBar() {
       queueLevel,
       overallLevel,
       alertMessage,
-      notice,
     };
-  }, [capacity, hostResources, notices]);
+  }, [capacity, hostResources]);
 
   const items = [
     {
@@ -184,19 +178,13 @@ export function ResourceStatusBar() {
           </div>
 
           <div className="flex min-w-0 items-center gap-2 @max-7xl:col-span-2">
-            <Bell className="h-3.5 w-3.5 shrink-0 opacity-70" />
-            <div
-              className="flex min-w-0 flex-1 items-center gap-2 font-medium"
-              title={[hostResources?.message || resourceState.alertMessage, resourceState.notice].filter(Boolean).join(' · ')}
+            <Activity className="h-3.5 w-3.5 shrink-0 opacity-70" />
+            <span
+              className="min-w-0 flex-1 truncate font-medium"
+              title={hostResources?.message || resourceState.alertMessage || undefined}
             >
-              {(hostResources?.message || resourceState.alertMessage) && (
-                <span className="max-w-[45%] shrink-0 truncate text-inherit">
-                  {hostResources?.message || resourceState.alertMessage}
-                </span>
-              )}
-              {(hostResources?.message || resourceState.alertMessage) && <span className="shrink-0 opacity-40">·</span>}
-              <span className="min-w-0 truncate">{resourceState.notice}</span>
-            </div>
+              {hostResources?.message || resourceState.alertMessage || '자원 상태 정상'}
+            </span>
             <button
               type="button"
               onClick={loadStatus}
