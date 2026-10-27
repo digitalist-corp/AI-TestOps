@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog';
 import { cn } from '@/lib/utils';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 type BoardFilter = BoardPostType | 'ALL';
 
@@ -373,6 +374,7 @@ export function BoardPage() {
     <div className="p-6 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
+          <ConsoleEyebrow>COMMS // NOTICE BOARD</ConsoleEyebrow>
           <h2 className="text-2xl font-bold text-foreground">공지사항 / 게시판</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             공지 노출 설정은 관리자만, 글과 댓글 반응은 로그인 사용자가 함께 사용합니다.

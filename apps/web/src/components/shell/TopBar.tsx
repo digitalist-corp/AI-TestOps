@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom';
 import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { useTheme } from '@/lib/theme';
+import { LiveClock } from '@/components/console/ConsoleText';
+import { THEME_LABEL, useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
 import { projectTabPath, type ProjectTabId } from '@/config/projectWorkspace';
@@ -34,7 +35,9 @@ export function TopBar({
   const projectLabel = activeProject?.projectName ?? activeProjectId;
 
   return (
-    <header className="@container flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+    <header className="@container relative flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+      {/* 콘솔 테마: 상단바 아랫선을 따라 신호가 천천히 지나간다 */}
+      <span aria-hidden="true" className="console-sweep pointer-events-none absolute inset-x-0 -bottom-px hidden h-px dark:block" />
       <button
         type="button"
         onClick={onOpenProjectSwitcher}
@@ -65,7 +68,7 @@ export function TopBar({
                 className={cn(
                   'flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors',
                   active
-                    ? 'bg-primary/10 text-primary ring-1 ring-primary/25'
+                    ? 'bg-primary/10 text-primary ring-1 ring-primary/25 dark:shadow-[inset_0_-2px_0_var(--color-primary)] dark:ring-primary/30'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
@@ -82,12 +85,20 @@ export function TopBar({
         </p>
       )}
 
+      <div className="console-label hidden shrink-0 items-center gap-2 border-r border-border pr-3 @min-[64rem]:dark:flex" aria-hidden="true">
+        <span className="console-live h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]" />
+        <span className="text-success">LIVE</span>
+        <span className="text-muted-foreground">
+          <LiveClock />
+        </span>
+      </div>
+
       <Button
         variant="ghost"
         size="sm"
         className="h-9 w-9 shrink-0 p-0 text-muted-foreground hover:text-foreground"
         onClick={toggleTheme}
-        title={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+        title={`${THEME_LABEL[theme === 'dark' ? 'light' : 'dark']} 테마로 전환`}
       >
         {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>

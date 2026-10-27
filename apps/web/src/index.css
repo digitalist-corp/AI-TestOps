@@ -66,37 +66,81 @@
   --shadow-4: 0 12px 28px rgb(19 20 22 / 0.14), 0 4px 8px rgb(19 20 22 / 0.06);
 }
 
+/*
+ * 콘솔 팔레트 (원색). 콘솔 테마(.dark)와 구조 그래프(.sg-console)가 같이 쓴다.
+ * 관제 화면처럼 어두운 남색 바탕에 시안 · 앰버 · 레드 신호색을 둔다.
+ */
+:root {
+  --c-bg: #090d12;
+  --c-bg-2: #0d131a;
+  --c-panel: #10171f;
+  --c-panel-2: #141d27;
+  --c-line: #1c2734;
+  --c-line-2: #2a3a4c;
+  --c-text: #d6e2ee;
+  --c-muted: #8395a9;
+  --c-dim: #51637a;
+  --c-cyan: #36d3ff;
+  --c-blue: #4d8dff;
+  --c-violet: #9c7cff;
+  --c-amber: #ffb224;
+  --c-red: #ff4f61;
+  --c-green: #2ee59d;
+  --c-mono: 'JetBrains Mono', 'SF Mono', SFMono-Regular, ui-monospace, Menlo, Consolas, monospace;
+}
+
+/*
+ * 콘솔 테마. 클래스 이름은 Tailwind 의 dark: 변형을 그대로 쓰려고 .dark 로 둔다.
+ * KRDS 색조 대신 콘솔 팔레트를 쓰고, 모서리를 각지게 줄이고, 그림자를 깊게 한다.
+ */
 .dark {
-  --color-background: #131416; /* gray-100 */
-  --color-foreground: #f4f5f6;
-  --color-card: #1e2124; /* gray-95 */
-  --color-card-foreground: #f4f5f6;
-  --color-muted: #1e2124;
-  --color-muted-foreground: #b1b8be; /* gray-40 */
-  --color-secondary-foreground: #cdd1d5;
-  --color-border: #33363d; /* gray-90 */
-  --color-border-strong: #58616a;
+  color-scheme: dark;
 
-  --color-primary: #5b92f4; /* primary-40 — 어두운 배경 대비 */
-  --color-primary-foreground: #010c1f;
-  --color-primary-hover: #a3c2f8;
-  --color-primary-pressed: #d8e5fd;
-  --color-primary-subtle: #03204a; /* primary-90 */
+  --color-background: var(--c-bg);
+  --color-foreground: var(--c-text);
+  --color-card: var(--c-panel);
+  --color-card-foreground: var(--c-text);
+  --color-muted: var(--c-panel-2);
+  --color-muted-foreground: var(--c-muted);
+  --color-secondary-foreground: #b7c6d5;
+  --color-border: var(--c-line-2);
+  --color-border-strong: #3d5168;
 
-  --color-accent: #2a2e33;
-  --color-accent-foreground: #f4f5f6;
+  --color-primary: var(--c-cyan);
+  --color-primary-foreground: #021018;
+  --color-primary-hover: #86e6ff;
+  --color-primary-pressed: #b9f0ff;
+  --color-primary-subtle: #0b2531;
 
-  --color-destructive: #e84b4b;
-  --color-destructive-foreground: #ffffff;
-  --color-success: #3fa76c;
-  --color-success-foreground: #02130a;
-  --color-warning: #e89b3c;
-  --color-warning-foreground: #241300;
-  --color-info: #5ba8e8;
-  --color-info-foreground: #01131f;
+  --color-accent: #18222d;
+  --color-accent-foreground: var(--c-text);
 
-  --color-ai-accent: #5b92f4;
-  --color-ai-accent-foreground: #010c1f;
+  --color-destructive: var(--c-red);
+  --color-destructive-foreground: #1a0206;
+  --color-success: var(--c-green);
+  --color-success-foreground: #011a0f;
+  --color-warning: var(--c-amber);
+  --color-warning-foreground: #1d1200;
+  --color-info: var(--c-blue);
+  --color-info-foreground: #020c1f;
+
+  --color-ai-accent: var(--c-violet);
+  --color-ai-accent-foreground: #0b0420;
+
+  --color-sidebar: #070a0e;
+  --color-sidebar-foreground: #9fb2c6;
+  --color-sidebar-active: #152030;
+
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 3px;
+  --radius-xl: 4px;
+
+  --shadow-1: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.5);
+  --shadow-2: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 6px 16px -6px rgb(0 0 0 / 0.7);
+  --shadow-3: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 14px 32px -12px rgb(0 0 0 / 0.8);
+  --shadow-4: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 24px 60px -18px rgb(0 0 0 / 0.9);
 }
 
 * {
@@ -134,12 +178,79 @@ body {
 }
 
 .dark .ag-theme-playops {
-  --ag-background-color: #1e2124;
-  --ag-header-background-color: #2a2e33;
-  --ag-header-foreground-color: #f4f5f6;
-  --ag-foreground-color: #f4f5f6;
-  --ag-border-color: #33363d;
-  --ag-row-hover-color: #2a2e33;
-  --ag-selected-row-background-color: rgba(91, 146, 244, 0.16);
-  --ag-checkbox-checked-color: #5b92f4;
+  --ag-background-color: var(--c-panel);
+  --ag-header-background-color: var(--c-panel-2);
+  --ag-header-foreground-color: var(--c-muted);
+  --ag-foreground-color: var(--c-text);
+  --ag-border-color: var(--c-line-2);
+  --ag-row-hover-color: rgb(54 211 255 / 0.06);
+  --ag-selected-row-background-color: rgb(54 211 255 / 0.12);
+  --ag-checkbox-checked-color: var(--c-cyan);
+  --ag-header-cell-hover-background-color: #18222d;
+}
+
+/* ---------------------------------------------------------------- 콘솔 테마 마감 */
+
+/* 바탕: 옅은 격자와 가장자리 빛 */
+.dark body {
+  background:
+    radial-gradient(1200px 700px at 0% 0%, rgb(77 141 255 / 0.07), transparent 60%),
+    radial-gradient(1000px 700px at 100% 100%, rgb(156 124 255 / 0.05), transparent 60%),
+    linear-gradient(rgb(120 160 200 / 0.035) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgb(120 160 200 / 0.035) 1px, transparent 1px) 0 0 / 32px 32px,
+    var(--c-bg);
+  background-attachment: fixed;
+}
+
+.dark ::selection {
+  background: rgb(54 211 255 / 0.3);
+  color: #fff;
+}
+
+.dark * {
+  scrollbar-color: #2a3a4c transparent;
+  scrollbar-width: thin;
+}
+
+/* 판: 위쪽에 아주 옅은 광택을 얹어 바탕과 떼어 낸다 */
+.dark :where(.bg-card) {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.022), transparent 140px);
+}
+
+/* 주 행동 버튼과 강조 점은 신호처럼 살짝 빛나게 */
+.dark :where(button.bg-primary, a.bg-primary) {
+  box-shadow: 0 0 0 1px rgb(54 211 255 / 0.35), 0 0 22px -6px rgb(54 211 255 / 0.7);
+}
+.dark :where(button.bg-primary:hover, a.bg-primary:hover) {
+  box-shadow: 0 0 0 1px rgb(134 230 255 / 0.6), 0 0 28px -4px rgb(54 211 255 / 0.85);
+}
+
+.console-mono {
+  font-family: var(--c-mono);
+}
+.console-label {
+  font-family: var(--c-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-dim);
+}
+
+@keyframes console-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes console-sweep {
+  from { background-position: -60% 0; }
+  to { background-position: 160% 0; }
+}
+.console-live { animation: console-blink 1.6s ease-in-out infinite; }
+.console-sweep {
+  background: linear-gradient(90deg, transparent, var(--c-cyan), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: console-sweep 6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-live, .console-sweep { animation: none; }
 }

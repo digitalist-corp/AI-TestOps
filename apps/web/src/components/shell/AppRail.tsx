@@ -55,7 +55,7 @@ export function AppRail({
               cn(
                 'group relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
                 isActive
-                  ? 'bg-primary/20 text-white ring-1 ring-primary/40'
+                  ? 'bg-primary/20 text-white ring-1 ring-primary/40 dark:bg-primary/10 dark:text-primary dark:shadow-[inset_2px_0_0_var(--color-primary),0_0_18px_-6px_var(--color-primary)] dark:ring-primary/25'
                   : 'text-sidebar-foreground/70 hover:bg-sidebar-active hover:text-white'
               )
             }

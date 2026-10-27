@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { cn } from '@/lib/utils';
 import { AiTemplateGeneratorDialog } from '@/components/project/AiTemplateGeneratorDialog';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 type TemplateDialogMode = 'create' | 'clone' | 'edit';
 
@@ -195,6 +196,7 @@ export function TemplatesPage() {
     <div className="p-6 space-y-4">
       <div className="flex flex-col gap-3 @5xl:flex-row @5xl:items-start @5xl:justify-between">
         <div>
+          <ConsoleEyebrow>LIBRARY // TEMPLATES</ConsoleEyebrow>
           <h2 className="text-2xl font-bold text-foreground">Playwright 템플릿</h2>
           <p className="text-sm text-muted-foreground mt-1">
             프로젝트 생성에 사용할 테스트 소스 템플릿을 관리합니다.

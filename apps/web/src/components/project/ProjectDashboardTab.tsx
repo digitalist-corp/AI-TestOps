@@ -109,8 +109,13 @@ export function ProjectDashboardTab({
   onOpenResults: () => void;
 }) {
   const { theme } = useTheme();
-  const axisTextColor = theme === 'dark' ? '#94a3b8' : '#475569';
-  const splitLineColor = theme === 'dark' ? '#1e293b' : '#e2e8f0';
+  // 콘솔 테마(dark)는 index.css 의 콘솔 팔레트에 맞춘다.
+  const consoleTheme = theme === 'dark';
+  const axisTextColor = consoleTheme ? '#8395a9' : '#475569';
+  const splitLineColor = consoleTheme ? '#1c2734' : '#e2e8f0';
+  const tooltipStyle = consoleTheme
+    ? { backgroundColor: '#10171f', borderColor: '#2a3a4c', textStyle: { color: '#d6e2ee' } }
+    : {};
   const latest = executions[0] ?? null;
   const completed = executions.filter((execution) =>
     execution.status === 'PASSED'
@@ -139,8 +144,11 @@ export function ProjectDashboardTab({
   const successRateBase = statusCounts.PASSED + statusCounts.FAILED + statusCounts.ERROR;
 
   const statusOption = useMemo<EChartsOption>(() => ({
-    color: ['#10b981', '#ef4444', '#f97316', '#64748b', '#f59e0b', '#3b82f6', '#8b5cf6', '#94a3b8'],
+    color: consoleTheme
+      ? ['#2ee59d', '#ff4f61', '#ff8a3d', '#51637a', '#ffb224', '#36d3ff', '#9c7cff', '#3d5168']
+      : ['#10b981', '#ef4444', '#f97316', '#64748b', '#f59e0b', '#3b82f6', '#8b5cf6', '#94a3b8'],
     tooltip: {
+      ...tooltipStyle,
       trigger: 'item',
       formatter: '{b}: {c}건 ({d}%)',
     },
@@ -167,6 +175,7 @@ export function ProjectDashboardTab({
           },
         },
         labelLine: { show: false },
+        itemStyle: consoleTheme ? { borderColor: '#10171f', borderWidth: 2 } : undefined,
         data: [
           { name: '성공', value: statusCounts.PASSED },
           { name: '실패', value: statusCounts.FAILED },
@@ -179,13 +188,21 @@ export function ProjectDashboardTab({
         ].filter((item) => item.value > 0),
       },
     ],
-  }), [statusCounts, axisTextColor]);
+  }), [statusCounts, axisTextColor, consoleTheme]);
 
   const durationOption = useMemo<EChartsOption>(() => {
     const recent = [...executions].slice(0, 8).reverse();
     return {
-      color: ['#2563eb'],
+      color: [
+        consoleTheme
+          ? {
+              type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+              colorStops: [{ offset: 0, color: '#36d3ff' }, { offset: 1, color: 'rgba(54, 211, 255, 0.15)' }],
+            }
+          : '#2563eb',
+      ],
       tooltip: {
+        ...tooltipStyle,
         trigger: 'axis',
         valueFormatter: (value: unknown) => formatDurationForChart(Number(value)),
       },
@@ -207,11 +224,11 @@ export function ProjectDashboardTab({
           type: 'bar',
           barMaxWidth: 34,
           data: recent.map((execution) => execution.durationMs ?? 0),
-          itemStyle: { borderRadius: [4, 4, 0, 0] },
+          itemStyle: { borderRadius: consoleTheme ? [1, 1, 0, 0] : [4, 4, 0, 0] },
         },
       ],
     };
-  }, [executions, splitLineColor]);
+  }, [executions, splitLineColor, consoleTheme]);
 
   return (
     <div className="space-y-5">
