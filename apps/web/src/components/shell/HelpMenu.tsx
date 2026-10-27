@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, HelpCircle, Keyboard, MessageSquareText, Moon, Sun, X } from 'lucide-react';
+import { BookOpen, HelpCircle, Keyboard, Moon, Sun, X } from 'lucide-react';
 import { SHORTCUTS, screenHelpFor } from '@/config/screenHelp';
 import type { ProjectTabId } from '@/config/projectWorkspace';
 import { THEME_LABEL, useTheme } from '@/lib/theme';
@@ -101,15 +101,6 @@ export function HelpMenu({
             >
               <BookOpen className="h-4 w-4 text-muted-foreground" />
               테스트 코드 템플릿 보기
-            </button>
-
-            <button
-              type="button"
-              onClick={() => go('/board')}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground hover:bg-accent"
-            >
-              <MessageSquareText className="h-4 w-4 text-muted-foreground" />
-              공지 확인 · 문의하기
             </button>
           </div>
 

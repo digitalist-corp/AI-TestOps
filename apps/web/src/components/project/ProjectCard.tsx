@@ -12,7 +12,7 @@ import {
 import type { DockerStatus, ExecutionStatus, Project, RunnerActivity, RunningAnalysis } from '@/types';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
-import { cn } from '@/lib/utils';
+import { cn, formatRelative } from '@/lib/utils';
 import {
   configuredEnvCount,
   resolveEnvRequirementState,
@@ -95,19 +95,6 @@ export function isRunnerReady(project: Project) {
 
 export function envState(project: Project) {
   return resolveEnvRequirementState(project.loginEnvRequired, project.envVariables);
-}
-
-/** "2분 전"처럼 사람이 읽는 시간. 하루가 넘으면 날짜로 보여준다. */
-function formatRelative(value: string | null): string {
-  if (!value) return '';
-  const time = new Date(value).getTime();
-  if (Number.isNaN(time)) return '';
-  const diffMin = Math.floor((Date.now() - time) / 60000);
-  if (diffMin < 1) return '방금';
-  if (diffMin < 60) return `${diffMin}분 전`;
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour}시간 전`;
-  return new Date(value).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
 }
 
 function formatDuration(durationMs: number | null): string {

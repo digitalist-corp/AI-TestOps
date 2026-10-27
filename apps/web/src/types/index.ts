@@ -4,7 +4,6 @@ export type RunnerActivity = 'IDLE' | 'TESTING' | 'UNAVAILABLE';
 export type RunnerLifecycle = 'PERSISTENT' | 'EPHEMERAL';
 export type UserRole = 'ADMIN' | 'USER';
 export type ProjectServerType = 'DEV' | 'TEST' | 'PROD';
-export type BoardPostType = 'REQUEST' | 'QUESTION' | 'FAQ' | 'FREE' | 'NOTICE' | 'ETC';
 
 export interface Project {
   projectId: string;
@@ -136,71 +135,17 @@ export interface DockerHostResource {
   message: string;
 }
 
-export interface BoardPost {
+/** 우상단 알림 창의 알림 한 건. 사용자가 확인하고 지우면 사라진다. */
+export interface AppNotification {
   id: number;
-  type: BoardPostType;
+  kind: 'EXECUTION_FINISHED' | 'SCHEDULE_FINISHED' | 'SCHEDULE_FAILED' | string;
+  level: 'SUCCESS' | 'ERROR' | 'INFO' | string;
   title: string;
-  parentId: number | null;
-  content: string;
-  attachments: BoardAttachment[];
-  visible: boolean;
-  pinned: boolean;
-  visibleFrom: string | null;
-  visibleUntil: string | null;
-  createdBy: string;
-  updatedBy: string | null;
+  message: string | null;
+  /** 누르면 이동할 웹 경로 */
+  link: string | null;
+  projectId: string | null;
   createdAt: string;
-  updatedAt: string;
-  likeCount: number;
-  ratingAverage: number | null;
-  ratingCount: number;
-  commentCount: number;
-  replyCount: number;
-  myLiked: boolean;
-  myRating: number | null;
-  myMemo: string | null;
-}
-
-export interface BoardAttachment {
-  name: string;
-  contentType: string;
-  size: number;
-  dataUrl: string;
-}
-
-export interface BoardPostFormData {
-  type: BoardPostType;
-  title: string;
-  parentId: number | null;
-  content: string;
-  attachments: BoardAttachment[];
-  visible: boolean;
-  pinned: boolean;
-  visibleFrom: string | null;
-  visibleUntil: string | null;
-}
-
-export interface BoardPostComment {
-  id: number;
-  parentId: number | null;
-  content: string;
-  attachments: BoardAttachment[];
-  createdBy: string;
-  updatedBy: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface BoardPostCommentFormData {
-  parentId?: number | null;
-  content: string;
-  attachments: BoardAttachment[];
-}
-
-export interface BoardPostReactionFormData {
-  liked: boolean;
-  rating: number | null;
-  memo: string;
 }
 
 export type ServiceStatus = 'ONLINE' | 'OFFLINE' | 'DEGRADED';

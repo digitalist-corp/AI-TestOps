@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { NotificationBell } from '@/components/shell/NotificationBell';
 import { LiveClock } from '@/components/console/ConsoleText';
 import { THEME_LABEL, useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -10,7 +11,7 @@ import { WORKSPACE_GROUPS, groupOfTab, railLabelOf, tabLabel } from '@/config/sh
 
 /**
  * 상단바: 프로젝트 전환 + 작업 탭 5개 + 계정.
- * 프로젝트 밖(목록 · Runner · 게시판 등)에서는 탭 대신 화면 이름만 보여준다.
+ * 프로젝트 밖(목록 · Runner · 템플릿 등)에서는 탭 대신 화면 이름만 보여준다.
  */
 export function TopBar({
   pathname,
@@ -102,6 +103,8 @@ export function TopBar({
       >
         {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>
+
+      <NotificationBell />
 
       <div
         className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-border bg-background pl-2.5 pr-1"

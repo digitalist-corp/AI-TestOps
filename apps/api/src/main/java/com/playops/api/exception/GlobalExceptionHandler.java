@@ -6,6 +6,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,6 +24,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({OptimisticLockException.class, OptimisticLockingFailureException.class})
     public ResponseEntity<Map<String, Object>> handleOptimisticLock(Exception ex, HttpServletRequest request) {
         return buildErrorResponse(409, "VERSION_CONFLICT", "다른 요청에 의해 데이터가 먼저 변경되었습니다. 새로고침 후 다시 시도하세요.", request);
+    }
+
+    /** 없는 API 경로. 아래 일반 처리기에 걸리면 500 으로 나가서 서버 오류처럼 보인다. */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNotFound(NoResourceFoundException ex, HttpServletRequest request) {
+        return buildErrorResponse(404, "NOT_FOUND", "요청한 API 를 찾을 수 없습니다.", request);
     }
 
     @ExceptionHandler(Exception.class)

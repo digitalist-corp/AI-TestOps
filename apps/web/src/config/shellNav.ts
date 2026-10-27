@@ -6,7 +6,6 @@ import {
   Gauge,
   GitBranch,
   LayoutDashboard,
-  MessageSquareText,
   Play,
   Rows3,
   Settings,
@@ -33,7 +32,6 @@ export type RailItem = {
 export const RAIL_ITEMS: RailItem[] = [
   { to: '/projects', label: '프로젝트 목록', icon: Rows3 },
   { to: '/runners', label: 'Runner 컨테이너', icon: Container },
-  { to: '/board', label: '공지 / 게시판', icon: MessageSquareText },
   { to: '/templates', label: 'Playwright 템플릿', icon: FileCode },
   { to: '/ai-jobs', label: 'AI 검토', icon: Sparkles, adminOnly: true },
   { to: '/ai-settings', label: 'AI 설정 · 사용량', icon: Gauge },
