@@ -2,6 +2,10 @@ package com.playops.api.controller;
 
 import com.playops.api.entity.SiteAnalysisRun;
 import com.playops.api.service.SiteAnalysisService;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 저장소 코드 분석으로 만든 화면 구조(사이트 맵). */
+/** 저장소 코드 분석 또는 사이트 주소 탐색으로 만든 화면 구조(사이트 맵). */
 @RestController
 @RequestMapping("/api/projects/{projectId}/sitemap")
 public class SiteMapController {
@@ -53,5 +57,20 @@ public class SiteMapController {
         SiteAnalysisRun run = siteAnalysisService.start(projectId);
         siteAnalysisService.runAsync(run.getId());
         return siteAnalysisService.view(projectId);
+    }
+
+    /** 소스 저장소 없이 대상 사이트 주소로 화면을 탐색한다. 시작하고 바로 돌아오며 진행 상황은 GET 으로 확인한다. */
+    @PostMapping("/analyze-url")
+    public SiteAnalysisService.SiteMap analyzeUrl(@PathVariable String projectId) {
+        SiteAnalysisRun run = siteAnalysisService.startByUrl(projectId);
+        siteAnalysisService.runByUrlAsync(run.getId(), SiteAnalysisService.FULL_LIMITS);
+        return siteAnalysisService.view(projectId);
+    }
+
+    @GetMapping("/screenshot")
+    public ResponseEntity<Resource> screenshot(@PathVariable String projectId, @RequestParam String route) {
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(new FileSystemResource(siteAnalysisService.screenshotFile(projectId, route)));
     }
 }

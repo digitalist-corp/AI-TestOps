@@ -9,6 +9,7 @@ public record UserResponse(
         Long id,
         String username,
         UserRole role,
+        boolean enabled,
         Instant createdAt,
         Instant updatedAt,
         Instant lastLoginAt
@@ -18,6 +19,7 @@ public record UserResponse(
                 user.getId(),
                 user.getUsername(),
                 user.getRole(),
+                user.isEnabled(),
                 user.getCreatedAt(),
                 user.getUpdatedAt(),
                 user.getLastLoginAt()

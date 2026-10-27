@@ -740,7 +740,7 @@ export function ProjectFormDialog({
                     checked={aiBootstrapEnabled}
                     onChange={setAiBootstrapEnabled}
                     title="등록 직후 AI가 첫 테스트를 만들고 실행해 봅니다"
-                    detail="AI가 이 사이트를 열어보고 맞는 테스트 케이스를 만든 뒤, 실제로 실행해 통과하는지까지 보여줍니다. 처음에는 실행 환경을 받느라 몇 분 걸릴 수 있습니다."
+                    detail="AI가 이 사이트를 열어 화면 요소를 확인하고, 그 요소로 테스트 케이스를 만든 뒤 실제로 실행해 통과하는지까지 보여줍니다. 실패하면 실행 로그를 보고 최대 2번 스스로 고칩니다. 처음에는 실행 환경을 받느라 몇 분 걸릴 수 있습니다."
                   />
                 )}
                 {aiBootstrapEnabled && (

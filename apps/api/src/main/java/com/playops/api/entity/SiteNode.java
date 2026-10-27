@@ -59,6 +59,22 @@ public class SiteNode {
     @Column(nullable = false)
     private boolean stale = false;
 
+    /** 사이트 탐색(origin=SITE)으로 실제로 연 주소. 코드 분석 화면은 null. */
+    @Column(length = 1000)
+    private String url;
+
+    /** 사이트 탐색에서 모은 폼 구조(JSON). 입력 요소와 제출 버튼을 elements 의 idx 로 가리킨다. */
+    @Column(columnDefinition = "TEXT")
+    private String forms;
+
+    /** 사이트 탐색 시점의 접근성 트리(Playwright ariaSnapshot). 자율 교정 때 대체 셀렉터를 찾는 근거로 쓴다. */
+    @Column(name = "aria_snapshot", columnDefinition = "TEXT")
+    private String ariaSnapshot;
+
+    /** storage/site-analysis/{projectId} 아래의 스크린샷 상대 경로. */
+    @Column(length = 300)
+    private String screenshot;
+
     public Long getId() { return id; }
     public String getProjectId() { return projectId; }
     public void setProjectId(String projectId) { this.projectId = projectId; }
@@ -84,4 +100,12 @@ public class SiteNode {
     public void setLastSeenCommit(String lastSeenCommit) { this.lastSeenCommit = lastSeenCommit; }
     public boolean isStale() { return stale; }
     public void setStale(boolean stale) { this.stale = stale; }
+    public String getUrl() { return url; }
+    public void setUrl(String url) { this.url = url; }
+    public String getForms() { return forms; }
+    public void setForms(String forms) { this.forms = forms; }
+    public String getAriaSnapshot() { return ariaSnapshot; }
+    public void setAriaSnapshot(String ariaSnapshot) { this.ariaSnapshot = ariaSnapshot; }
+    public String getScreenshot() { return screenshot; }
+    public void setScreenshot(String screenshot) { this.screenshot = screenshot; }
 }

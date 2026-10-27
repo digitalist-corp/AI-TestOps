@@ -196,6 +196,26 @@ export const api = {
   analyzeSiteMap: (projectId: string) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze`, { method: 'POST' }),
 
+  /** 소스 저장소 없이 대상 사이트 주소로 화면을 탐색한다 */
+  analyzeSiteMapByUrl: (projectId: string) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze-url`, { method: 'POST' }),
+
+  fetchSiteMapScreenshot: async (projectId: string, routeKey: string): Promise<Blob> => {
+    const auth = getStoredAuth();
+    const headers = new Headers();
+    if (auth?.token) {
+      headers.set('Authorization', `Bearer ${auth.token}`);
+    }
+    const res = await fetch(
+      `/api/projects/${projectId}/sitemap/screenshot?route=${encodeURIComponent(routeKey)}`,
+      { headers }
+    );
+    if (!res.ok) {
+      throw new Error(`스크린샷 조회 실패 (${res.status})`);
+    }
+    return res.blob();
+  },
+
   createProject: (data: ProjectFormData) =>
     request<Project>('/api/projects', { method: 'POST', body: serializeProjectForm(data) }),
 
@@ -368,6 +388,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  getAiBootstrap: (projectId: string, bootstrapId: string) =>
+    request<import('@/types').AiBootstrapResponse>(`/api/projects/${projectId}/ai/bootstrap/${bootstrapId}`),
 
   getScenarios: (projectId: string) =>
     request<ScenarioTree>(`/api/projects/${projectId}/scenarios`),

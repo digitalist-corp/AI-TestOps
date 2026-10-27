@@ -1,6 +1,7 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
@@ -131,6 +132,16 @@ public class Project {
      *  (컨테이너 격리/자격증명 미노출/네트워크 제한 같은 보안 하한선은 이 값과 달리 프로젝트별로 바뀌지 않는다.) */
     @Column(name = "ai_max_iterations")
     private Integer aiMaxIterations = 5;
+
+    @Column(name = "owner_user_id")
+    private Long ownerUserId;
+
+    @Column(name = "monthly_ai_budget_usd", precision = 18, scale = 8, nullable = false)
+    private BigDecimal monthlyAiBudgetUsd = BigDecimal.ZERO;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version = 0L;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -273,4 +284,15 @@ public class Project {
 
     public Integer getAiMaxIterations() { return aiMaxIterations != null ? aiMaxIterations : 5; }
     public void setAiMaxIterations(Integer aiMaxIterations) { this.aiMaxIterations = aiMaxIterations; }
+
+    public Long getOwnerUserId() { return ownerUserId; }
+    public void setOwnerUserId(Long ownerUserId) { this.ownerUserId = ownerUserId; }
+
+    public BigDecimal getMonthlyAiBudgetUsd() { return monthlyAiBudgetUsd != null ? monthlyAiBudgetUsd : BigDecimal.ZERO; }
+    public void setMonthlyAiBudgetUsd(BigDecimal monthlyAiBudgetUsd) {
+        this.monthlyAiBudgetUsd = monthlyAiBudgetUsd != null ? monthlyAiBudgetUsd : BigDecimal.ZERO;
+    }
+
+    public Long getVersion() { return version != null ? version : 0L; }
+    public void setVersion(Long version) { this.version = version != null ? version : 0L; }
 }

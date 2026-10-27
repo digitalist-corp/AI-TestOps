@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, GitBranch, Loader2, Network, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, Globe, GitBranch, Loader2, Network, RefreshCw, Sparkles, TriangleAlert } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMap, SiteMapNodeDetail } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -13,13 +13,17 @@ const POLL_INTERVAL_MS = 2000;
 const FRAMEWORK_LABEL: Record<string, string> = {
   NEXT: 'Next.js',
   REACT_ROUTER: 'React Router',
+  URL: '사이트 탐색',
 };
 
 function formatTime(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('ko-KR') : '-';
 }
 
-/** 저장소 코드에서 찾은 화면 목록. 소스 저장소를 연결하고 분석을 시작하는 곳이기도 하다. */
+/**
+ * 화면 목록. 소스 저장소를 연결해 코드에서 찾거나, 저장소 없이 대상 사이트 주소를 브라우저로 탐색해 찾는다.
+ * 사이트 탐색 화면(origin=SITE)의 셀렉터는 실제 화면에서 그 요소 하나만 가리키는 것을 확인한 값이다.
+ */
 export function StructureTab({ projectId }: { projectId: string }) {
   const [siteMap, setSiteMap] = useState<SiteMap | null>(null);
   const [error, setError] = useState('');
@@ -32,6 +36,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
   const [instruction, setInstruction] = useState('');
   const [createdJob, setCreatedJob] = useState<{ id: number; specPath: string } | null>(null);
+  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null);
 
   const apply = useCallback((next: SiteMap) => {
     setSiteMap(next);
@@ -64,8 +69,29 @@ export function StructureTab({ projectId }: { projectId: string }) {
     setDetail(null);
     setInstruction('');
     setCreatedJob(null);
+    setScreenshotUrl(null);
     api.getSiteMapNode(projectId, routeKey).then(setDetail).catch((e: Error) => setError(e.message));
   };
+
+  // 스크린샷은 인증 헤더가 필요해 img src 로 바로 걸지 않고 받아서 보여 준다.
+  const screenshotRoute = detail?.node.hasScreenshot ? detail.node.routeKey : null;
+  useEffect(() => {
+    if (!screenshotRoute) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    api
+      .fetchSiteMapScreenshot(projectId, screenshotRoute)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setScreenshotUrl(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [projectId, screenshotRoute]);
 
   /** 고른 화면의 정보로 테스트 생성을 요청한다. 만들어진 코드는 AI 검토에서 승인해야 반영된다. */
   const generateFor = async (routeKey: string) => {
@@ -112,6 +138,8 @@ export function StructureTab({ projectId }: { projectId: string }) {
 
   const { source, analysis, nodes } = siteMap;
   const hasSource = Boolean(source.url) || source.usesProjectRepository;
+  const hasSiteUrl = Boolean(source.siteUrl);
+  const urlRun = analysis.framework === 'URL';
   const sourceChanged = url.trim() !== (source.url ?? '') || branch.trim() !== (source.branch ?? '') || token !== '';
 
   return (
@@ -129,6 +157,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
         </div>
         <p className="mb-3 text-xs text-muted-foreground">
           테스트할 앱의 소스 코드가 있는 GitHub 저장소입니다. React Router 와 Next.js 프로젝트를 읽을 수 있습니다.
+          소스 저장소가 없으면 아래 "사이트 주소로 탐색"으로 대상 사이트를 직접 열어 화면을 찾을 수 있습니다.
           {source.usesProjectRepository && ' 지금은 따로 연결한 저장소가 없어 프로젝트 저장소를 읽습니다.'}
         </p>
         <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] @3xl:items-end">
@@ -190,15 +219,17 @@ export function StructureTab({ projectId }: { projectId: string }) {
             {analysis.status === 'RUNNING' && (
               <Badge variant="info">
                 <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                {analysis.screenCount > 0
-                  ? `화면 읽는 중 ${analysis.processedCount}/${analysis.screenCount}`
-                  : '저장소 받는 중'}
+                {urlRun
+                  ? '사이트 탐색 중'
+                  : analysis.screenCount > 0
+                    ? `화면 읽는 중 ${analysis.processedCount}/${analysis.screenCount}`
+                    : '저장소 받는 중'}
                 {analysis.etaSeconds != null && ` · ${formatEta(analysis.etaSeconds)}`}
               </Badge>
             )}
             {analysis.status === 'COMPLETED' && (
               <Badge variant={analysis.partial ? 'warning' : 'success'}>
-                {analysis.partial ? '부분 분석' : '완료'} · 화면 {analysis.screenCount}개
+                {analysis.partial ? (urlRun ? '캔버스 사이트' : '부분 분석') : '완료'} · 화면 {analysis.screenCount}개
               </Badge>
             )}
             {analysis.status === 'FAILED' && <Badge variant="destructive">실패</Badge>}
@@ -215,30 +246,46 @@ export function StructureTab({ projectId }: { projectId: string }) {
             )}
             {analysis.status === 'COMPLETED' && (
               <span className="text-xs text-muted-foreground">
-                {analysis.llmCalls === 0 ? '바뀐 화면 없음 (AI 호출 0회)' : `AI 호출 ${analysis.llmCalls}회`}
+                {urlRun
+                  ? '브라우저로 확인 (AI 호출 0회)'
+                  : analysis.llmCalls === 0
+                    ? '바뀐 화면 없음 (AI 호출 0회)'
+                    : `AI 호출 ${analysis.llmCalls}회`}
               </span>
             )}
           </div>
-          <Button
-            disabled={busy || running || !hasSource || sourceChanged}
-            title={
-              !hasSource
-                ? '소스 저장소를 먼저 연결하세요'
-                : sourceChanged
-                  ? '바꾼 저장소 설정을 먼저 저장하세요'
-                  : undefined
-            }
-            onClick={() => run(() => api.analyzeSiteMap(projectId))}
-          >
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {analysis.status === 'NONE' ? '분석 시작' : '다시 분석'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              disabled={busy || running || !hasSiteUrl}
+              title={hasSiteUrl ? `${source.siteUrl} 를 브라우저로 열어 화면을 찾습니다` : '프로젝트 설정에서 대상 사이트 주소를 먼저 입력하세요'}
+              onClick={() => run(() => api.analyzeSiteMapByUrl(projectId))}
+            >
+              {running && urlRun ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
+              사이트 주소로 탐색
+            </Button>
+            <Button
+              disabled={busy || running || !hasSource || sourceChanged}
+              title={
+                !hasSource
+                  ? '소스 저장소를 먼저 연결하세요'
+                  : sourceChanged
+                    ? '바꾼 저장소 설정을 먼저 저장하세요'
+                    : undefined
+              }
+              onClick={() => run(() => api.analyzeSiteMap(projectId))}
+            >
+              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {analysis.status === 'NONE' ? '코드 분석 시작' : '코드 다시 분석'}
+            </Button>
+          </div>
         </div>
 
         {analysis.status === 'RUNNING' && (
           <p className="mt-3 text-xs text-muted-foreground">
-            저장소를 받아 화면을 찾고, 화면마다 AI 가 코드를 읽어 요소를 뽑습니다. 화면 하나에 10초쯤 걸리고,
-            지난번과 코드가 같은 화면은 건너뜁니다.
+            {urlRun
+              ? '대상 사이트를 브라우저로 열어 같은 호스트의 링크를 따라가며 화면마다 버튼 · 링크 · 입력칸을 모으고, 셀렉터가 실제로 그 요소 하나만 가리키는지 확인합니다. 클릭이나 폼 제출은 하지 않으며 최대 3분 걸립니다.'
+              : '저장소를 받아 화면을 찾고, 화면마다 AI 가 코드를 읽어 요소를 뽑습니다. 화면 하나에 10초쯤 걸리고, 지난번과 코드가 같은 화면은 건너뜁니다.'}
           </p>
         )}
         {analysis.status === 'FAILED' && analysis.errorMessage && (
@@ -289,7 +336,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
         </div>
         {nodes.length === 0 ? (
           <p className="p-8 text-center text-sm text-muted-foreground">
-            아직 찾은 화면이 없습니다. 소스 저장소를 연결하고 분석을 시작하세요.
+            아직 찾은 화면이 없습니다. 소스 저장소를 연결해 코드를 분석하거나, 사이트 주소로 탐색하세요.
           </p>
         ) : (
           <ul className="divide-y divide-border">
@@ -310,23 +357,43 @@ export function StructureTab({ projectId }: { projectId: string }) {
                     <span className="truncate font-mono text-sm text-foreground">{node.routeKey}</span>
                     {node.title && <span className="truncate text-xs text-muted-foreground">{node.title}</span>}
                     <Badge>요소 {node.elementCount}</Badge>
+                    {node.origin === 'SITE' && (
+                      <Badge variant="info" title="실제 사이트를 브라우저로 열어 찾은 화면입니다">
+                        사이트 탐색
+                      </Badge>
+                    )}
                     {node.stale && (
-                      <Badge variant="warning" title="마지막 분석에서 코드에 없던 화면입니다">
-                        코드에서 사라짐
+                      <Badge
+                        variant="warning"
+                        title={node.origin === 'SITE' ? '마지막 탐색에서 열리지 않은 화면입니다' : '마지막 분석에서 코드에 없던 화면입니다'}
+                      >
+                        {node.origin === 'SITE' ? '탐색에서 사라짐' : '코드에서 사라짐'}
                       </Badge>
                     )}
                   </span>
-                  <span className="truncate font-mono text-xs text-muted-foreground" title={node.sourceFile ?? ''}>
-                    {node.sourceFile ?? '-'}
+                  <span
+                    className="truncate font-mono text-xs text-muted-foreground"
+                    title={node.sourceFile ?? node.url ?? ''}
+                  >
+                    {node.sourceFile ?? node.url ?? '-'}
                   </span>
                 </button>
                 {openRoute === node.routeKey && (
                   <div className="border-t border-border bg-muted/30 px-4 py-3">
+                    {screenshotUrl && (
+                      <img
+                        src={screenshotUrl}
+                        alt={`${node.routeKey} 화면 스크린샷`}
+                        className="mb-3 max-h-64 w-full rounded-md border border-border object-cover object-top"
+                      />
+                    )}
                     {!detail ? (
                       <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                     ) : detail.elements.length === 0 ? (
                       <p className="text-xs text-muted-foreground">
-                        코드에서 확인된 요소가 없습니다. 글자가 변수나 번역 함수로 만들어지는 화면은 요소를 뽑지 못합니다.
+                        {node.origin === 'SITE'
+                          ? '이 화면에서 상호작용할 수 있는 요소를 찾지 못했습니다.'
+                          : '코드에서 확인된 요소가 없습니다. 글자가 변수나 번역 함수로 만들어지는 화면은 요소를 뽑지 못합니다.'}
                       </p>
                     ) : (
                       <ul className="space-y-1.5">
@@ -334,6 +401,11 @@ export function StructureTab({ projectId }: { projectId: string }) {
                           <li key={index} className="flex flex-col gap-0.5 @3xl:flex-row @3xl:items-center @3xl:gap-3">
                             <span className="flex shrink-0 items-center gap-1.5">
                               <Badge>{element.kind ?? '요소'}</Badge>
+                              {element.verification === 'OBSERVED' && (
+                                <Badge variant="info" title="실제 화면에서 이 요소 하나만 가리키는 것을 확인했습니다">
+                                  실측
+                                </Badge>
+                              )}
                               {element.verification === 'PASSED' && <Badge variant="success">확인됨</Badge>}
                               {element.verification === 'FAILED' && <Badge variant="destructive">실패</Badge>}
                               {element.duplicate && (
@@ -348,10 +420,12 @@ export function StructureTab({ projectId }: { projectId: string }) {
                             <code className="min-w-0 break-all text-xs text-foreground">
                               {element.selector ?? '셀렉터를 만들 수 없음'}
                             </code>
-                            <span className="shrink-0 font-mono text-[11px] text-muted-foreground @3xl:ml-auto">
-                              {element.file.split('/').pop()}
-                              {element.line ? `:${element.line}` : ''}
-                            </span>
+                            {element.file && (
+                              <span className="shrink-0 font-mono text-[11px] text-muted-foreground @3xl:ml-auto">
+                                {element.file.split('/').pop()}
+                                {element.line ? `:${element.line}` : ''}
+                              </span>
+                            )}
                           </li>
                         ))}
                       </ul>

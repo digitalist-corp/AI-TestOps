@@ -34,6 +34,9 @@ public class SiteMapPromptService {
 
     /** 프롬프트에 넣는 화면 정보의 상한. 넘으면 남은 화면은 경로만 적는다. */
     static final int MAX_CONTEXT_CHARS = 12_000;
+    /** 사이트 탐색 화면의 접근성 트리를 프롬프트에 넣는 길이. 생성 때는 짧게, 자율 교정 때는 길게 넣는다. */
+    static final int ARIA_CHARS_FOR_GENERATION = 600;
+    static final int ARIA_CHARS_FOR_HEALING = 2_500;
 
     // 메서드 이름이 1번 그룹이라 따옴표는 2번, 값은 3번이다.
     private static final String Q = "(['\"`])((?:\\\\.|(?!\\2).)*)\\2";
@@ -62,6 +65,15 @@ public class SiteMapPromptService {
      * @return 분석 결과가 없으면 빈 문자열
      */
     public String context(String projectId, List<String> routeKeys) {
+        return context(projectId, routeKeys, ARIA_CHARS_FOR_GENERATION, MAX_CONTEXT_CHARS);
+    }
+
+    /** 실패한 테스트를 고칠 때 쓴다. 대체 셀렉터를 찾을 수 있게 접근성 트리를 더 길게 넣는다. */
+    public String healingContext(String projectId, List<String> routeKeys) {
+        return context(projectId, routeKeys, ARIA_CHARS_FOR_HEALING, MAX_CONTEXT_CHARS + MAX_CONTEXT_CHARS / 2);
+    }
+
+    private String context(String projectId, List<String> routeKeys, int ariaChars, int maxChars) {
         List<SiteNode> nodes = usableNodes(projectId);
         if (nodes.isEmpty()) {
             return "";
@@ -75,15 +87,15 @@ public class SiteMapPromptService {
                 pathOnly.add(node.getRouteKey());
                 continue;
             }
-            String block = describe(node);
-            if (sb.length() + block.length() > MAX_CONTEXT_CHARS) {
+            String block = describe(node, ariaChars);
+            if (sb.length() + block.length() > maxChars) {
                 pathOnly.add(node.getRouteKey());
                 continue;
             }
             sb.append(block);
             described.add(node.getRouteKey());
         }
-        sb.append(describeLayouts(projectId, described, MAX_CONTEXT_CHARS - sb.length()));
+        sb.append(describeLayouts(projectId, described, maxChars - sb.length()));
         if (!pathOnly.isEmpty()) {
             sb.append("그 밖의 화면(경로만): ").append(String.join(", ", pathOnly)).append('\n');
         }
@@ -148,7 +160,8 @@ public class SiteMapPromptService {
         return sb.toString();
     }
 
-    private String describe(SiteNode node) {
+    String describe(SiteNode node, int ariaChars) {
+        boolean site = "SITE".equals(node.getOrigin());
         StringBuilder sb = new StringBuilder("화면 ").append(node.getRouteKey());
         if (node.getTitle() != null) {
             sb.append(" (").append(node.getTitle()).append(')');
@@ -156,12 +169,19 @@ public class SiteMapPromptService {
         if (Boolean.TRUE.equals(node.getAuthRequired())) {
             sb.append(" · 로그인 필요");
         }
+        if (site) {
+            sb.append(" · 실제 사이트에서 확인");
+        }
         sb.append('\n');
-        for (Map<String, Object> element : read(node.getElements())) {
+        List<Map<String, Object>> elements = read(node.getElements());
+        for (Map<String, Object> element : elements) {
             if (!(element.get("selector") instanceof String selector)) {
                 continue;
             }
             sb.append("- ").append(element.get("kind") == null ? "요소" : element.get("kind")).append(": ").append(selector);
+            if (element.get("type") instanceof String type && "input".equals(element.get("tag"))) {
+                sb.append("  [type=").append(type).append(']');
+            }
             if (Boolean.TRUE.equals(element.get("duplicate"))) {
                 sb.append("  (같은 셀렉터가 화면에 여러 개 있다)");
             }
@@ -179,7 +199,50 @@ public class SiteMapPromptService {
         if (!targets.isEmpty()) {
             sb.append("이동: ").append(String.join(", ", targets)).append('\n');
         }
+        if (site) {
+            sb.append(describeForms(read(node.getForms()), elements));
+            String aria = node.getAriaSnapshot();
+            if (aria != null && !aria.isBlank() && ariaChars > 0) {
+                sb.append("접근성 트리(일부):\n")
+                        .append(aria.length() > ariaChars ? aria.substring(0, ariaChars) + "\n…" : aria)
+                        .append('\n');
+            }
+        }
         return sb.append('\n').toString();
+    }
+
+    /** 폼마다 입력 요소와 제출 버튼의 셀렉터를 한 줄로 적는다. 폼 채우기 테스트를 만들 때 순서를 짐작하지 않게 한다. */
+    private static String describeForms(List<Map<String, Object>> forms, List<Map<String, Object>> elements) {
+        StringBuilder sb = new StringBuilder();
+        for (Map<String, Object> form : forms) {
+            List<String> fields = selectorsAt(form.get("fieldIdx"), elements);
+            if (fields.isEmpty()) {
+                continue;
+            }
+            sb.append("폼: 입력 ").append(String.join(", ", fields));
+            List<String> submits = selectorsAt(form.get("submitIdx"), elements);
+            if (!submits.isEmpty()) {
+                sb.append(" → 제출 ").append(String.join(", ", submits));
+            }
+            sb.append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static List<String> selectorsAt(Object indexes, List<Map<String, Object>> elements) {
+        List<String> selectors = new ArrayList<>();
+        if (!(indexes instanceof List<?> list)) {
+            return selectors;
+        }
+        for (Object idx : list) {
+            for (Map<String, Object> element : elements) {
+                if (idx != null && String.valueOf(idx).equals(String.valueOf(element.get("idx")))
+                        && element.get("selector") instanceof String selector) {
+                    selectors.add(selector);
+                }
+            }
+        }
+        return selectors;
     }
 
     // ---------------------------------------------------------------- 만들어진 테스트 대조
@@ -236,6 +299,10 @@ public class SiteMapPromptService {
         if (element.get("label") instanceof String v) keys.add("label|" + v);
         if (element.get("placeholder") instanceof String v) keys.add("placeholder|" + v);
         if (element.get("text") instanceof String v) keys.add("text|" + v);
+        // 사이트 탐색 셀렉터는 같은 이름이 겹칠 때 랜드마크(getByRole('navigation') 등)로 범위를 좁힌다.
+        if (element.get("scope") instanceof Map<?, ?> scope && scope.get("role") instanceof String role) {
+            keys.add("role|" + role + "|" + (scope.get("name") instanceof String name ? name : ""));
+        }
         return keys;
     }
 

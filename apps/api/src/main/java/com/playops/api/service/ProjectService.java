@@ -12,6 +12,8 @@ import com.playops.api.entity.PackageManager;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.RunnerActivity;
 import com.playops.api.entity.RunnerLifecycle;
+import com.playops.api.entity.User;
+import com.playops.api.entity.UserRole;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.repository.ProjectRepository;
@@ -67,7 +69,12 @@ public class ProjectService {
     }
 
     public List<ProjectResponse> findAll() {
+        return findAll(null);
+    }
+
+    public List<ProjectResponse> findAll(User currentUser) {
         return projectRepository.findAll().stream()
+                .filter(p -> canAccess(p, currentUser))
                 .sorted((a, b) -> {
                     int orderA = a.getDisplayOrder() != null ? a.getDisplayOrder() : 0;
                     int orderB = b.getDisplayOrder() != null ? b.getDisplayOrder() : 0;
@@ -81,19 +88,46 @@ public class ProjectService {
     }
 
     public ProjectResponse findById(String projectId) {
-        Project project = getProject(projectId);
+        return findById(projectId, null);
+    }
+
+    public ProjectResponse findById(String projectId, User currentUser) {
+        Project project = getProjectForUser(projectId, currentUser);
         return toResponse(project);
+    }
+
+    public boolean canAccess(Project project, User user) {
+        if (user == null || user.getRole() == UserRole.ADMIN) {
+            return true;
+        }
+        return project.getOwnerUserId() == null || project.getOwnerUserId().equals(user.getId());
+    }
+
+    public Project getProjectForUser(String projectId, User user) {
+        Project project = getProject(projectId);
+        if (!canAccess(project, user)) {
+            throw new ApiException(403, "FORBIDDEN", "해당 프로젝트에 접근할 권한이 없습니다.");
+        }
+        return project;
     }
 
     @Transactional
     public ProjectResponse create(ProjectRequest request) {
+        return create(request, null);
+    }
+
+    @Transactional
+    public ProjectResponse create(ProjectRequest request, User currentUser) {
         validateProjectId(request.projectId());
         if (projectRepository.existsByProjectId(request.projectId())) {
-            throw new ApiException(409, "Project already exists: " + request.projectId());
+            throw new ApiException(409, "PROJECT_ID_EXISTS", "Project already exists: " + request.projectId());
         }
 
         Project project = new Project();
         project.setProjectId(request.projectId());
+        if (currentUser != null) {
+            project.setOwnerUserId(currentUser.getId());
+        }
         applyRequest(project, request);
         applyRepositoryFields(project, request);
 
@@ -156,7 +190,15 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse update(String projectId, ProjectRequest request) {
-        Project project = getProject(projectId);
+        return update(projectId, request, null);
+    }
+
+    @Transactional
+    public ProjectResponse update(String projectId, ProjectRequest request, User currentUser) {
+        Project project = getProjectForUser(projectId, currentUser);
+        if (request.version() != null && !request.version().equals(project.getVersion())) {
+            throw new ApiException(409, "VERSION_CONFLICT", "프로젝트 설정이 다른 요청에 의해 먼저 변경되었습니다.");
+        }
         boolean wasDockerEnabled = Boolean.TRUE.equals(project.getDockerEnabled());
         RunnerLifecycle previousLifecycle = project.getRunnerLifecycle();
         DockerStatus previousDockerStatus = dockerRunnerService.getStatus(project);
@@ -194,7 +236,19 @@ public class ProjectService {
 
     @Transactional
     public void delete(String projectId) {
-        Project project = getProject(projectId);
+        delete(projectId, null);
+    }
+
+    @Transactional
+    public void delete(String projectId, User currentUser) {
+        Project project = getProjectForUser(projectId, currentUser);
+        boolean activeExec = executionRepository.existsByProjectIdAndStatusIn(
+                projectId,
+                List.of(ExecutionStatus.PENDING, ExecutionStatus.RUNNING, ExecutionStatus.CANCEL_REQUESTED)
+        );
+        if (activeExec) {
+            throw new ApiException(409, "ACTIVE_JOB_EXISTS", "실행 중인 테스트가 있어 프로젝트를 삭제할 수 없습니다.");
+        }
         dockerRunnerService.removeRunner(project);
         projectRepository.delete(project);
 

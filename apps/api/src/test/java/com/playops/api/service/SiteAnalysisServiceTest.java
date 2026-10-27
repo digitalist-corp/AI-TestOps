@@ -1,6 +1,8 @@
 package com.playops.api.service;
 
 import com.playops.api.entity.SiteNode;
+import com.playops.api.entity.SiteEdge;
+import com.playops.api.repository.SiteEdgeRepository;
 import com.playops.api.repository.SiteNodeRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,8 +26,10 @@ class SiteAnalysisServiceTest {
     private static final String SHA_B = "b".repeat(40);
 
     private final SiteNodeRepository nodeRepository = mock(SiteNodeRepository.class);
+    private final SiteEdgeRepository edgeRepository = mock(SiteEdgeRepository.class);
     private final SiteAnalysisService service = new SiteAnalysisService(
-            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, null, null, null);
+            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, edgeRepository, null, null,
+            null, null);
 
     private static SiteNode node(String routeKey, String firstSeen) {
         SiteNode node = new SiteNode();
@@ -127,5 +131,80 @@ class SiteAnalysisServiceTest {
     @Test
     void returnsNullWhenDirectoryIsNotARepository(@TempDir Path dir) {
         assertThat(SiteAnalysisService.readCommitSha(dir)).isNull();
+    }
+
+    // ---------------------------------------------------------------- 사이트 탐색 결과 저장
+
+    private static Map<String, Object> siteResult() {
+        return Map.of(
+                "status", "COMPLETED",
+                "mode", "DOM",
+                "warnings", List.of("페이지 수 상한(5)에 도달했습니다."),
+                "nodes", List.of(
+                        Map.of("id", "n1", "url", "http://site/", "path", "/", "title", "홈",
+                                "screenshot", "screens/n1.jpg", "ariaSnapshot", "- heading \"홈\"",
+                                "forms", List.of(Map.of("idx", 0, "fieldIdx", List.of(0), "submitIdx", List.of(1))),
+                                "elements", List.of(
+                                        Map.of("idx", 0, "tag", "input", "role", "textbox", "name", "이메일",
+                                                "selector", "getByLabel('이메일', { exact: true })", "unique", true),
+                                        Map.of("idx", 1, "tag", "button", "role", "button", "name", "삭제",
+                                                "selector", "getByRole('button', { name: '삭제', exact: true }).nth(1)",
+                                                "unique", true, "fragile", true),
+                                        Map.of("idx", 2, "tag", "a", "role", "link", "name", "소개",
+                                                "selector", "getByRole('link', { name: '소개', exact: true })", "unique", true))),
+                        Map.of("id", "n2", "url", "http://site/about", "path", "/about", "title", "소개",
+                                "elements", List.of())),
+                "edges", List.of(
+                        Map.of("from", "n1", "to", "n2", "label", "소개",
+                                "selector", "getByRole('link', { name: '소개', exact: true })"),
+                        Map.of("from", "n1", "toUrl", "http://site/far", "label", "멀리")));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void urlResultBecomesSiteNodesWithObservedSelectorsAndEdges() throws IOException {
+        SiteNode codeScreen = node("/settings", SHA_A);
+        codeScreen.setOrigin("CODE");
+        SiteNode oldSite = node("/gone", null);
+        oldSite.setOrigin("SITE");
+        when(nodeRepository.findByProjectIdOrderByRouteKey("p")).thenReturn(List.of(codeScreen, oldSite));
+        when(edgeRepository.findByProjectId("p")).thenReturn(List.of());
+
+        SiteAnalysisService.UrlOutcome outcome = service.applyUrlResult("p", siteResult(), "run-7/result/");
+
+        assertThat(outcome.mode()).isEqualTo("DOM");
+        assertThat(outcome.pages()).isEqualTo(2);
+        assertThat(outcome.verifiedSelectors()).isEqualTo(2); // .nth() 에 기대는 셀렉터는 확인으로 세지 않는다
+        assertThat(outcome.warnings()).hasSize(1);
+
+        ArgumentCaptor<List<SiteNode>> saved = ArgumentCaptor.forClass(List.class);
+        verify(nodeRepository).saveAll(saved.capture());
+        Map<String, SiteNode> byRoute = saved.getValue().stream()
+                .collect(Collectors.toMap(SiteNode::getRouteKey, n -> n));
+        assertThat(byRoute).containsOnlyKeys("/", "/about", "/gone"); // 코드 분석 화면은 건드리지 않는다
+        SiteNode home = byRoute.get("/");
+        assertThat(home.getOrigin()).isEqualTo("SITE");
+        assertThat(home.getScreenshot()).isEqualTo("run-7/result/screens/n1.jpg");
+        assertThat(home.getElements()).contains("\"verification\":\"OBSERVED\"").contains("\"duplicate\":true");
+        assertThat(home.getForms()).contains("fieldIdx");
+        assertThat(home.getLinks()).contains("/about").doesNotContain("/far");
+        assertThat(byRoute.get("/gone").isStale()).isTrue();
+        assertThat(codeScreen.isStale()).isFalse();
+
+        ArgumentCaptor<List<SiteEdge>> edges = ArgumentCaptor.forClass(List.class);
+        verify(edgeRepository).saveAll(edges.capture());
+        assertThat(edges.getValue()).singleElement().satisfies(edge -> {
+            assertThat(edge.getFromRouteKey()).isEqualTo("/");
+            assertThat(edge.getToRouteKey()).isEqualTo("/about");
+            assertThat(edge.getSelector()).isEqualTo("getByRole('link', { name: '소개', exact: true })");
+        });
+    }
+
+    @Test
+    void siteElementWithoutUniqueSelectorStaysUnverified() {
+        Map<String, Object> element = SiteAnalysisService.siteElement(
+                Map.of("idx", 3, "tag", "div", "role", "button", "unique", false));
+        assertThat(element.get("kind")).isEqualTo("button");
+        assertThat(element.get("verification")).isEqualTo("UNVERIFIED");
     }
 }

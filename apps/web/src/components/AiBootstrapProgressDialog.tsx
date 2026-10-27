@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Loader2, Sparkles, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { CheckCircle2, Loader2, Sparkles, TriangleAlert, Wrench, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
-import type { ExecutionStatus } from '@/types';
+import type { AiBootstrapPhase, AiBootstrapResponse } from '@/types';
 import { Button } from '@/components/ui/Button';
 import {
   Dialog,
@@ -19,61 +19,58 @@ interface Props {
   onOpenProject: () => void;
 }
 
-type Phase = 'GENERATING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'ERROR';
+const POLL_INTERVAL_MS = 2000;
+const FINISHED: AiBootstrapPhase[] = ['PASSED', 'FAILED', 'ERROR'];
+/** 진행 단계의 순서. HEALING 뒤에는 다시 RUNNING 으로 돌아가므로 순서 비교에서 RUNNING 과 같은 자리로 본다. */
+const ORDER: Record<AiBootstrapPhase, number> = {
+  ANALYZING_SITE: 0,
+  GENERATING: 1,
+  RUNNING: 2,
+  HEALING: 2,
+  PASSED: 3,
+  FAILED: 3,
+  ERROR: 3,
+};
 
-const TERMINAL_STATUSES: ExecutionStatus[] = ['PASSED', 'FAILED', 'ERROR', 'CANCELLED'];
+type StepState = 'pending' | 'active' | 'done';
 
-function formatRemaining(ms: number) {
-  const seconds = Math.max(0, Math.ceil(ms / 1000));
-  if (seconds >= 60) {
-    const minutes = Math.floor(seconds / 60);
-    return `약 ${minutes}분 ${seconds % 60}초 남았습니다`;
-  }
-  return `약 ${seconds}초 남았습니다`;
+function StepRow({ state, children }: { state: StepState; children: ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      {state === 'active' ? (
+        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-ai-accent" />
+      ) : state === 'done' ? (
+        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
+      ) : (
+        <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-border" />
+      )}
+      <span className={state === 'active' ? 'text-foreground' : 'text-muted-foreground'}>{children}</span>
+    </div>
+  );
 }
 
 export function AiBootstrapProgressDialog({ open, projectId, instruction, onClose, onOpenProject }: Props) {
-  const [phase, setPhase] = useState<Phase>('GENERATING');
+  const [status, setStatus] = useState<AiBootstrapResponse | null>(null);
   const [error, setError] = useState('');
-  const [specPath, setSpecPath] = useState('');
-  const [generatedFiles, setGeneratedFiles] = useState<string[]>([]);
-  const [estimatedMs, setEstimatedMs] = useState(60000);
   const [elapsedMs, setElapsedMs] = useState(0);
-  const [failureLog, setFailureLog] = useState('');
   const startedAt = useRef<number>(0);
   const startedRef = useRef(false);
 
   const runBootstrap = useCallback(async () => {
     startedAt.current = Date.now();
-    setPhase('GENERATING');
     setError('');
     setElapsedMs(0);
     try {
-      const res = await api.aiBootstrap(projectId, { instruction });
-      setSpecPath(res.specPath);
-      setGeneratedFiles(res.generatedFiles);
-      setEstimatedMs(res.estimatedDurationMs);
-      setPhase('RUNNING');
-
-      // 실행이 끝날 때까지 상태를 확인한다. 서버가 예상 시간을 주지만 실제 소요는 매번 달라서,
-      // 카운트다운은 어디까지나 예상치이고 종료 판정은 항상 실제 status로 한다.
-      for (;;) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        const detail = await api.getExecutionDetail(res.executionId);
-        const status = detail.execution.status;
-        if (TERMINAL_STATUSES.includes(status)) {
-          if (status === 'PASSED') {
-            setPhase('PASSED');
-          } else {
-            setPhase('FAILED');
-            setFailureLog(detail.logOutput ?? '');
-          }
-          return;
-        }
+      let current = await api.aiBootstrap(projectId, { instruction });
+      setStatus(current);
+      // 사이트 탐색 · 생성 · 실행 · 자율 교정은 서버에서 이어지고, 여기서는 끝날 때까지 상태만 다시 읽는다.
+      while (!FINISHED.includes(current.phase)) {
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        current = await api.getAiBootstrap(projectId, current.bootstrapId);
+        setStatus(current);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'AI 초기 케이스 생성에 실패했습니다.');
-      setPhase('ERROR');
     }
   }, [projectId, instruction]);
 
@@ -83,16 +80,36 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
     runBootstrap();
   }, [open, runBootstrap]);
 
+  const phase: AiBootstrapPhase = error ? 'ERROR' : (status?.phase ?? 'ANALYZING_SITE');
+  const inProgress = !FINISHED.includes(phase);
+
   useEffect(() => {
-    if (phase !== 'GENERATING' && phase !== 'RUNNING') return;
+    if (!inProgress) return;
     const timer = setInterval(() => setElapsedMs(Date.now() - startedAt.current), 1000);
     return () => clearInterval(timer);
-  }, [phase]);
+  }, [inProgress]);
 
-  const inProgress = phase === 'GENERATING' || phase === 'RUNNING';
-  const remainingMs = estimatedMs - elapsedMs;
+  const stepState = (step: AiBootstrapPhase): StepState => {
+    if (phase === step) return 'active';
+    if (phase === 'ERROR') return ORDER[step] < ORDER[status?.phase ?? 'ANALYZING_SITE'] ? 'done' : 'pending';
+    return ORDER[phase] > ORDER[step] ? 'done' : 'pending';
+  };
+
+  const site = status?.siteAnalysis ?? null;
+  const healAttempt = status?.healAttempt ?? 0;
+  const maxHeal = status?.maxHealAttempts ?? 2;
+  const files = status?.generatedFiles ?? [];
+  const warnings = status?.warnings ?? [];
   // 처음 실행은 테스트 실행 환경(도커 이미지)을 받느라 몇 분 걸릴 수 있다.
-  const takingLong = inProgress && elapsedMs > 90_000;
+  const takingLong = inProgress && elapsedMs > 120_000;
+
+  const analyzeLabel = (() => {
+    if (phase === 'ANALYZING_SITE') return '사이트에 접속해 화면 요소와 버튼을 파악하는 중';
+    if (!site) return '이미 분석된 화면 정보를 사용합니다';
+    if (site.mode === 'ERROR') return '사이트 탐색 실패 — 화면 정보 없이 진행합니다';
+    if (site.mode === 'VISUAL_REQUIRED') return '캔버스로 그리는 사이트라 화면 요소를 읽지 못했습니다';
+    return `사이트 화면 ${site.pages}개 탐색 · 실측 셀렉터 ${site.verifiedSelectors}개 확인`;
+  })();
 
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
@@ -103,60 +120,69 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
             AI 초기 테스트 케이스 생성
           </DialogTitle>
           <DialogDescription>
-            AI가 케이스를 만들고 실제로 실행해서 통과하는지 확인합니다.
+            AI가 사이트를 직접 열어 화면 요소를 확인하고, 그 요소로 테스트를 만든 뒤 실제로 실행해 통과하는지 확인합니다.
+            실패하면 실행 로그를 보고 최대 {maxHeal}번까지 스스로 고칩니다.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2 rounded-lg border border-border bg-muted/40 p-3 text-xs">
-            <div className="flex items-center gap-2">
-              {phase === 'GENERATING' ? (
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-ai-accent" />
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
-              )}
-              <span className={phase === 'GENERATING' ? 'text-foreground' : 'text-muted-foreground'}>
-                AI가 테스트 코드 작성 중
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {phase === 'RUNNING' ? (
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-ai-accent" />
-              ) : phase === 'PASSED' || phase === 'FAILED' ? (
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" />
-              ) : (
-                <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-border" />
-              )}
-              <span className={phase === 'RUNNING' ? 'text-foreground' : 'text-muted-foreground'}>
-                생성된 테스트 실행 중{specPath && ` (${specPath})`}
-              </span>
-            </div>
+            <StepRow state={stepState('ANALYZING_SITE')}>{analyzeLabel}</StepRow>
+            <StepRow state={stepState('GENERATING')}>파악한 화면 요소로 맞춤형 테스트 코드 작성 중</StepRow>
+            <StepRow state={stepState('RUNNING')}>
+              생성된 테스트 실행 검증 중
+              {healAttempt > 0 && ` (교정 ${healAttempt}회 후 재실행)`}
+              {status?.specPath && ` · ${status.specPath}`}
+            </StepRow>
+            {(phase === 'HEALING' || healAttempt > 0) && (
+              <div className="flex items-center gap-2">
+                {phase === 'HEALING' ? (
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-ai-accent" />
+                ) : (
+                  <Wrench className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                )}
+                <span className={phase === 'HEALING' ? 'text-foreground' : 'text-muted-foreground'}>
+                  실행 로그를 바탕으로 셀렉터를 자동 교정하여 재시도 중 ({healAttempt}/{maxHeal})
+                </span>
+              </div>
+            )}
           </div>
 
           {inProgress && (
             <div className="space-y-2">
               <p className="text-center text-sm text-muted-foreground">
-                {Math.floor(elapsedMs / 1000)}초 경과 ·{' '}
-                {remainingMs > 0 ? formatRemaining(remainingMs) : '예상보다 오래 걸리고 있습니다'}
+                {Math.floor(elapsedMs / 1000)}초 경과
+                {status && ` · 테스트 1회 실행 예상 약 ${Math.round(status.estimatedDurationMs / 1000)}초`}
               </p>
               {takingLong && (
                 <p className="rounded-sm border border-warning bg-warning/10 px-3 py-2 text-[13px] text-warning">
-                  처음 실행할 때는 테스트 실행 환경(도커 이미지)을 내려받느라 몇 분 걸릴 수 있습니다.
+                  처음 실행할 때는 사이트 탐색 · 테스트 실행 환경(도커 이미지)을 내려받느라 몇 분 걸릴 수 있습니다.
                   창을 닫아도 작업은 서버에서 계속되며, 결과는 실행 이력에서 확인할 수 있습니다.
                 </p>
               )}
             </div>
           )}
 
+          {warnings.length > 0 && (
+            <ul className="space-y-1">
+              {warnings.map((warning) => (
+                <li key={warning} className="flex items-start gap-2 text-xs text-warning">
+                  <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{warning}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
           {phase === 'PASSED' && (
             <div className="space-y-2">
               <p className="flex items-center gap-1.5 text-sm font-medium text-success">
                 <CheckCircle2 className="h-4 w-4" />
-                AI가 만든 테스트가 실제로 통과했습니다
+                {healAttempt > 0
+                  ? `AI가 ${healAttempt}번 고친 끝에 테스트가 실제로 통과했습니다`
+                  : 'AI가 만든 테스트가 실제로 통과했습니다'}
               </p>
-              <p className="text-xs text-muted-foreground">
-                생성된 파일: {generatedFiles.join(', ')}
-              </p>
+              <p className="text-xs text-muted-foreground">생성된 파일: {files.join(', ')}</p>
             </div>
           )}
 
@@ -164,24 +190,26 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
             <div className="space-y-2">
               <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
                 <XCircle className="h-4 w-4" />
-                테스트를 만들었지만 실행에서 실패했습니다
+                {healAttempt > 0
+                  ? `${healAttempt}번 자동 교정했지만 실행에서 실패했습니다`
+                  : '테스트를 만들었지만 실행에서 실패했습니다'}
               </p>
               <p className="text-xs text-muted-foreground">
-                생성된 파일({generatedFiles.join(', ')})은 그대로 저장돼 있습니다. 소스 탐색기에서
+                생성된 파일({files.join(', ')})은 그대로 저장돼 있습니다. 소스 탐색기에서
                 "AI 수정 도움"으로 이어서 고칠 수 있습니다.
               </p>
-              {failureLog && (
+              {status?.failureLog && (
                 <details className="rounded-lg border border-border bg-muted/50">
                   <summary className="cursor-pointer px-3 py-1.5 text-xs text-muted-foreground">실행 로그 보기</summary>
                   <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-all px-3 pb-3 text-[11px] text-muted-foreground">
-                    {failureLog}
+                    {status.failureLog}
                   </pre>
                 </details>
               )}
             </div>
           )}
 
-          {phase === 'ERROR' && <p className="text-sm text-destructive">{error}</p>}
+          {phase === 'ERROR' && <p className="text-sm text-destructive">{error || status?.error}</p>}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
