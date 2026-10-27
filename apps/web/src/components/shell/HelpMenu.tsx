@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, HelpCircle, Keyboard, MessageSquareText, Moon, Sun, X } from 'lucide-react';
 import { SHORTCUTS, screenHelpFor } from '@/config/screenHelp';
 import type { ProjectTabId } from '@/config/projectWorkspace';
-import { useTheme } from '@/lib/theme';
+import { THEME_LABEL, useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 /**
@@ -121,7 +121,7 @@ export function HelpMenu({
               className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-accent"
             >
               {theme === 'dark' ? <Moon className="h-3.5 w-3.5" /> : <Sun className="h-3.5 w-3.5" />}
-              {theme === 'dark' ? '다크' : '라이트'}
+              {THEME_LABEL[theme]}
             </button>
           </div>
         </div>

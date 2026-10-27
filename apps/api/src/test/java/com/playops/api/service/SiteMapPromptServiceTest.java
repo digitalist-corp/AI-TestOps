@@ -70,6 +70,24 @@ class SiteMapPromptServiceTest {
     }
 
     @Test
+    void describesPickedScreensInPickedOrderAndAddsStepGuideWithReturnVisits() {
+        String context = service.context("p", List.of("/signup", "/login", "/signup"));
+
+        assertThat(context.indexOf("화면 /signup")).isLessThan(context.indexOf("화면 /login"));
+        assertThat(context.split("화면 /signup", -1)).hasSize(2); // 같은 화면 정보는 한 번만
+        assertThat(context)
+                .contains("[화면 탐색 순서 가이드]")
+                .contains("1단계: /signup\n")
+                .contains("2단계: /login (로그인)\n")
+                .contains("3단계: /signup (복귀)\n");
+    }
+
+    @Test
+    void singlePickedScreenHasNoStepGuide() {
+        assertThat(service.context("p", List.of("/login"))).doesNotContain("순서 가이드");
+    }
+
+    @Test
     void includesEveryUsableScreenWhenNothingIsPicked() {
         assertThat(service.context("p", List.of())).contains("화면 /login").contains("화면 /signup").doesNotContain("경로만");
     }

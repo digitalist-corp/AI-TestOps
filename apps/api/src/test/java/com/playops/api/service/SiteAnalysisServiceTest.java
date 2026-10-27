@@ -2,7 +2,12 @@ package com.playops.api.service;
 
 import com.playops.api.entity.SiteNode;
 import com.playops.api.entity.SiteEdge;
+import com.playops.api.entity.ExecutionCaseResult;
+import com.playops.api.entity.ScenarioOrigin;
+import com.playops.api.repository.ExecutionCaseResultRepository;
+import com.playops.api.repository.ScenarioOriginRepository;
 import com.playops.api.repository.SiteEdgeRepository;
+import com.playops.api.repository.SiteNodeEditRepository;
 import com.playops.api.repository.SiteNodeRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -16,6 +21,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,9 +33,12 @@ class SiteAnalysisServiceTest {
 
     private final SiteNodeRepository nodeRepository = mock(SiteNodeRepository.class);
     private final SiteEdgeRepository edgeRepository = mock(SiteEdgeRepository.class);
+    private final ScenarioOriginRepository originRepository = mock(ScenarioOriginRepository.class);
+    private final ExecutionCaseResultRepository caseResultRepository = mock(ExecutionCaseResultRepository.class);
+    private final SiteNodeEditRepository editRepository = mock(SiteNodeEditRepository.class);
     private final SiteAnalysisService service = new SiteAnalysisService(
-            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, null, edgeRepository, null, null,
-            null, null);
+            null, null, null, null, null, null, new ScreenFinder(), null, null, nodeRepository, editRepository, edgeRepository,
+            originRepository, null, null, null, caseResultRepository);
 
     private static SiteNode node(String routeKey, String firstSeen) {
         SiteNode node = new SiteNode();
@@ -64,6 +73,57 @@ class SiteAnalysisServiceTest {
         assertThat(byRoute.get("/signup").getFirstSeenCommit()).isEqualTo(SHA_B);
         assertThat(byRoute.get("/legacy").isStale()).isTrue();
         assertThat(byRoute.get("/legacy").getLastSeenCommit()).isEqualTo(SHA_A);
+    }
+
+    @Test
+    void nodeDetailCountsVerificationAndListsTestsMadeFromTheScreen() {
+        SiteNode login = node("/login", SHA_A);
+        login.setAuthRequired(true);
+        login.setElements("""
+                [{"selector":"a","verification":"PASSED"},{"selector":"b","verification":"FAILED"},
+                 {"selector":"c","verification":"OBSERVED"},{"selector":"d","verification":"UNVERIFIED"}]
+                """);
+        when(nodeRepository.findByProjectIdOrderByRouteKey("p")).thenReturn(List.of(login));
+        ScenarioOrigin flow = new ScenarioOrigin();
+        flow.setSpecPath("tests/login-flow.spec.ts");
+        flow.setRouteKeys("[\"/login\",\"/projects\",\"/login\"]");
+        ScenarioOrigin other = new ScenarioOrigin();
+        other.setSpecPath("tests/other.spec.ts");
+        other.setRouteKeys("[\"/projects\"]");
+        ScenarioOrigin never = new ScenarioOrigin();
+        never.setSpecPath("tests/never.spec.ts");
+        never.setRouteKeys("[\"/login\"]");
+        when(originRepository.findByProjectId("p")).thenReturn(List.of(flow, other, never));
+        when(caseResultRepository.findTop100BySpecPathInOrderByIdDesc(anyCollection())).thenAnswer(inv -> {
+            java.util.Collection<String> paths = inv.getArgument(0);
+            if (!paths.contains("login-flow.spec.ts")) {
+                return List.of();
+            }
+            return List.of(caseResult(9L, "FAILED"), caseResult(9L, "PASSED"), caseResult(3L, "PASSED"));
+        });
+
+        SiteAnalysisService.NodeDetail detail = service.viewNode("p", "/login");
+
+        assertThat(detail.node().authRequired()).isTrue();
+        assertThat(detail.node().passedCount()).isEqualTo(1);
+        assertThat(detail.node().failedCount()).isEqualTo(1);
+        assertThat(detail.node().unverifiedCount()).isEqualTo(2);
+        assertThat(detail.tests()).extracting(SiteAnalysisService.ScreenTestSummary::specPath)
+                .containsExactly("tests/login-flow.spec.ts", "tests/never.spec.ts");
+        SiteAnalysisService.ScreenTestSummary latest = detail.tests().get(0);
+        assertThat(latest.executionId()).isEqualTo(9L);
+        assertThat(latest.lastStatus()).isEqualTo("FAILED");
+        assertThat(latest.passedCases()).isEqualTo(1);
+        assertThat(latest.failedCases()).isEqualTo(1);
+        assertThat(detail.tests().get(1).lastStatus()).isNull();
+    }
+
+    private static ExecutionCaseResult caseResult(Long executionId, String status) {
+        ExecutionCaseResult result = new ExecutionCaseResult();
+        result.setExecutionId(executionId);
+        result.setSpecPath("login-flow.spec.ts");
+        result.setStatus(status);
+        return result;
     }
 
     @Test

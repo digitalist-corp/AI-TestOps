@@ -10,6 +10,9 @@ import com.playops.api.entity.SiteLayout;
 import com.playops.api.entity.SiteNode;
 import com.playops.api.entity.SiteNodeEdit;
 import com.playops.api.exception.ApiException;
+import com.playops.api.entity.ExecutionCaseResult;
+import com.playops.api.entity.ScenarioOrigin;
+import com.playops.api.repository.ExecutionCaseResultRepository;
 import com.playops.api.repository.ProjectRepository;
 import com.playops.api.repository.ScenarioOriginRepository;
 import com.playops.api.repository.SiteAnalysisRunRepository;
@@ -81,6 +84,7 @@ public class SiteAnalysisService {
     private final SiteNodeEditRepository editRepository;
     private final AiRunnerDockerService aiRunnerDockerService;
     private final LoginSessionService loginSessionService;
+    private final ExecutionCaseResultRepository caseResultRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SiteAnalysisService(ProjectService projectService, ProjectRepository projectRepository,
@@ -90,7 +94,9 @@ public class SiteAnalysisService {
                                SiteAnalysisRunRepository runRepository, SiteNodeRepository nodeRepository,
                                SiteNodeEditRepository editRepository, SiteEdgeRepository edgeRepository,
                                ScenarioOriginRepository originRepository, SiteLayoutRepository layoutRepository,
-                               AiRunnerDockerService aiRunnerDockerService, LoginSessionService loginSessionService) {
+                               AiRunnerDockerService aiRunnerDockerService, LoginSessionService loginSessionService,
+                               ExecutionCaseResultRepository caseResultRepository) {
+        this.caseResultRepository = caseResultRepository;
         this.aiRunnerDockerService = aiRunnerDockerService;
         this.loginSessionService = loginSessionService;
         this.originRepository = originRepository;
@@ -121,8 +127,13 @@ public class SiteAnalysisService {
     /** 목록 화면의 진행 배지용. 진행 중인 분석만 내준다. */
     public record Running(String projectId, int screenCount, int processedCount, Long etaSeconds) {}
 
+    /**
+     * passedCount · failedCount 는 테스트 실행으로 확인된 요소 수, unverifiedCount 는 나머지(실측 OBSERVED 포함)다.
+     * 구조 그래프가 화면 상자의 색과 배지를 정하는 데 쓴다.
+     */
     public record Node(String routeKey, String title, String sourceFile, String origin, boolean stale,
-                       int elementCount, boolean excluded, String note, String url, boolean hasScreenshot) {}
+                       int elementCount, boolean excluded, String note, String url, boolean hasScreenshot,
+                       boolean authRequired, int passedCount, int failedCount, int unverifiedCount) {}
 
     public record Edge(String from, String to, String kind, String label, String selector) {}
 
@@ -137,7 +148,11 @@ public class SiteAnalysisService {
 
     /** 화면 하나의 상세. elements 는 저장된 JSON 을 그대로 내준다. */
     public record NodeDetail(Node node, List<Map<String, Object>> elements, List<Edge> edges,
-                             List<Map<String, Object>> forms) {}
+                             List<Map<String, Object>> forms, List<ScreenTestSummary> tests) {}
+
+    /** 이 화면을 골라 만든 테스트와 마지막 실행 결과. 실행한 적이 없으면 lastStatus · lastRunAt 이 null 이다. */
+    public record ScreenTestSummary(String specPath, String lastStatus, Instant lastRunAt, Long executionId,
+                                    int passedCases, int failedCases) {}
 
     public record NodeEditRequest(Boolean excluded, String note) {}
 
@@ -194,10 +209,22 @@ public class SiteAnalysisService {
     }
 
     private Node toNode(SiteNode node, SiteNodeEdit edit) {
+        List<Map<String, Object>> elements = readElements(node.getElements());
+        int passed = 0;
+        int failed = 0;
+        for (Map<String, Object> element : elements) {
+            Object verification = element.get("verification");
+            if ("PASSED".equals(verification)) {
+                passed++;
+            } else if ("FAILED".equals(verification)) {
+                failed++;
+            }
+        }
         return new Node(node.getRouteKey(), node.getTitle(), node.getSourceFile(), node.getOrigin(),
-                node.isStale(), readElements(node.getElements()).size(),
+                node.isStale(), elements.size(),
                 edit != null && edit.isExcluded(), edit != null ? edit.getNote() : null,
-                node.getUrl(), node.getScreenshot() != null);
+                node.getUrl(), node.getScreenshot() != null,
+                Boolean.TRUE.equals(node.getAuthRequired()), passed, failed, elements.size() - passed - failed);
     }
 
     private List<Edge> edgesOf(String projectId, String routeKey) {
@@ -214,7 +241,54 @@ public class SiteAnalysisService {
     public NodeDetail viewNode(String projectId, String routeKey) {
         SiteNode node = findNode(projectId, routeKey);
         return new NodeDetail(toNode(node, findEdit(projectId, routeKey)),
-                readElements(node.getElements()), edgesOf(projectId, routeKey), readElements(node.getForms()));
+                readElements(node.getElements()), edgesOf(projectId, routeKey), readElements(node.getForms()),
+                testsOf(projectId, routeKey));
+    }
+
+    /**
+     * 이 화면을 골라 만든 테스트(scenario_origin)와 마지막 실행 결과. 실행 결과의 spec 경로는 Playwright
+     * 리포트 기준이라 저장된 경로의 뒷부분만 같을 수 있다 (SiteMapPromptService.applyResults 와 같은 규칙).
+     */
+    List<ScreenTestSummary> testsOf(String projectId, String routeKey) {
+        List<ScreenTestSummary> tests = new ArrayList<>();
+        for (ScenarioOrigin origin : originRepository.findByProjectId(projectId)) {
+            if (!readStrings(origin.getRouteKeys()).contains(routeKey)) {
+                continue;
+            }
+            List<String> suffixes = new ArrayList<>();
+            String path = origin.getSpecPath();
+            suffixes.add(path);
+            for (int i = path.indexOf('/'); i >= 0; i = path.indexOf('/', i + 1)) {
+                suffixes.add(path.substring(i + 1));
+            }
+            List<ExecutionCaseResult> results = caseResultRepository.findTop100BySpecPathInOrderByIdDesc(suffixes);
+            if (results.isEmpty()) {
+                tests.add(new ScreenTestSummary(path, null, null, null, 0, 0));
+                continue;
+            }
+            Long latest = results.get(0).getExecutionId();
+            int passed = 0;
+            int failed = 0;
+            Instant at = null;
+            for (ExecutionCaseResult result : results) {
+                if (!latest.equals(result.getExecutionId())) {
+                    continue;
+                }
+                if ("PASSED".equals(result.getStatus())) {
+                    passed++;
+                } else if ("FAILED".equals(result.getStatus())) {
+                    failed++;
+                }
+                if (at == null || (result.getCreatedAt() != null && result.getCreatedAt().isAfter(at))) {
+                    at = result.getCreatedAt();
+                }
+            }
+            String status = failed > 0 ? "FAILED" : passed > 0 ? "PASSED" : "SKIPPED";
+            tests.add(new ScreenTestSummary(path, status, at, latest, passed, failed));
+        }
+        tests.sort(java.util.Comparator.comparing(ScreenTestSummary::lastRunAt,
+                java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())));
+        return tests;
     }
 
     /** 제외 표시와 메모. 분석 결과와 다른 테이블에 두므로 다시 분석해도 남는다. */

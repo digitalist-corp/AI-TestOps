@@ -15,7 +15,9 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -82,11 +84,21 @@ public class SiteMapPromptService {
         List<String> described = new ArrayList<>();
         StringBuilder sb = new StringBuilder();
         List<String> pathOnly = new ArrayList<>();
-        for (SiteNode node : nodes) {
-            if (picked && !routeKeys.contains(node.getRouteKey())) {
-                pathOnly.add(node.getRouteKey());
-                continue;
+        // 고른 화면은 고른 순서대로 적는다. 같은 화면을 두 번 골라도 정보는 한 번만 넣는다.
+        List<SiteNode> ordered = nodes;
+        if (picked) {
+            Map<String, SiteNode> byRoute = new LinkedHashMap<>();
+            nodes.forEach(node -> byRoute.put(node.getRouteKey(), node));
+            ordered = new ArrayList<>();
+            for (String route : new LinkedHashSet<>(routeKeys)) {
+                SiteNode node = byRoute.remove(route);
+                if (node != null) {
+                    ordered.add(node);
+                }
             }
+            pathOnly.addAll(byRoute.keySet());
+        }
+        for (SiteNode node : ordered) {
             String block = describe(node, ariaChars);
             if (sb.length() + block.length() > maxChars) {
                 pathOnly.add(node.getRouteKey());
@@ -98,6 +110,31 @@ public class SiteMapPromptService {
         sb.append(describeLayouts(projectId, described, maxChars - sb.length()));
         if (!pathOnly.isEmpty()) {
             sb.append("그 밖의 화면(경로만): ").append(String.join(", ", pathOnly)).append('\n');
+        }
+        if (picked && routeKeys.size() > 1) {
+            sb.append(orderGuide(routeKeys, nodes));
+        }
+        return sb.toString();
+    }
+
+    /**
+     * 구조 그래프에서 화면을 순서대로 골랐을 때, 그 순서대로 화면을 옮겨 다니는 테스트를 만들게 한다.
+     * 같은 화면이 다시 나오면(목록 → 상세 → 목록) 복귀로 적는다.
+     */
+    static String orderGuide(List<String> routeKeys, List<SiteNode> nodes) {
+        Map<String, String> titles = new HashMap<>();
+        nodes.forEach(node -> titles.put(node.getRouteKey(), node.getTitle()));
+        StringBuilder sb = new StringBuilder("\n[화면 탐색 순서 가이드]\n")
+                .append("반드시 다음 지정된 순서대로 화면을 전환하며 테스트 시나리오를 구성하세요:\n");
+        for (int i = 0; i < routeKeys.size(); i++) {
+            String route = routeKeys.get(i);
+            String title = titles.get(route);
+            boolean back = routeKeys.subList(0, i).contains(route);
+            sb.append(i + 1).append("단계: ").append(route);
+            if (title != null || back) {
+                sb.append(" (").append(title != null ? title : "").append(back ? (title != null ? " 복귀" : "복귀") : "").append(')');
+            }
+            sb.append('\n');
         }
         return sb.toString();
     }

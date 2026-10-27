@@ -7,9 +7,9 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <script>
       (function () {
-        var stored = localStorage.getItem('playops.theme');
-        var dark = stored === 'dark'; // 기본값은 라이트
-        if (dark) document.documentElement.classList.add('dark');
+        // lib/theme.tsx 와 같은 규칙: 고른 값이 없으면 콘솔(dark)
+        var stored = localStorage.getItem('playops.theme.v2');
+        if (stored !== 'light') document.documentElement.classList.add('dark');
       })();
     </script>
   </head>

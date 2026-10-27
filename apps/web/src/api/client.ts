@@ -191,6 +191,13 @@ export const api = {
   getSiteMapNode: (projectId: string, routeKey: string) =>
     request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`),
 
+  /** 제외 표시와 메모. 값을 준 항목만 바꾼다 */
+  updateSiteMapNode: (projectId: string, routeKey: string, edit: { excluded?: boolean; note?: string }) =>
+    request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(edit),
+    }),
+
   getRunningAnalyses: () => request<RunningAnalysis[]>('/api/sitemap/running'),
 
   analyzeSiteMap: (projectId: string) =>

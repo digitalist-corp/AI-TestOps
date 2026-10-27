@@ -14,6 +14,7 @@ import { ProjectCard, healthLabel, isRunnerReady, projectHealth, type ProjectHea
 import { isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { cn } from '@/lib/utils';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 type EnvFilter = 'ALL' | Project['serverType'];
 type HealthFilter = 'ALL' | ProjectHealth;
@@ -230,6 +231,7 @@ export function ProjectsPage() {
     <div className="@container space-y-5 p-6">
       <div className="flex flex-col gap-3 @min-[52rem]:flex-row @min-[52rem]:items-center @min-[52rem]:justify-between">
         <div>
+          <ConsoleEyebrow>WORKSPACE // PROJECTS</ConsoleEyebrow>
           <h2 className="text-[24px] font-bold leading-tight text-foreground">프로젝트</h2>
           <p className="mt-1 text-[15px] text-muted-foreground">
             테스트할 사이트마다 프로젝트를 하나씩 둡니다. 카드를 열면 작업 화면으로 들어갑니다.

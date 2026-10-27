@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog';
 import { cn } from '@/lib/utils';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -300,6 +301,7 @@ export function UsersPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
+          <ConsoleEyebrow>ADMIN // USERS</ConsoleEyebrow>
           <h2 className="text-2xl font-bold text-foreground">사용자 관리</h2>
           <p className="text-sm text-muted-foreground mt-1">Admin 계정 및 사용자 등록 관리</p>
         </div>

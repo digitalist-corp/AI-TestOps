@@ -33,6 +33,7 @@ import {
   PROJECT_WORKSPACE_TABS,
   type ProjectTabId,
 } from '@/config/projectWorkspace';
+import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const dockerStatusLabel: Record<Project['dockerStatus'], string> = {
   RUNNING: '러너 실행 중',
@@ -470,6 +471,9 @@ export function ProjectDetailPage() {
     <div className="p-6 space-y-4">
       <div className="flex items-center gap-4">
         <div className="flex-1">
+          <ConsoleEyebrow>
+            PROJECT // {project.projectId} · {activeTab.replace('-', ' ')}
+          </ConsoleEyebrow>
           <h2 className="text-2xl font-bold text-foreground">{project.projectName}</h2>
           <p className="text-sm text-muted-foreground">
             <span className="font-mono">{project.projectId}</span>
