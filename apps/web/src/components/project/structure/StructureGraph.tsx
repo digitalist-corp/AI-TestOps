@@ -463,7 +463,8 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
           <Background id="cross" variant={BackgroundVariant.Cross} gap={120} size={6} lineWidth={1} color="rgb(54 211 255 / 0.28)" />
 
           {!empty && (
-            <Panel position="top-left" className="sg-hud !m-4 w-64 px-3 py-2.5">
+            /* 표시 전용 패널이라 클릭은 아래 캔버스로 흘려보낸다. 막으면 패널 뒤에 놓인 화면 카드를 누를 수 없다. */
+            <Panel position="top-left" className="sg-hud pointer-events-none !m-4 w-64 px-3 py-2.5 select-none">
               <div className="flex items-center justify-between">
                 <span className="sg-mono flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] text-[var(--c-green)]">
                   <span className="sg-live h-1.5 w-1.5 rounded-full bg-[var(--c-green)] shadow-[0_0_8px_var(--c-green)]" />
