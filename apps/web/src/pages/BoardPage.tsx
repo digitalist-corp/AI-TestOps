@@ -429,7 +429,7 @@ export function BoardPage() {
             </button>
           ))}
         </div>
-        <label className="relative w-full sm:w-72">
+        <label className="relative w-full @min-[40rem]:w-72">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchTerm}
@@ -440,7 +440,7 @@ export function BoardPage() {
         </label>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+      <div className="grid gap-4 @7xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <div className="min-w-[980px]">
             <div className="grid grid-cols-[108px_minmax(260px,1fr)_160px_120px_160px_132px] border-b border-border bg-muted px-4 py-2 text-xs font-medium text-muted-foreground">

@@ -609,20 +609,20 @@ export function ScenarioTab({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 @5xl:grid-cols-3 gap-4">
       {urlAction === 'pick' && checkedCaseList.length === 0 && (
         <p className="rounded-sm border border-primary bg-primary-subtle px-3.5 py-2.5 text-[13px] text-primary">
           실행할 테스트 케이스를 아래 목록에서 고르세요. 고른 뒤 &quot;선택 케이스 실행&quot;을 누르면 그 케이스만 실행합니다.
           자주 쓰는 조합은 &quot;묶음으로 저장&quot;으로 남겨두면 다음부터 한 번에 실행할 수 있습니다.
         </p>
       )}
-      <div className="lg:col-span-2 space-y-4">
-        <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 @5xl:col-span-2 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             <strong className="text-foreground">{tree.totalSpecs}</strong>개 spec · <strong className="text-foreground">{tree.totalCases}</strong>개 테스트 케이스
             {checkedCaseList.length > 0 && <span className="ml-2 text-primary">케이스 {checkedCaseList.length}개 선택</span>}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
               disabled={checkedCaseList.length === 0}
