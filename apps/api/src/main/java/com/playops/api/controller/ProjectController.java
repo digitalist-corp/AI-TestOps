@@ -18,6 +18,7 @@ import com.playops.api.service.LoginSessionService;
 import com.playops.api.service.PlaywrightTemplateService;
 import com.playops.api.service.ProjectService;
 import com.playops.api.service.RunnerCapacityService;
+import com.playops.api.service.SiteAnalysisService;
 import com.playops.api.service.SiteCheckService;
 import org.springframework.web.bind.annotation.*;
 
@@ -34,6 +35,8 @@ public class ProjectController {
     private final DockerRunnerService dockerRunnerService;
     private final LoginSessionService loginSessionService;
     private final SiteCheckService siteCheckService;
+    private final SiteAnalysisService siteAnalysisService;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ProjectController.class);
 
     public ProjectController(
             ProjectService projectService,
@@ -41,7 +44,8 @@ public class ProjectController {
             RunnerCapacityService runnerCapacityService,
             DockerRunnerService dockerRunnerService,
             LoginSessionService loginSessionService,
-            SiteCheckService siteCheckService
+            SiteCheckService siteCheckService,
+            SiteAnalysisService siteAnalysisService
     ) {
         this.projectService = projectService;
         this.templateService = templateService;
@@ -49,6 +53,7 @@ public class ProjectController {
         this.dockerRunnerService = dockerRunnerService;
         this.loginSessionService = loginSessionService;
         this.siteCheckService = siteCheckService;
+        this.siteAnalysisService = siteAnalysisService;
     }
 
     @GetMapping
@@ -69,7 +74,26 @@ public class ProjectController {
 
     @PostMapping
     public ProjectResponse create(@RequestBody ProjectRequest request) {
-        return projectService.create(request);
+        ProjectResponse created = projectService.create(request);
+        startSiteAnalysisIfSourceGiven(created.projectId(), request);
+        return created;
+    }
+
+    /**
+     * 소스 저장소를 함께 넣었으면 등록 직후 구조 분석을 뒤에서 시작한다.
+     * 분석은 몇 분 걸릴 수 있어 등록을 붙잡지 않고, 분석이 시작되지 못해도 등록은 성공으로 둔다.
+     */
+    private void startSiteAnalysisIfSourceGiven(String projectId, ProjectRequest request) {
+        if (request.sourceRepositoryUrl() == null || request.sourceRepositoryUrl().isBlank()) {
+            return;
+        }
+        try {
+            siteAnalysisService.updateSource(projectId, new SiteAnalysisService.SourceRequest(
+                    request.sourceRepositoryUrl(), request.sourceRepositoryBranch(), request.sourceRepositoryToken()));
+            siteAnalysisService.runAsync(siteAnalysisService.start(projectId).getId());
+        } catch (RuntimeException e) {
+            log.warn("등록 직후 구조 분석을 시작하지 못했습니다 (project={}): {}", projectId, e.getMessage());
+        }
     }
 
     @PutMapping("/{projectId}")
@@ -80,6 +104,7 @@ public class ProjectController {
     @DeleteMapping("/{projectId}")
     public void delete(@PathVariable String projectId) {
         projectService.delete(projectId);
+        siteAnalysisService.forget(projectId);
     }
 
     @PostMapping("/{projectId}/docker/start")
