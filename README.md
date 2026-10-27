@@ -1,6 +1,6 @@
 # AI-TestOps
 
-### 🔗 바로 써 보기: https://southampton-classifieds-conscious-charms.trycloudflare.com
+### 🔗 바로 써 보기: https://petition-thoroughly-mercury-recognition.trycloudflare.com
 
 > 테스트 서버의 임시 주소(Cloudflare 터널)입니다. 서버가 재시작되면 주소가 바뀔 수 있습니다. 계정은 팀에 문의해 주세요.
 
