@@ -1,5 +1,4 @@
 import { NavLink } from 'react-router-dom';
-import { MessageSquare, PanelLeftClose } from 'lucide-react';
 import { BrandLogo } from '@/components/BrandLogo';
 import { RAIL_ITEMS } from '@/config/shellNav';
 import { cn } from '@/lib/utils';
@@ -17,15 +16,7 @@ function RailTooltip({ label }: { label: string }) {
  * 화면 맨 왼쪽 세로 아이콘 줄.
  * 프로젝트에 매이지 않는 전역 메뉴만 둔다(프로젝트 작업 탭은 상단바 담당).
  */
-export function AppRail({
-  admin,
-  aiCollapsed,
-  onToggleAi,
-}: {
-  admin: boolean;
-  aiCollapsed: boolean;
-  onToggleAi: () => void;
-}) {
+export function AppRail({ admin }: { admin: boolean }) {
   return (
     <nav className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-sidebar-active bg-sidebar py-3">
       <NavLink to="/projects" className="mb-2 rounded-xl transition-opacity hover:opacity-80" title="AI-TestOps">
@@ -66,20 +57,6 @@ export function AppRail({
         );
       })}
 
-      <button
-        type="button"
-        onClick={onToggleAi}
-        className={cn(
-          'group relative mt-auto flex h-10 w-10 items-center justify-center rounded-xl transition-colors',
-          aiCollapsed
-            ? 'bg-ai-accent/20 text-ai-accent ring-1 ring-ai-accent/40 hover:bg-ai-accent/30'
-            : 'text-sidebar-foreground/70 hover:bg-sidebar-active hover:text-white'
-        )}
-        aria-label={aiCollapsed ? 'AI 패널 펼치기' : 'AI 패널 접기'}
-      >
-        {aiCollapsed ? <MessageSquare className="h-[18px] w-[18px]" /> : <PanelLeftClose className="h-[18px] w-[18px]" />}
-        <RailTooltip label={aiCollapsed ? 'AI 패널 펼치기 (Ctrl+/)' : 'AI 패널 접기 (Ctrl+/)'} />
-      </button>
     </nav>
   );
 }

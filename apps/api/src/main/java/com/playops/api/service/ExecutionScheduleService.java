@@ -37,6 +37,7 @@ public class ExecutionScheduleService {
     private final TestExecutionService testExecutionService;
     private final DockerRunnerService dockerRunnerService;
     private final SlackNotificationService slackNotificationService;
+    private final NotificationService notificationService;
 
     public ExecutionScheduleService(
             ExecutionScheduleRepository repository,
@@ -44,8 +45,10 @@ public class ExecutionScheduleService {
             ProjectService projectService,
             TestExecutionService testExecutionService,
             DockerRunnerService dockerRunnerService,
-            SlackNotificationService slackNotificationService
+            SlackNotificationService slackNotificationService,
+            NotificationService notificationService
     ) {
+        this.notificationService = notificationService;
         this.repository = repository;
         this.executionRepository = executionRepository;
         this.projectService = projectService;
@@ -186,6 +189,7 @@ public class ExecutionScheduleService {
                     ":warning: [" + project.getProjectName() + "] 예약 실행 시작 실패 — " + e.getMessage()
                             + "\nschedule #" + schedule.getId()
             );
+            notificationService.scheduleFailed(project, e.getMessage());
         }
     }
 }
