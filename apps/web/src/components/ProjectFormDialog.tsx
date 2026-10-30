@@ -732,8 +732,8 @@ export function ProjectFormDialog({
                 </div>
                 {aiAvailability && !aiAvailability.anyConfigured ? (
                   <div className="rounded-sm border border-warning bg-warning/10 px-3.5 py-2.5 text-[13px] text-warning">
-                    AI 공급자 키가 등록되어 있지 않아 지금은 사용할 수 없습니다.
-                    관리자 설정에서 Claude 또는 GPT 키를 먼저 등록하세요. 등록은 이대로 진행할 수 있습니다.
+                    AI 키가 없어도 기본 점검 테스트(첫 화면 응답 · 스크립트 오류 · 내부 링크)가 Playwright로 만들어집니다.
+                    AI가 사이트에 맞춘 테스트를 만들게 하려면 관리자 설정에서 Claude 또는 GPT 키를 등록하세요.
                   </div>
                 ) : (
                   <ToggleRow
