@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { HelpMenu } from '@/components/shell/HelpMenu';
 import { NotificationBell } from '@/components/shell/NotificationBell';
 import { LiveClock } from '@/components/console/ConsoleText';
 import { THEME_LABEL, useTheme } from '@/lib/theme';
@@ -19,6 +20,7 @@ export function TopBar({
   activeProject,
   currentTab,
   auth,
+  projectTab,
   onOpenProjectSwitcher,
   onLogout,
 }: {
@@ -27,6 +29,8 @@ export function TopBar({
   activeProject: Project | null;
   currentTab: ProjectTabId;
   auth: { username: string; role: string } | null;
+  /** 프로젝트 안에 있을 때만 — ? 메뉴가 탭별 안내를 고른다. */
+  projectTab?: ProjectTabId;
   onOpenProjectSwitcher: () => void;
   onLogout: () => void;
 }) {
@@ -104,6 +108,7 @@ export function TopBar({
         {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </Button>
 
+      <HelpMenu pathname={pathname} projectTab={projectTab} />
       <NotificationBell />
 
       <div

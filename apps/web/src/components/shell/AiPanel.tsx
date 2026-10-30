@@ -3,11 +3,11 @@ import {
   Briefcase,
   GraduationCap,
   Loader2,
-  PanelLeftClose,
   RotateCcw,
   Send,
   Sparkles,
   UserCheck,
+  X,
 } from 'lucide-react';
 import { AiMarkdown } from '@/components/ai/AiMarkdown';
 import { AiActionCard } from '@/components/shell/AiActionCard';
@@ -18,10 +18,6 @@ import { cn } from '@/lib/utils';
 /** 기존 플로팅 위젯이 쓰던 키를 그대로 이어받아 대화 기록이 유지되도록 한다. */
 const MESSAGES_STORAGE_KEY = 'playops.aiChat.messages';
 const LEVEL_STORAGE_KEY = 'playops.aiChat.userLevel';
-
-export const AI_PANEL_MIN_WIDTH = 280;
-export const AI_PANEL_MAX_WIDTH = 560;
-export const AI_PANEL_DEFAULT_WIDTH = 360;
 
 const levelOptions: { id: UserLevel; label: string; icon: typeof UserCheck }[] = [
   { id: 'NON_DEVELOPER', label: '비전공자', icon: UserCheck },
@@ -40,33 +36,25 @@ function readStoredLevel(): UserLevel {
 }
 
 /**
- * 왼쪽에 고정된 AI 패널.
+ * 오른쪽 아래에 뜨는 AI 채팅 창. AI 키가 등록돼 있을 때만 Layout이 띄운다.
  *
  * 대화 · AI 작업 · 승인이 한 줄기 타임라인으로 위에서 아래로 쌓이는 구조다.
  * 지금은 대화만 올라오고, 코드 수정 · 테스트 실행 · 리포트 생성 같은 작업 카드는
  * AI 작업 API가 붙는 2차에서 같은 타임라인에 끼워 넣는다.
  */
 export function AiPanel({
-  width,
-  onWidthChange,
-  onCollapse,
+  onClose,
   contextLabel,
   projectId,
-  overlay = false,
 }: {
-  width: number;
-  onWidthChange: (width: number) => void;
-  onCollapse: () => void;
+  onClose: () => void;
   /** 패널 상단에 보여줄 현재 맥락 (예: "example.com · 시나리오"). */
   contextLabel: string;
   /** 지금 보고 있는 프로젝트. 질문에 함께 실어 보내면 서버가 최근 실패 로그까지 읽고 답한다. */
   projectId?: string;
-  /** 좁은 화면 — 캔버스를 밀어내지 않고 그 위에 겹쳐 띄운다. */
-  overlay?: boolean;
 }) {
   const [question, setQuestion] = useState('');
   const [userLevel, setUserLevel] = useState<UserLevel>(readStoredLevel);
-  const [resizing, setResizing] = useState(false);
 
   const { messages, loading, send, clear } = useAiChat({
     userLevel,
@@ -103,31 +91,6 @@ export function AiPanel({
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length, loading]);
 
-  // 오른쪽 경계선을 끌어 패널 폭을 조절한다. 레일(56px)을 뺀 값이 패널 폭이 된다.
-  const handleResizeStart = useCallback(() => setResizing(true), []);
-
-  useEffect(() => {
-    if (!resizing) return;
-
-    const onMove = (event: MouseEvent) => {
-      const next = Math.min(AI_PANEL_MAX_WIDTH, Math.max(AI_PANEL_MIN_WIDTH, event.clientX - 56));
-      onWidthChange(next);
-    };
-    const onUp = () => setResizing(false);
-
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-  }, [resizing, onWidthChange]);
-
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const q = question.trim();
@@ -152,11 +115,8 @@ export function AiPanel({
 
   return (
     <aside
-      className={cn(
-        'flex flex-col border-r border-border bg-card',
-        overlay ? 'absolute inset-y-0 left-14 z-40 shadow-3' : 'relative shrink-0'
-      )}
-      style={{ width }}
+      className="absolute bottom-4 right-4 z-40 flex h-[min(640px,calc(100%-2rem))] w-[min(400px,calc(100%-2rem))] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl"
+      role="dialog"
       aria-label="AI 어시스턴트"
     >
       <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
@@ -184,12 +144,12 @@ export function AiPanel({
           </button>
           <button
             type="button"
-            onClick={onCollapse}
+            onClick={onClose}
             className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-            title="AI 패널 접기 (Ctrl+/)"
-            aria-label="AI 패널 접기"
+            title="닫기 (Esc · Ctrl+/)"
+            aria-label="AI 채팅 닫기"
           >
-            <PanelLeftClose className="h-4 w-4" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -279,16 +239,6 @@ export function AiPanel({
         </button>
       </form>
 
-      {!overlay && <div
-        role="separator"
-        aria-orientation="vertical"
-        onMouseDown={handleResizeStart}
-        className={cn(
-          'absolute inset-y-0 -right-1 w-2 cursor-col-resize',
-          resizing ? 'bg-ai-accent/40' : 'hover:bg-ai-accent/30'
-        )}
-        title="끌어서 패널 폭 조절"
-      />}
     </aside>
   );
 }

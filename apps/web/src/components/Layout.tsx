@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ResourceStatusBar } from '@/components/ResourceStatusBar';
 import { AppRail } from '@/components/shell/AppRail';
-import { AiPanel, AI_PANEL_DEFAULT_WIDTH, AI_PANEL_MAX_WIDTH, AI_PANEL_MIN_WIDTH } from '@/components/shell/AiPanel';
-import { HelpMenu } from '@/components/shell/HelpMenu';
+import { AiPanel } from '@/components/shell/AiPanel';
 import { ProjectSwitcherDialog } from '@/components/shell/ProjectSwitcherDialog';
 import { SubTabBar, TopBar } from '@/components/shell/TopBar';
 import { api, clearStoredAuth, getStoredAuth } from '@/api/client';
@@ -17,46 +17,19 @@ import {
 } from '@/config/projectWorkspace';
 
 const RECENT_PROJECT_KEY = 'playops.recentProjectId';
-const AI_WIDTH_KEY = 'playops.aiPanel.width';
-const AI_COLLAPSED_KEY = 'playops.aiPanel.collapsed';
-const RAIL_WIDTH = 56;
-/** 이 폭 아래에서는 AI 패널이 캔버스를 밀지 않고 겹쳐 뜬다. */
-const OVERLAY_BREAKPOINT = 1024;
-/** 캔버스가 이보다 좁아지지 않도록 패널 폭을 깎는다. */
-const CANVAS_MIN_WIDTH = 460;
-
 function activeWorkspaceTab(pathname: string): ProjectTabId {
   const tab = pathname.match(/^\/projects\/[^/]+\/([^/]+)/)?.[1];
   return PROJECT_WORKSPACE_TABS.some((item) => item.id === tab) ? (tab as ProjectTabId) : DEFAULT_PROJECT_TAB;
 }
 
-function readStoredWidth(): number {
-  try {
-    const raw = Number(window.localStorage.getItem(AI_WIDTH_KEY));
-    if (Number.isFinite(raw) && raw >= AI_PANEL_MIN_WIDTH && raw <= AI_PANEL_MAX_WIDTH) return raw;
-  } catch {
-    // localStorage 접근 불가 시 기본값 사용
-  }
-  return AI_PANEL_DEFAULT_WIDTH;
-}
-
-function readStoredCollapsed(): boolean {
-  try {
-    return window.localStorage.getItem(AI_COLLAPSED_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-
 /**
  * 앱 셸.
  *
- *   [레일] [ AI 패널 ] [ 상단바 + 보조 탭 + 본문 ]
+ *   [레일] [ 상단바 + 보조 탭 + 본문 ]
  *
  * - 레일: 프로젝트와 무관한 전역 메뉴
- * - AI 패널: 항상 열려 있고 폭 조절 · 접기 가능 (Ctrl+/)
- * - 상단바: 프로젝트 전환 + 작업 탭 5개
- * - 오른쪽 아래 ?: 화면별 사용 안내
+ * - 상단바: 프로젝트 전환 + 작업 탭, 오른쪽에 도움말 · 알림
+ * - 오른쪽 아래 AI 버튼: AI 키가 등록돼 있을 때만 보이고, 누르면 채팅 창이 뜬다 (Ctrl+/)
  */
 export function Layout() {
   const navigate = useNavigate();
@@ -66,11 +39,9 @@ export function Layout() {
   const admin = auth?.role === 'ADMIN';
 
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
-  const [aiWidth, setAiWidth] = useState(readStoredWidth);
-  const [aiCollapsed, setAiCollapsed] = useState(readStoredCollapsed);
+  const [aiAvailable, setAiAvailable] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [viewport, setViewport] = useState(() => window.innerWidth);
-  const [overlayOpen, setOverlayOpen] = useState(false);
 
   const projectWorkspaceMatch = location.pathname.match(/^\/projects\/([^/]+)/);
   const activeProjectId = projectId ?? projectWorkspaceMatch?.[1];
@@ -99,45 +70,32 @@ export function Layout() {
     };
   }, [activeProjectId]);
 
-  // 창 크기가 바뀌면 패널 · 캔버스 배분을 다시 계산한다.
+  // 관리자가 AI 설정에서 키를 넣거나 빼면 화면을 옮길 때 반영된다.
   useEffect(() => {
-    const onResize = () => setViewport(window.innerWidth);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+    let ignore = false;
+    api.getAiAvailability()
+      .then((availability) => {
+        if (!ignore) setAiAvailable(availability.anyConfigured);
+      })
+      .catch(() => {
+        if (!ignore) setAiAvailable(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [location.pathname]);
 
-  const handleWidthChange = useCallback((width: number) => {
-    setAiWidth(width);
-    try {
-      window.localStorage.setItem(AI_WIDTH_KEY, String(width));
-    } catch {
-      // 저장 실패는 무시한다.
-    }
-  }, []);
-
-  const toggleAiPanel = useCallback(() => {
-    setAiCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem(AI_COLLAPSED_KEY, String(next));
-      } catch {
-        // 저장 실패는 무시한다.
-      }
-      return next;
-    });
-  }, []);
-
-  // Ctrl+/ : AI 패널, Ctrl+K : 프로젝트 전환 (? 메뉴의 단축키 목록과 같아야 한다)
+  // Ctrl+/ : AI 채팅, Ctrl+K : 프로젝트 전환, Esc : AI 채팅 닫기 (? 메뉴의 단축키 목록과 같아야 한다)
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAiOpen(false);
+        return;
+      }
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.key === '/') {
         event.preventDefault();
-        if (window.innerWidth < OVERLAY_BREAKPOINT) {
-          setOverlayOpen((prev) => !prev);
-        } else {
-          toggleAiPanel();
-        }
+        if (aiAvailable) setAiOpen((prev) => !prev);
       } else if (event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setProjectSwitcherOpen(true);
@@ -145,7 +103,7 @@ export function Layout() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [toggleAiPanel]);
+  }, [aiAvailable]);
 
   const handleLogout = async () => {
     try {
@@ -165,44 +123,11 @@ export function Layout() {
     ? `${activeProject?.projectName ?? activeProjectId} · ${tabLabel(currentTab)}`
     : `전체 · ${railLabelOf(location.pathname) ?? 'AI-TestOps'}`;
 
-  // 좁은 화면에서는 패널이 캔버스를 밀지 않고 겹쳐 뜬다.
-  const overlayMode = viewport < OVERLAY_BREAKPOINT;
-  const panelOpen = overlayMode ? overlayOpen : !aiCollapsed;
-  // 넓은 화면에서도 캔버스가 너무 좁아지면 패널 폭을 깎는다.
-  const panelWidth = overlayMode
-    ? Math.min(aiWidth, Math.max(AI_PANEL_MIN_WIDTH, viewport - RAIL_WIDTH - 24))
-    : Math.min(aiWidth, Math.max(AI_PANEL_MIN_WIDTH, viewport - RAIL_WIDTH - CANVAS_MIN_WIDTH));
-  const handleTogglePanel = overlayMode
-    ? () => setOverlayOpen((prev) => !prev)
-    : toggleAiPanel;
-
-  // 하단 리소스 바가 캔버스 영역에만 걸리도록 왼쪽 여백을 셸이 알려준다.
-
   return (
     <div
       className="relative flex h-screen overflow-hidden"
     >
-      <AppRail admin={admin} aiCollapsed={!panelOpen} onToggleAi={handleTogglePanel} />
-
-      {overlayMode && panelOpen && (
-        <button
-          type="button"
-          aria-label="AI 패널 닫기"
-          className="absolute inset-0 z-30 bg-foreground/30"
-          onClick={() => setOverlayOpen(false)}
-        />
-      )}
-
-      {panelOpen && (
-        <AiPanel
-          width={panelWidth}
-          onWidthChange={handleWidthChange}
-          onCollapse={handleTogglePanel}
-          contextLabel={contextLabel}
-          projectId={activeProjectId}
-          overlay={overlayMode}
-        />
-      )}
+      <AppRail admin={admin} />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar
@@ -211,19 +136,32 @@ export function Layout() {
           activeProject={activeProject}
           currentTab={currentTab}
           auth={auth}
+          projectTab={inProjectWorkspace ? currentTab : undefined}
           onOpenProjectSwitcher={() => setProjectSwitcherOpen(true)}
           onLogout={handleLogout}
         />
         {inProjectWorkspace && activeProjectId && (
           <SubTabBar projectId={activeProjectId} currentTab={currentTab} />
         )}
-        {/* 리소스 바를 본문 아래에 붙여 둔다. 화면 위에 띄우면 바가 여러 줄로 늘어날 때 본문 아래쪽을 덮는다 */}
+        {/* 리소스 바를 본문 아래에 붙여 둔다. AI 버튼 · 채팅 창도 본문 안에 띄워 바를 가리지 않는다 */}
         <div className="relative min-h-0 flex-1">
           {/* @container — 아래 화면들은 창 폭이 아니라 이 캔버스 폭을 기준으로 배치된다 */}
           <main className="@container h-full overflow-auto pb-16">
             <Outlet />
           </main>
-          <HelpMenu pathname={location.pathname} projectTab={inProjectWorkspace ? currentTab : undefined} />
+          {aiAvailable && (aiOpen ? (
+            <AiPanel onClose={() => setAiOpen(false)} contextLabel={contextLabel} projectId={activeProjectId} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="absolute bottom-4 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-ai-accent text-ai-accent-foreground shadow-2xl transition-transform hover:scale-105"
+              title="AI에게 묻기 (Ctrl+/)"
+              aria-label="AI 채팅 열기"
+            >
+              <Sparkles className="h-5 w-5" />
+            </button>
+          ))}
         </div>
         <ResourceStatusBar />
       </div>
