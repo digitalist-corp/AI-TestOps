@@ -6,6 +6,6 @@ test.describe('{{projectName}} smoke', () => {
     const home = new HomePage(page);
     await home.goto();
     await home.expectTitle();
-    await expect(page).toHaveTitle(/Example Domain/);
+    await expect(page.locator('body')).toBeVisible();
   });
 });

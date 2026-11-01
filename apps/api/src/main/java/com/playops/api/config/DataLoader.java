@@ -76,7 +76,7 @@ public class DataLoader implements CommandLineRunner {
         seedDemoProject(60, "playops-self", "AI-TestOps Self Regression", ProjectServerType.DEV,
                 "http://host.docker.internal:" + webPort, RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION,
                 RunnerLifecycle.EPHEMERAL,
-                "AI-TestOps가 자기 자신(로그인·프로젝트 등록·소스 탐색기·시나리오·실행·결과·게시판)을 테스트하는 dogfooding 프로젝트입니다.",
+                "AI-TestOps가 자기 자신(로그인·프로젝트 등록·소스 탐색기·시나리오·실행·결과·알림)을 테스트하는 dogfooding 프로젝트입니다.",
                 "AI-TestOps 배포 후 자체 회귀 테스트 (CI/CD 게이트)", true);
 
         seedSelfTestSuite();

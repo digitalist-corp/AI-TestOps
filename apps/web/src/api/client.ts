@@ -2,13 +2,8 @@ import type {
   AiAnalysisRequest,
   AiAnalysisResponse,
   AiChatRequest,
+  AppNotification,
   AuthUser,
-  BoardPost,
-  BoardPostComment,
-  BoardPostCommentFormData,
-  BoardPostFormData,
-  BoardPostReactionFormData,
-  BoardPostType,
   DockerHostResource,
   Execution,
   ExecutionDetail,
@@ -128,43 +123,9 @@ export const api = {
   logout: () =>
     request<void>('/api/auth/logout', { method: 'POST' }),
 
-  getBoardPosts: (type?: BoardPostType | 'ALL', includeHidden = false) => {
-    const params = new URLSearchParams();
-    if (type && type !== 'ALL') params.set('type', type);
-    if (includeHidden) params.set('includeHidden', 'true');
-    const query = params.toString();
-    return request<BoardPost[]>(`/api/board-posts${query ? `?${query}` : ''}`);
-  },
-
-  getVisibleNotices: () =>
-    request<BoardPost[]>('/api/board-posts/notices/visible'),
-
-  createBoardPost: (data: BoardPostFormData) =>
-    request<BoardPost>('/api/board-posts', { method: 'POST', body: JSON.stringify(data) }),
-
-  updateBoardPost: (id: number, data: BoardPostFormData) =>
-    request<BoardPost>(`/api/board-posts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-
-  deleteBoardPost: (id: number) =>
-    request<void>(`/api/board-posts/${id}`, { method: 'DELETE' }),
-
-  getBoardPostComments: (id: number) =>
-    request<BoardPostComment[]>(`/api/board-posts/${id}/comments`),
-
-  createBoardPostComment: (id: number, data: BoardPostCommentFormData) =>
-    request<BoardPostComment>(`/api/board-posts/${id}/comments`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-
-  deleteBoardPostComment: (commentId: number) =>
-    request<void>(`/api/board-posts/comments/${commentId}`, { method: 'DELETE' }),
-
-  updateBoardPostReaction: (id: number, data: BoardPostReactionFormData) =>
-    request<BoardPost>(`/api/board-posts/${id}/reaction`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    }),
+  getNotifications: () => request<AppNotification[]>('/api/notifications'),
+  deleteNotification: (id: number) => request<void>(`/api/notifications/${id}`, { method: 'DELETE' }),
+  deleteAllNotifications: () => request<void>('/api/notifications', { method: 'DELETE' }),
 
   getProjects: () => request<Project[]>('/api/projects'),
   getAiAvailability: () =>

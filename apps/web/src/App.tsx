@@ -8,7 +8,6 @@ import { AiSettingsPage } from '@/pages/AiSettingsPage';
 import { AiJobsPage } from '@/pages/AiJobsPage';
 import { TemplatesPage } from '@/pages/TemplatesPage';
 import { RunnerContainersPage } from '@/pages/RunnerContainersPage';
-import { BoardPage } from '@/pages/BoardPage';
 import { getStoredAuth } from '@/api/client';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -37,7 +36,6 @@ export function App() {
           />
           <Route path="projects/:projectId/:tab" element={<ProjectDetailPage />} />
           <Route path="runners" element={<RunnerContainersPage />} />
-          <Route path="board" element={<BoardPage />} />
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="ai-jobs" element={<AiJobsPage />} />
           <Route path="ai-settings" element={<AiSettingsPage />} />
