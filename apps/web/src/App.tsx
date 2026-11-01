@@ -9,6 +9,7 @@ import { AiJobsPage } from '@/pages/AiJobsPage';
 import { TemplatesPage } from '@/pages/TemplatesPage';
 import { RunnerContainersPage } from '@/pages/RunnerContainersPage';
 import { getStoredAuth } from '@/api/client';
+import { AiEnabledProvider } from '@/lib/aiEnabled';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const auth = getStoredAuth();
@@ -24,7 +25,9 @@ export function App() {
         <Route
           element={
             <ProtectedRoute>
-              <Layout />
+              <AiEnabledProvider>
+                <Layout />
+              </AiEnabledProvider>
             </ProtectedRoute>
           }
         >
