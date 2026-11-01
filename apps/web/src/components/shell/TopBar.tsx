@@ -7,8 +7,9 @@ import { LiveClock } from '@/components/console/ConsoleText';
 import { THEME_LABEL, useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { projectTabPath, type ProjectTabId } from '@/config/projectWorkspace';
-import { WORKSPACE_GROUPS, groupOfTab, railLabelOf, tabLabel } from '@/config/shellNav';
+import { groupOfTab, railLabelOf, tabLabel, visibleWorkspaceGroups } from '@/config/shellNav';
 
 /**
  * 상단바: 프로젝트 전환 + 작업 탭 5개 + 계정.
@@ -62,7 +63,7 @@ export function TopBar({
 
       {inProject && activeProjectId ? (
         <nav className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {WORKSPACE_GROUPS.map(({ id, label, icon: Icon, tabs }) => {
+          {visibleWorkspaceGroups(useAiEnabled().active).map(({ id, label, icon: Icon, tabs, aiOnly }) => {
             const active = activeGroup.id === id;
             return (
               <NavLink
@@ -73,8 +74,12 @@ export function TopBar({
                 className={cn(
                   'flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors',
                   active
-                    ? 'bg-primary/10 text-primary ring-1 ring-primary/25 dark:shadow-[inset_0_-2px_0_var(--color-primary)] dark:ring-primary/30'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    ? aiOnly
+                      ? 'bg-ai-accent/15 text-ai-accent ring-1 ring-ai-accent/30 dark:shadow-[inset_0_-2px_0_var(--color-ai-accent)]'
+                      : 'bg-primary/10 text-primary ring-1 ring-primary/25 dark:shadow-[inset_0_-2px_0_var(--color-primary)] dark:ring-primary/30'
+                    : aiOnly
+                      ? 'text-ai-accent hover:bg-ai-accent/10'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
                 <Icon className="h-4 w-4" />

@@ -5,7 +5,6 @@ import { ProjectsPage } from '@/pages/ProjectsPage';
 import { ProjectDetailPage } from '@/pages/ProjectDetailPage';
 import { UsersPage } from '@/pages/UsersPage';
 import { AiSettingsPage } from '@/pages/AiSettingsPage';
-import { AiJobsPage } from '@/pages/AiJobsPage';
 import { TemplatesPage } from '@/pages/TemplatesPage';
 import { RunnerContainersPage } from '@/pages/RunnerContainersPage';
 import { getStoredAuth } from '@/api/client';
@@ -40,7 +39,7 @@ export function App() {
           <Route path="projects/:projectId/:tab" element={<ProjectDetailPage />} />
           <Route path="runners" element={<RunnerContainersPage />} />
           <Route path="templates" element={<TemplatesPage />} />
-          <Route path="ai-jobs" element={<AiJobsPage />} />
+          <Route path="ai-jobs" element={<Navigate to="/projects" replace />} />
           <Route path="ai-settings" element={<AiSettingsPage />} />
           <Route path="users" element={<UsersPage />} />
         </Route>
