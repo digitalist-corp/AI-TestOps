@@ -87,6 +87,7 @@ type StopReason = 'END' | 'CANCELLED' | 'MAX_TURNS' | 'ERROR';
 | `search_logs` | READ | 신규 — 실행 로그에서 검색 (executionId 지정 또는 최근 N개) |
 | `get_case_history` | READ | 신규 — 케이스 이름으로 최근 실행 결과 이력 |
 | `run_tests` | RUN | 신규 — spec 경로/케이스 grep 으로 실행 시작 (display=execution) |
+| `set_env_variables` | RUN | 프로젝트 환경변수 저장 (허락 필요, 비밀 값은 화면 · DB 에서 가림) |
 
 ## SQL 안전 (`sql_query`)
 - 별도 스키마 `ai_ro` 에 **안전한 열만 고른 뷰**를 만들고, NOLOGIN 역할 `ai_readonly` 에 `USAGE ON SCHEMA ai_ro` + 뷰 `SELECT` 만 준다.

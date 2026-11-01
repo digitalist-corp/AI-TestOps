@@ -21,6 +21,7 @@ export const TOOL_LABELS: Record<string, string> = {
   run_tests: '테스트 실행',
   fix_test: '테스트 수정',
   generate_scenario: '테스트 생성',
+  set_env_variables: '환경변수 저장',
 };
 
 export function getToolLabel(name: string): string {

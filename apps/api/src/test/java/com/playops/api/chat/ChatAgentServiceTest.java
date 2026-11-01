@@ -22,10 +22,12 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -179,6 +181,77 @@ class ChatAgentServiceTest {
         ChatBlock tool = savedBlocks("END").get(0);
         assertThat(tool.permission.requestId).isEqualTo(request.get("requestId"));
         assertThat(tool.permission.decision).isEqualTo("ALLOW");
+    }
+
+    @Test
+    void redactedInputGoesToEventsAndSavedBlockButExecuteGetsTheOriginal() {
+        runTool.redactor = input -> {
+            Map<String, Object> shown = new LinkedHashMap<>(input);
+            shown.put("password", "***");
+            return shown;
+        };
+        sink.onEvent = answer("ALLOW");
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("loginId", "kim");
+        args.put("password", "hunter2");
+        llm.then(Turn.text().calls(call("c1", "run_x", args)))
+           .then(Turn.text("저장했어요"));
+
+        ask("계정 저장해 줘");
+
+        Map<String, Object> shown = Map.of("loginId", "kim", "password", "***");
+        assertThat(sink.data("tool_start")).containsEntry("input", shown);
+        assertThat(sink.data("permission_request")).containsEntry("input", shown);
+        assertThat(savedBlocks("END").get(0).input).isEqualTo(shown);
+        // 어느 이벤트에도 원래 비밀번호가 실려 가지 않는다
+        assertThat(sink.payloads.toString()).doesNotContain("hunter2");
+        // 실제 실행에는 원래 값이 간다
+        assertThat(runTool.executed).hasSize(1);
+        assertThat(runTool.executed.get(0).arguments()).containsEntry("password", "hunter2");
+    }
+
+    @Test
+    void redactedInputIsAlsoUsedWhenTheToolIsAlreadyAllowedForTheSession() {
+        session.allowTool("run_x");
+        runTool.redactor = input -> Map.of("password", "***");
+        llm.then(Turn.text().calls(call("c1", "run_x", Map.of("password", "hunter2"))))
+           .then(Turn.text("저장했어요"));
+
+        ask("계정 저장해 줘");
+
+        assertThat(sink.names()).doesNotContain("permission_request");
+        assertThat(sink.data("tool_start")).containsEntry("input", Map.of("password", "***"));
+        assertThat(savedBlocks("END").get(0).input).isEqualTo(Map.of("password", "***"));
+        assertThat(runTool.executed.get(0).arguments()).containsEntry("password", "hunter2");
+    }
+
+    @Test
+    void ifRedactingFailsNothingOfTheInputIsShown() {
+        runTool.redactor = input -> {
+            throw new IllegalStateException("가리기 실패");
+        };
+        sink.onEvent = answer("ALLOW");
+        llm.then(Turn.text().calls(call("c1", "run_x", Map.of("password", "hunter2"))))
+           .then(Turn.text("끝"));
+
+        ask("돌려 줘");
+
+        assertThat(sink.data("tool_start")).containsEntry("input", Map.of());
+        assertThat(sink.data("permission_request")).containsEntry("input", Map.of());
+        assertThat(savedBlocks("END").get(0).input).isEmpty();
+        assertThat(runTool.executed.get(0).arguments()).containsEntry("password", "hunter2");
+    }
+
+    @Test
+    void unregisteredToolKeepsItsInputAsIs() {
+        llm.then(Turn.text().calls(call("c1", "nope_x", Map.of("password", "hunter2"))))
+           .then(Turn.text("없는 도구였어요"));
+
+        ask("이상한 거 해 줘");
+
+        assertThat(sink.data("tool_start")).containsEntry("input", Map.of("password", "hunter2"));
+        assertThat(sink.data("tool_end")).containsEntry("status", "error");
+        assertThat(savedBlocks("END").get(0).input).isEqualTo(Map.of("password", "hunter2"));
     }
 
     @Test
@@ -460,11 +533,20 @@ class ChatAgentServiceTest {
         private final String name;
         private final ToolTier tier;
         final List<ChatToolContext> contexts = new ArrayList<>();
+        /** execute 가 받은 호출 그대로 (가리지 않은 원래 입력이 왔는지 확인용) */
+        final List<LlmToolCall> executed = new ArrayList<>();
         ChatToolOutput output = ChatToolOutput.ok("완료", "완료");
+        /** 입력 가리기를 흉내 낸다. 기본은 가리지 않음 */
+        UnaryOperator<Map<String, Object>> redactor = UnaryOperator.identity();
 
         FakeTool(String name, ToolTier tier) {
             this.name = name;
             this.tier = tier;
+        }
+
+        @Override
+        public Map<String, Object> redactInput(Map<String, Object> input) {
+            return redactor.apply(input);
         }
 
         @Override
@@ -480,6 +562,7 @@ class ChatAgentServiceTest {
         @Override
         public ChatToolOutput execute(LlmToolCall call, ChatToolContext context) {
             contexts.add(context);
+            executed.add(call);
             return output;
         }
     }

@@ -1,24 +1,40 @@
 package com.playops.api.chat.tools;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playops.api.chat.ChatTool;
 import com.playops.api.chat.ChatToolContext;
 import com.playops.api.chat.ChatToolOutput;
 import com.playops.api.chat.ToolTier;
+import com.playops.api.exception.ApiException;
 import com.playops.api.llm.LlmToolCall;
 import com.playops.api.llm.LlmToolSpec;
 import com.playops.api.service.ProjectService;
 import com.playops.api.util.ProjectEnvVariables;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * AI 채팅에서 테스트에 필요한 로그인 계정 및 환경변수를 프로젝트 설정에 직접 저장하는 도구.
  * 사용자가 알려준 아이디, 비밀번호를 LOGIN_ID, LOGIN_PASSWORD, USERNAME, PASSWORD 로 저장한다.
+ *
+ * 기존 값을 바로 덮어쓰므로 RUN 이다 — 에이전트 루프가 허락 카드를 먼저 띄운다.
+ * 비밀번호 같은 값은 화면 · 저장된 대화에 남지 않게 redactInput 으로 가린다. 실제 저장에는 원래 값을 쓴다.
  */
 @Component
 public class SetEnvVariablesTool implements ChatTool {
+
+    static final String MASK = "***";
+    /** 키 이름에 이 낱말이 들어 있으면 비밀 값으로 본다 (대소문자 무시). */
+    private static final List<String> SECRET_WORDS = List.of("PASSWORD", "SECRET", "TOKEN", "KEY");
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final ProjectService projectService;
 
@@ -31,7 +47,9 @@ public class SetEnvVariablesTool implements ChatTool {
         return new LlmToolSpec(
                 "set_env_variables",
                 "프로젝트의 환경변수(로그인 아이디, 비밀번호, 기타 변수)를 설정하거나 변경한다. "
-                        + "로그인 테스트나 사이트 탐색에 필요한 로그인 계정(loginId, loginPassword)을 직접 저장할 수 있다.",
+                        + "로그인 테스트나 사이트 탐색에 필요한 로그인 계정(loginId, loginPassword)을 직접 저장할 수 있다. "
+                        + "기존 값을 덮어쓰므로 저장 전에 사용자의 허락을 받는다. "
+                        + "비밀번호와 토큰은 화면에 가려서 보이니, 답변 글에 다시 쓰지 말 것.",
                 LlmToolSpec.schema(
                         CoreToolSupport.withProjectId(Map.of(
                                 "loginId", LlmToolSpec.string("로그인 아이디 또는 사용자명 (LOGIN_ID, USERNAME 에 저장)"),
@@ -44,12 +62,82 @@ public class SetEnvVariablesTool implements ChatTool {
 
     @Override
     public ToolTier tier() {
-        return ToolTier.CHANGE;
+        return ToolTier.RUN;
+    }
+
+    /** 허락 창에는 바꿀 키 이름만 보인다. 값은 넣지 않는다. */
+    @Override
+    public String permissionReason(LlmToolCall call) {
+        return permissionReason(call, null);
+    }
+
+    @Override
+    public String permissionReason(LlmToolCall call, ChatToolContext context) {
+        Map<String, String> additions = collectAdditions(call);
+        if (additions.isEmpty()) {
+            return "프로젝트 환경변수를 저장합니다";
+        }
+        Set<String> existing = existingKeys(call, context);
+        String keys = additions.keySet().stream()
+                .map(key -> existing != null && existing.contains(key) ? key + "(기존 값 덮어씀)" : key)
+                .collect(Collectors.joining(", "));
+        // 기존 값을 확인하지 못했으면 덮어쓸 수 있다고 미리 알린다.
+        return "프로젝트 환경변수 " + keys + " 를 저장합니다" + (existing == null ? " (기존 값이 있으면 덮어씀)" : "");
+    }
+
+    /** 화면 · 저장된 대화에 남길 입력. 비밀 키의 값은 ***, variables 안의 비밀 항목 값도 ***. */
+    @Override
+    public Map<String, Object> redactInput(Map<String, Object> input) {
+        if (input == null) {
+            return null;
+        }
+        Map<String, Object> shown = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : input.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (value == null) {
+                shown.put(key, null);
+            } else if ("variables".equals(key)) {
+                shown.put(key, redactVariables(value));
+            } else if (isSecretKey(key)) { // loginPassword 와, 스키마에 없지만 모델이 붙인 비밀 이름 인자
+                shown.put(key, MASK);
+            } else {
+                shown.put(key, value);
+            }
+        }
+        return shown;
     }
 
     @Override
     public ChatToolOutput execute(LlmToolCall call, ChatToolContext context) {
-        String projectId = context.projectIdFor(call);
+        String projectId;
+        try {
+            projectId = ToolSupport.requireProject(call, context);
+        } catch (ApiException e) {
+            return ToolSupport.failed(e);
+        }
+
+        Map<String, String> additions = collectAdditions(call);
+        if (additions.isEmpty()) {
+            return ChatToolOutput.failed("설정할 환경변수 값(loginId, loginPassword 또는 variables)이 없습니다.");
+        }
+
+        projectService.mergeEnvVariables(projectId, additions);
+
+        // 결과 문구에는 비밀번호를 넣지 않는다. 키 이름과 로그인 아이디만 보인다.
+        StringBuilder sb = new StringBuilder();
+        sb.append("프로젝트 환경변수를 성공적으로 저장했습니다: ");
+        sb.append(String.join(", ", additions.keySet()));
+        if (additions.containsKey("LOGIN_ID")) {
+            sb.append("\n(로그인 아이디: ").append(additions.get("LOGIN_ID")).append(" 설정됨)");
+        }
+        sb.append("\n이제 생성된 테스트 실행이나 사이트 탐색에서 이 환경변수가 사용됩니다.");
+
+        return ChatToolOutput.ok(sb.toString(), "환경변수 설정 (" + String.join(", ", additions.keySet()) + ")");
+    }
+
+    /** 인자에서 저장할 키 · 값을 모은다. execute 와 허락 문구가 같은 규칙을 쓴다. */
+    private Map<String, String> collectAdditions(LlmToolCall call) {
         Map<String, String> additions = new LinkedHashMap<>();
 
         String loginId = call.arg("loginId");
@@ -82,22 +170,81 @@ public class SetEnvVariablesTool implements ChatTool {
                 parseKeyValueLines(trimmed, additions);
             }
         }
+        return additions;
+    }
 
-        if (additions.isEmpty()) {
-            return ChatToolOutput.failed("설정할 환경변수 값(loginId, loginPassword 또는 variables)이 없습니다.");
+    /** 프로젝트에 이미 값이 들어 있는 키. 확인하지 못하면 null. */
+    private Set<String> existingKeys(LlmToolCall call, ChatToolContext context) {
+        if (context == null) {
+            return null;
         }
-
-        projectService.mergeEnvVariables(projectId, additions);
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("프로젝트 환경변수를 성공적으로 저장했습니다: ");
-        sb.append(String.join(", ", additions.keySet()));
-        if (additions.containsKey("LOGIN_ID")) {
-            sb.append("\n(로그인 아이디: ").append(additions.get("LOGIN_ID")).append(" 설정됨)");
+        try {
+            String projectId = ToolSupport.requireProject(call, context);
+            Map<String, String> env = ProjectEnvVariables.parse(projectService.getProject(projectId).getEnvVariables());
+            return env.entrySet().stream()
+                    .filter(entry -> entry.getValue() != null && !entry.getValue().isBlank())
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
+        } catch (Exception e) {
+            return null;
         }
-        sb.append("\n이제 생성된 테스트 실행이나 사이트 탐색에서 이 환경변수가 사용됩니다.");
+    }
 
-        return ChatToolOutput.ok(sb.toString(), "환경변수 설정 (" + String.join(", ", additions.keySet()) + ")");
+    private static boolean isSecretKey(String key) {
+        if (key == null) {
+            return false;
+        }
+        String upper = key.toUpperCase();
+        return SECRET_WORDS.stream().anyMatch(upper::contains);
+    }
+
+    /** variables 는 JSON 문자열, KEY=VALUE 줄, 객체 모두 올 수 있다. 어느 모양이든 비밀 키의 값만 가린다. */
+    private Object redactVariables(Object variables) {
+        if (variables instanceof Map<?, ?> map) {
+            return maskSecrets(map);
+        }
+        String text = String.valueOf(variables).trim();
+        if (text.startsWith("{")) {
+            try {
+                return MAPPER.writeValueAsString(maskSecrets(MAPPER.readValue(text, MAP_TYPE)));
+            } catch (Exception e) {
+                // execute 와 마찬가지로 줄 단위로 읽는다.
+            }
+        }
+        List<String> lines = new ArrayList<>();
+        for (String line : text.split("[\r\n,]+")) {
+            line = line.trim();
+            if (line.isEmpty()) continue;
+            int eq = line.indexOf('=');
+            if (eq > 0) {
+                String key = line.substring(0, eq).trim();
+                lines.add(isSecretKey(key) ? key + "=" + MASK : line);
+            } else {
+                // KEY=VALUE 모양이 아니어도 비밀 이름이 보이면 통째로 가린다 (저장되진 않지만 화면 · 기록에는 남는다).
+                lines.add(isSecretKey(line) ? MASK : line);
+            }
+        }
+        return String.join("\n", lines);
+    }
+
+    /** 비밀 키의 값을 *** 로 바꾼 새 맵. 안쪽 객체 · 목록도 같은 규칙으로 가린다. */
+    private static Map<String, Object> maskSecrets(Map<?, ?> source) {
+        Map<String, Object> masked = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            String key = String.valueOf(entry.getKey());
+            masked.put(key, isSecretKey(key) ? MASK : maskNested(entry.getValue()));
+        }
+        return masked;
+    }
+
+    private static Object maskNested(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return maskSecrets(map);
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().map(SetEnvVariablesTool::maskNested).toList();
+        }
+        return value;
     }
 
     private void parseKeyValueLines(String text, Map<String, String> target) {
