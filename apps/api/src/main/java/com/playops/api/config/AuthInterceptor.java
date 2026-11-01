@@ -17,6 +17,8 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private static final int GENERAL_API_LIMIT_PER_MIN = 120;
     private static final int AI_CHAT_LIMIT_PER_MIN = 10;
+    private static final java.util.regex.Pattern AI_CHAT_REPLY_PATH =
+            java.util.regex.Pattern.compile("^/api/ai/chat/sessions/\\d+/messages$");
 
     private final AuthService authService;
     private final Map<String, RateWindow> generalRateWindows = new ConcurrentHashMap<>();
@@ -29,6 +31,12 @@ public class AuthInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+        // SSE(채팅 답변 · 로그 스트림)가 끝날 때 스프링이 같은 요청을 한 번 더 디스패치한다. 첫 요청에서 이미
+        // 인증 · 한도 검사를 했으므로 다시 세지 않는다 (다시 세면 답변 한 번이 한도 두 번으로 잡힌다).
+        if (request.getDispatcherType() == jakarta.servlet.DispatcherType.ASYNC
+                && request.getAttribute("currentUser") != null) {
             return true;
         }
 
@@ -64,7 +72,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         String userKey = String.valueOf(user.getId() != null ? user.getId() : user.getUsername());
-        if (path.equals("/api/ai/chat")) {
+        // 세션 채팅의 답변 요청도 모델 호출이므로 같은 AI 채팅 한도를 쓴다 (허락 · 중단 요청은 제외).
+        if (path.equals("/api/ai/chat") || AI_CHAT_REPLY_PATH.matcher(path).matches()) {
             if (!allowRequest(aiChatRateWindows, userKey, AI_CHAT_LIMIT_PER_MIN)) {
                 writeRateLimitResponse(response, "AI 채팅 호출 한도(분당 10회)를 초과했습니다.");
                 return false;
