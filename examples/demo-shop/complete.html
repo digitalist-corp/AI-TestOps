@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주문 완료 — 데모샵</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="complete">
+  <!-- 상단 공통 헤더 -->
+  <header class="site-header">
+    <div class="container header-container">
+      <a href="index.html" class="brand-logo" data-testid="brand-logo">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+        </div>
+        <span>데모샵</span>
+      </a>
+      <nav aria-label="주요 내비게이션">
+        <ul class="nav-menu">
+          <li><a href="products.html" class="nav-link" data-testid="nav-products">상품</a></li>
+          <li>
+            <a href="cart.html" class="nav-link" data-testid="nav-cart">
+              장바구니
+              <span id="cart-badge" class="badge" data-testid="cart-badge">0</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div id="header-auth-area" class="header-auth" data-testid="header-auth">
+        <!-- JS로 동적 렌더링 -->
+        <a href="login.html" id="login-nav-link" class="nav-link" data-testid="login-nav-link">로그인</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 본문 -->
+  <main>
+    <div class="container">
+      <div class="complete-wrapper">
+        <div class="complete-card">
+          <div class="success-icon-wrap" aria-hidden="true">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+
+          <h1 class="complete-title" data-testid="order-complete-title">주문이 완료되었습니다</h1>
+          <p class="complete-desc">고객님의 소중한 주문이 정상적으로 접수되었습니다.</p>
+
+          <div class="order-info-box">
+            <div class="order-info-row">
+              <span class="label">주문 번호</span>
+              <span id="order-id" class="val" data-testid="order-number">ORD-20261101-0000</span>
+            </div>
+            <div class="order-info-row">
+              <span class="label">결제 금액</span>
+              <span id="order-price" class="val" data-testid="order-price">0원</span>
+            </div>
+            <div class="order-info-row">
+              <span class="label">배송지 정보</span>
+              <span id="order-receiver" class="val" data-testid="order-receiver">-</span>
+            </div>
+          </div>
+
+          <div>
+            <a href="products.html" class="btn btn-primary btn-lg" data-testid="continue-shopping">
+              쇼핑 계속하기
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 하단 푸터 -->
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 데모샵 (Demo Shop). AI-TestOps 사용자 가이드 테스트 사이트.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

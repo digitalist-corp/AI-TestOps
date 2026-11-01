@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>주문/결제 — 데모샵</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="checkout">
+  <!-- 상단 공통 헤더 -->
+  <header class="site-header">
+    <div class="container header-container">
+      <a href="index.html" class="brand-logo" data-testid="brand-logo">
+        <div class="brand-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <path d="M16 10a4 4 0 0 1-8 0"></path>
+          </svg>
+        </div>
+        <span>데모샵</span>
+      </a>
+      <nav aria-label="주요 내비게이션">
+        <ul class="nav-menu">
+          <li><a href="products.html" class="nav-link" data-testid="nav-products">상품</a></li>
+          <li>
+            <a href="cart.html" class="nav-link" data-testid="nav-cart">
+              장바구니
+              <span id="cart-badge" class="badge" data-testid="cart-badge">0</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+      <div id="header-auth-area" class="header-auth" data-testid="header-auth">
+        <!-- JS로 동적 렌더링 -->
+        <a href="login.html" id="login-nav-link" class="nav-link" data-testid="login-nav-link">로그인</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 본문 -->
+  <main>
+    <div class="container">
+      <div class="section-header">
+        <h1 class="section-title">주문 / 결제</h1>
+        <p class="section-desc">배송 정보를 입력하고 결제 방식을 선택해 주세요.</p>
+      </div>
+
+      <div id="checkout-error" class="alert alert-danger" role="alert" style="display: none;" data-testid="checkout-error">
+        모든 필수 항목을 입력해 주세요.
+      </div>
+
+      <form id="checkout-form" novalidate>
+        <div class="checkout-layout">
+          <!-- 왼쪽 폼: 배송지 & 결제 수단 -->
+          <div>
+            <section class="checkout-section">
+              <h2 class="checkout-section-title">배송 정보</h2>
+
+              <div class="form-group">
+                <label for="receiver-name" class="form-label">
+                  받는 사람 이름 <span class="required">*</span>
+                </label>
+                <input type="text" 
+                       id="receiver-name" 
+                       name="receiverName" 
+                       class="form-input" 
+                       placeholder="예: 홍길동" 
+                       required 
+                       data-testid="checkout-name">
+              </div>
+
+              <div class="form-group">
+                <label for="receiver-phone" class="form-label">
+                  연락처 <span class="required">*</span>
+                </label>
+                <input type="tel" 
+                       id="receiver-phone" 
+                       name="receiverPhone" 
+                       class="form-input" 
+                       placeholder="예: 010-1234-5678" 
+                       required 
+                       data-testid="checkout-phone">
+              </div>
+
+              <div class="form-group">
+                <label for="receiver-address" class="form-label">
+                  주소 <span class="required">*</span>
+                </label>
+                <input type="text" 
+                       id="receiver-address" 
+                       name="receiverAddress" 
+                       class="form-input" 
+                       placeholder="예: 서울특별시 강남구 테헤란로 123" 
+                       required 
+                       data-testid="checkout-address">
+              </div>
+            </section>
+
+            <section class="checkout-section">
+              <h2 class="checkout-section-title">결제 방법</h2>
+
+              <div class="radio-group" role="radiogroup" aria-labelledby="payment-method-heading">
+                <span id="payment-method-heading" class="sr-only">결제 수단 선택</span>
+                <label class="radio-card" for="pay-card">
+                  <input type="radio" 
+                         id="pay-card" 
+                         name="paymentMethod" 
+                         value="card" 
+                         checked 
+                         data-testid="payment-card">
+                  <span>신용 / 체크카드</span>
+                </label>
+
+                <label class="radio-card" for="pay-transfer">
+                  <input type="radio" 
+                         id="pay-transfer" 
+                         name="paymentMethod" 
+                         value="transfer" 
+                         data-testid="payment-transfer">
+                  <span>실시간 계좌이체</span>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <!-- 오른쪽 주문 요약 -->
+          <div>
+            <div class="order-summary-card">
+              <h2 class="summary-title">주문 내역 확인</h2>
+              
+              <div id="checkout-items" style="margin-bottom: 16px;">
+                <!-- JS로 품목 리스트 주입 -->
+              </div>
+
+              <div class="summary-row">
+                <span>배송비</span>
+                <span style="color: var(--success); font-weight: 600;">무료</span>
+              </div>
+
+              <div class="summary-total">
+                <span>총 결제 금액</span>
+                <span id="checkout-total-price" class="summary-total-price" data-testid="checkout-total-price">0원</span>
+              </div>
+
+              <button type="submit" 
+                      id="checkout-submit" 
+                      class="btn btn-primary btn-block btn-lg" 
+                      data-testid="checkout-submit">
+                결제하기
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <!-- 하단 푸터 -->
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 데모샵 (Demo Shop). AI-TestOps 사용자 가이드 테스트 사이트.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
