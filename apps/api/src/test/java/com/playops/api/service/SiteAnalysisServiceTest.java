@@ -107,7 +107,11 @@ class SiteAnalysisServiceTest {
         assertThat(detail.node().authRequired()).isTrue();
         assertThat(detail.node().passedCount()).isEqualTo(1);
         assertThat(detail.node().failedCount()).isEqualTo(1);
-        assertThat(detail.node().unverifiedCount()).isEqualTo(2);
+        // 사이트 탐색으로 본 요소(OBSERVED)는 "아직 안 봄"에 세지 않는다. 넷을 더하면 요소 수다.
+        assertThat(detail.node().observedCount()).isEqualTo(1);
+        assertThat(detail.node().unverifiedCount()).isEqualTo(1);
+        assertThat(detail.node().passedCount() + detail.node().failedCount() + detail.node().observedCount()
+                + detail.node().unverifiedCount()).isEqualTo(detail.node().elementCount());
         assertThat(detail.tests()).extracting(SiteAnalysisService.ScreenTestSummary::specPath)
                 .containsExactly("tests/login-flow.spec.ts", "tests/never.spec.ts");
         SiteAnalysisService.ScreenTestSummary latest = detail.tests().get(0);
@@ -266,5 +270,154 @@ class SiteAnalysisServiceTest {
                 Map.of("idx", 3, "tag", "div", "role", "button", "unique", false));
         assertThat(element.get("kind")).isEqualTo("button");
         assertThat(element.get("verification")).isEqualTo("UNVERIFIED");
+    }
+
+    @Test
+    void manualNodeNormalizesFullUrlAndSavesEdgeAndNote() {
+        when(nodeRepository.findByProjectIdOrderByRouteKey("p")).thenReturn(List.of());
+        when(editRepository.findByProjectId("p")).thenReturn(List.of());
+        when(edgeRepository.findByProjectId("p")).thenReturn(List.of());
+
+        service.saveManualNode("p", new SiteAnalysisService.ManualNodeRequest(
+                "https://www.saucedemo.com/inventory.html",
+                "상품 목록",
+                null,
+                true,
+                "로그인 후 첫 화면",
+                "/",
+                "로그인 성공"
+        ));
+
+        ArgumentCaptor<SiteNode> nodeCaptor = ArgumentCaptor.forClass(SiteNode.class);
+        verify(nodeRepository).save(nodeCaptor.capture());
+        SiteNode savedNode = nodeCaptor.getValue();
+        assertThat(savedNode.getRouteKey()).isEqualTo("/inventory.html");
+        assertThat(savedNode.getOrigin()).isEqualTo(SiteAnalysisService.ORIGIN_MANUAL);
+        assertThat(savedNode.getTitle()).isEqualTo("상품 목록");
+        assertThat(savedNode.getUrl()).isEqualTo("https://www.saucedemo.com/inventory.html");
+        assertThat(savedNode.getAuthRequired()).isTrue();
+        assertThat(savedNode.isStale()).isFalse();
+
+        ArgumentCaptor<com.playops.api.entity.SiteNodeEdit> editCaptor = ArgumentCaptor.forClass(com.playops.api.entity.SiteNodeEdit.class);
+        verify(editRepository).save(editCaptor.capture());
+        assertThat(editCaptor.getValue().getRouteKey()).isEqualTo("/inventory.html");
+        assertThat(editCaptor.getValue().getNote()).isEqualTo("로그인 후 첫 화면");
+
+        ArgumentCaptor<SiteEdge> edgeCaptor = ArgumentCaptor.forClass(SiteEdge.class);
+        verify(edgeRepository).save(edgeCaptor.capture());
+        assertThat(edgeCaptor.getValue().getFromRouteKey()).isEqualTo("/");
+        assertThat(edgeCaptor.getValue().getToRouteKey()).isEqualTo("/inventory.html");
+        assertThat(edgeCaptor.getValue().getLabel()).isEqualTo("로그인 성공");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void deleteNodeRemovesNodeEditAndConnectedEdges() {
+        SiteNode target = node("/inventory.html", null);
+        target.setOrigin(SiteAnalysisService.ORIGIN_MANUAL);
+        SiteNode home = node("/", null);
+        home.setOrigin(SiteAnalysisService.ORIGIN_SITE);
+        when(nodeRepository.findByProjectIdOrderByRouteKey("p")).thenReturn(List.of(home, target));
+
+        com.playops.api.entity.SiteNodeEdit edit = new com.playops.api.entity.SiteNodeEdit();
+        edit.setProjectId("p");
+        edit.setRouteKey("/inventory.html");
+        edit.setNote("메모");
+        when(editRepository.findByProjectId("p")).thenReturn(List.of(edit));
+
+        SiteEdge inEdge = new SiteEdge();
+        inEdge.setProjectId("p");
+        inEdge.setFromRouteKey("/");
+        inEdge.setToRouteKey("/inventory.html");
+        SiteEdge outEdge = new SiteEdge();
+        outEdge.setProjectId("p");
+        outEdge.setFromRouteKey("/inventory.html");
+        outEdge.setToRouteKey("/cart.html");
+        SiteEdge unrelated = new SiteEdge();
+        unrelated.setProjectId("p");
+        unrelated.setFromRouteKey("/");
+        unrelated.setToRouteKey("/about");
+        when(edgeRepository.findByProjectId("p")).thenReturn(List.of(inEdge, outEdge, unrelated));
+
+        service.deleteNode("p", "/inventory.html");
+
+        ArgumentCaptor<List<SiteNode>> deletedNodes = ArgumentCaptor.forClass(List.class);
+        verify(nodeRepository).deleteAll(deletedNodes.capture());
+        assertThat(deletedNodes.getValue()).containsExactly(target);
+
+        ArgumentCaptor<List<com.playops.api.entity.SiteNodeEdit>> deletedEdits = ArgumentCaptor.forClass(List.class);
+        verify(editRepository).deleteAll(deletedEdits.capture());
+        assertThat(deletedEdits.getValue()).containsExactly(edit);
+
+        ArgumentCaptor<List<SiteEdge>> deletedEdges = ArgumentCaptor.forClass(List.class);
+        verify(edgeRepository).deleteAll(deletedEdges.capture());
+        assertThat(deletedEdges.getValue()).containsExactly(inEdge, outEdge);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void manualNodeIsIncludedInSeedUrlsAndProtectedFromStale() throws IOException {
+        SiteNode codeNode = node("/login", SHA_A);
+        codeNode.setOrigin(SiteAnalysisService.ORIGIN_CODE);
+        SiteNode manualNode = node("/inventory.html", null);
+        manualNode.setOrigin(SiteAnalysisService.ORIGIN_MANUAL);
+        when(nodeRepository.findByProjectIdOrderByRouteKey("p")).thenReturn(List.of(codeNode, manualNode));
+        when(edgeRepository.findByProjectId("p")).thenReturn(List.of());
+
+        assertThat(service.codeRouteSeeds("p")).containsExactly("/login", "/inventory.html");
+
+        // mergeNodes 에서 방문되지 않아도 stale=true 가 되지 않는다
+        service.mergeNodes("p", List.of(new ScreenFinder.Screen("/login", "src/Login.tsx")), SHA_B);
+        assertThat(manualNode.isStale()).isFalse();
+
+        // applyUrlResult 에서 방문되지 않아도 stale=true 가 되지 않는다
+        service.applyUrlResult("p", siteResult(), "run-8/result/");
+        assertThat(manualNode.isStale()).isFalse();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void executeUrlUsesSavedProjectEnvVariablesWhenLoginArgIsNull(@TempDir Path tempDir) {
+        ProjectService projectService = mock(ProjectService.class);
+        com.playops.api.repository.ProjectRepository projectRepository = mock(com.playops.api.repository.ProjectRepository.class);
+        com.playops.api.repository.SiteAnalysisRunRepository runRepository = mock(com.playops.api.repository.SiteAnalysisRunRepository.class);
+        AiRunnerDockerService aiRunner = mock(AiRunnerDockerService.class);
+        com.playops.api.config.PlayOpsProperties props = new com.playops.api.config.PlayOpsProperties(
+                tempDir.resolve("projects").toString(), tempDir.toString(), false,
+                new com.playops.api.config.PlayOpsProperties.Security("0123456789abcdef0123456789abcdef"));
+
+        SiteAnalysisService envService = new SiteAnalysisService(
+                projectService, projectRepository, null, null, null, props, new ScreenFinder(), null,
+                runRepository, nodeRepository, editRepository, edgeRepository, originRepository, null, aiRunner, null, caseResultRepository);
+
+        com.playops.api.entity.Project project = new com.playops.api.entity.Project();
+        project.setProjectId("p");
+        project.setBaseUrl("https://www.saucedemo.com");
+        when(projectService.getProject("p")).thenReturn(project);
+        when(nodeRepository.findByProjectIdOrderByRouteKey("p")).thenReturn(List.of());
+        when(edgeRepository.findByProjectId("p")).thenReturn(List.of());
+
+        envService.saveLoginCredentials("p", new SiteAnalysisService.AnalyzeUrlRequest(
+                "/", "standard_user", "secret_sauce"));
+        verify(projectRepository).save(project);
+        assertThat(project.getEnvVariables()).contains("standard_user").contains("secret_sauce");
+
+        com.playops.api.entity.SiteAnalysisRun run = new com.playops.api.entity.SiteAnalysisRun();
+        org.springframework.test.util.ReflectionTestUtils.setField(run, "id", 11L);
+        run.setProjectId("p");
+        when(aiRunner.runSiteAnalysisJob(org.mockito.ArgumentMatchers.eq(project), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyMap(), org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(siteResult());
+
+        envService.executeUrl(run, SiteAnalysisService.QUICK_LIMITS, null, null);
+
+        ArgumentCaptor<Map<String, Object>> jobCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(aiRunner).runSiteAnalysisJob(org.mockito.ArgumentMatchers.eq(project), org.mockito.ArgumentMatchers.any(),
+                jobCaptor.capture(), org.mockito.ArgumentMatchers.anyInt());
+        Map<String, Object> loginMap = (Map<String, Object>) jobCaptor.getValue().get("login");
+        assertThat(loginMap).isNotNull();
+        assertThat(loginMap.get("url")).isEqualTo("/");
+        assertThat(loginMap.get("idValue")).isEqualTo("standard_user");
+        assertThat(loginMap.get("passwordValue")).isEqualTo("secret_sauce");
     }
 }

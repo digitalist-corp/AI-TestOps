@@ -12,10 +12,11 @@
 //   · 상호작용 요소가 0개인 대상(예: Flutter Web CanvasKit)은 VISUAL_REQUIRED 로 표시하고 멈춘다.
 //     시각 기반 탐색은 이후 단계에서 붙인다.
 //
-// 입력  job.json  { jobType: 'SITE_ANALYSIS', jobId, baseUrl, seedUrls?, limits?, excludePatterns?, auth? }
+// 입력  job.json  { jobType: 'SITE_ANALYSIS', jobId, baseUrl, seedUrls?, limits?, excludePatterns?, auth?, login? }
 //        seedUrls — 링크로 닿지 않는 화면(버튼으로만 이동하는 SPA 화면 등)의 시작점.
 //                   저장소 코드 분석이 붙으면 코드에서 뽑은 라우트가 여기로 들어온다.
-// 출력  <resultDir>/result.json  +  <resultDir>/screens/*.jpg
+//        login    — { url?, idValue, passwordValue } 탐색 전 로그인 화면에서 계정을 입력해 세션을 만든다.
+// 출력  <resultDir>/result.json  +  <resultDir>/progress.jsonl  +  <resultDir>/screens/*.jpg
 'use strict';
 
 const fs = require('fs');
@@ -33,7 +34,7 @@ const DEFAULT_LIMITS = {
 const DEFAULT_EXCLUDE = ['logout', 'log-out', 'signout', 'sign-out', 'delete', 'remove', '로그아웃'];
 
 const INTERACTIVE_SELECTOR = [
-  'a[href]', 'button', 'input:not([type="hidden"])', 'select', 'textarea',
+  'a', 'button', 'input:not([type="hidden"])', 'select', 'textarea',
   '[role="button"]', '[role="link"]', '[role="tab"]', '[role="menuitem"]',
   '[role="checkbox"]', '[role="switch"]', '[role="radio"]', '[role="combobox"]',
   '[contenteditable="true"]',
@@ -164,6 +165,7 @@ function collectInPage({ selector, idxAttr, maxElements }) {
       idx,
       tag: el.tagName.toLowerCase(),
       type: el.getAttribute('type') || null,
+      attrName: el.getAttribute('name') || null,
       role: implicitRole(el),
       name: nameOf(el),
       nameAlt: (() => {
@@ -198,7 +200,19 @@ function quote(s) {
 /** 요소 하나에 대한 셀렉터 후보를 우선순위 순으로 만든다. */
 function candidatesFor(el) {
   const c = [];
-  if (el.testId) c.push({ kind: 'testid', code: `getByTestId(${quote(el.testId)})`, make: (p) => p.getByTestId(el.testId) });
+  if (el.testId) {
+    c.push({ kind: 'testid', code: `getByTestId(${quote(el.testId)})`, make: (p) => p.getByTestId(el.testId) });
+    c.push({
+      kind: 'testid',
+      code: `locator(${quote(`[data-test="${el.testId}"]`)})`,
+      make: (p) => p.locator(`[data-test="${el.testId}"]`),
+    });
+    c.push({
+      kind: 'testid',
+      code: `locator(${quote(`[data-test-id="${el.testId}"]`)})`,
+      make: (p) => p.locator(`[data-test-id="${el.testId}"]`),
+    });
+  }
   if (el.role && el.name) {
     c.push({
       kind: 'role',
@@ -337,6 +351,180 @@ async function waitSettled(page, requests) {
   }
 }
 
+/**
+ * 비밀번호 입력란(type=password)이 있는 화면이면 그 폼(또는 화면)의 입력 칸 목록을 추려 돌려준다.
+ * 비밀번호 입력란이 없으면 null 을 돌려준다.
+ */
+function extractLoginFields(elements) {
+  const pwEl = (elements || []).find(
+    (e) => e.tag === 'input' && (e.type || '').toLowerCase() === 'password'
+  );
+  if (!pwEl) return null;
+  const nonTextTypes = new Set(['hidden', 'submit', 'button', 'reset', 'image', 'checkbox', 'radio', 'file']);
+  const candidates = (elements || []).filter((e) => {
+    if (e.tag !== 'input') return false;
+    const t = (e.type || 'text').toLowerCase();
+    if (nonTextTypes.has(t)) return false;
+    if (pwEl.inForm !== null && pwEl.inForm !== undefined) {
+      return e.inForm === pwEl.inForm;
+    }
+    return true;
+  });
+  return candidates.map((e) => {
+    const type = (e.type || 'text').toLowerCase();
+    return {
+      name: e.attrName || e.id || e.name || type,
+      label: e.label || e.name || e.placeholder || e.attrName || type,
+      type,
+    };
+  });
+}
+
+/**
+ * 탐색 전에 로그인 화면에서 아이디 · 비밀번호 칸을 찾아 제출한다.
+ * 비밀번호는 로그 · progress · result 어디에도 남기지 않는다.
+ */
+async function performLogin(page, requests, login, entry, emitProgress, warnings, knownElements) {
+  if (!login || !login.idValue || !login.passwordValue) return { ok: false };
+  const loginUrl = normalizeUrl(login.url || entry, entry) || entry;
+  const scrub = (msg) => {
+    let text = String(msg || '');
+    if (login.passwordValue) {
+      text = text.split(String(login.passwordValue)).join('***');
+    }
+    return text.split('\n')[0];
+  };
+
+  try {
+    if (normalizeUrl(page.url()) !== loginUrl) {
+      await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+      await waitSettled(page, requests);
+    }
+
+    const found = await page.evaluate((idxAttr) => {
+      const visible = (el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return false;
+        const cs = getComputedStyle(el);
+        return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0';
+      };
+      document.querySelectorAll('[data-ait-login]').forEach((el) => el.removeAttribute('data-ait-login'));
+      const inputs = Array.from(document.querySelectorAll('input')).filter(visible);
+      const pwIdx = inputs.findIndex((el) => (el.getAttribute('type') || '').toLowerCase() === 'password');
+      if (pwIdx < 0) {
+        return { ok: false, reason: '로그인 화면에서 비밀번호 입력란을 찾지 못했습니다.' };
+      }
+      const pwEl = inputs[pwIdx];
+      pwEl.setAttribute('data-ait-login', 'pw');
+
+      const isIdCandidate = (el) => {
+        const t = (el.getAttribute('type') || 'text').toLowerCase();
+        return ['text', 'email', 'tel', 'search', 'number', ''].includes(t);
+      };
+      const form = pwEl.closest('form');
+      let idEl = null;
+      for (let i = pwIdx - 1; i >= 0; i -= 1) {
+        if (isIdCandidate(inputs[i]) && (!form || inputs[i].closest('form') === form)) {
+          idEl = inputs[i];
+          break;
+        }
+      }
+      if (!idEl) {
+        for (let i = pwIdx - 1; i >= 0; i -= 1) {
+          if (isIdCandidate(inputs[i])) {
+            idEl = inputs[i];
+            break;
+          }
+        }
+      }
+      if (!idEl && form) {
+        idEl = inputs.find((el) => el !== pwEl && isIdCandidate(el) && el.closest('form') === form) || null;
+      }
+      if (!idEl) {
+        return { ok: false, reason: '로그인 화면에서 아이디 입력란을 찾지 못했습니다.' };
+      }
+      idEl.setAttribute('data-ait-login', 'id');
+
+      const scope = form || document;
+      const buttons = Array.from(
+        scope.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]')
+      ).filter(visible);
+      const submitEl =
+        buttons.find((b) => (b.getAttribute('type') || '').toLowerCase() === 'submit')
+        || buttons.find((b) => {
+          const tag = b.tagName.toLowerCase();
+          const t = (b.getAttribute('type') || 'submit').toLowerCase();
+          return tag === 'button' && t !== 'button' && t !== 'reset';
+        })
+        || buttons.find((b) => /로그인|login|sign\s*in|확인|제출/i.test(b.innerText || b.value || b.getAttribute('aria-label') || ''))
+        || buttons[0]
+        || null;
+      if (submitEl) submitEl.setAttribute('data-ait-login', 'submit');
+      const submitIdx = submitEl ? submitEl.getAttribute(idxAttr) : null;
+      const submitTestId = submitEl
+        ? (submitEl.getAttribute('data-testid') || submitEl.getAttribute('data-test') || submitEl.getAttribute('data-test-id') || null)
+        : null;
+      const submitId = submitEl ? (submitEl.id || null) : null;
+      return { ok: true, hasSubmit: Boolean(submitEl), submitIdx, submitTestId, submitId };
+    }, IDX_ATTR);
+
+    if (!found.ok) {
+      warnings.push(found.reason);
+      emitProgress({ type: 'login_failed', message: found.reason });
+      return { ok: false };
+    }
+
+    let submitSelector = null;
+    if (Array.isArray(knownElements) && found.submitIdx !== null && found.submitIdx !== undefined) {
+      const matched = knownElements.find((e) => String(e.idx) === String(found.submitIdx));
+      if (matched && matched.selector) submitSelector = matched.selector;
+    }
+    if (!submitSelector && found.submitTestId) {
+      submitSelector = `locator(${quote(`[data-test="${found.submitTestId}"]`)})`;
+    }
+    if (!submitSelector && found.submitId) {
+      submitSelector = `locator(${quote('#' + found.submitId)})`;
+    }
+
+    const beforeUrl = normalizeUrl(page.url());
+    await page.locator('[data-ait-login="id"]').fill(String(login.idValue));
+    await page.locator('[data-ait-login="pw"]').fill(String(login.passwordValue));
+    if (found.hasSubmit) {
+      await page.locator('[data-ait-login="submit"]').click();
+    } else {
+      await page.locator('[data-ait-login="pw"]').press('Enter');
+    }
+
+    await waitSettled(page, requests);
+    for (let i = 0; i < 8; i += 1) {
+      const cur = normalizeUrl(page.url());
+      const pwCount = await page.locator('input[type="password"]:visible').count().catch(() => 0);
+      if (cur !== beforeUrl || pwCount === 0) break;
+      await page.waitForTimeout(250);
+    }
+
+    const afterUrl = normalizeUrl(page.url());
+    const pwStillVisible = (await page.locator('input[type="password"]:visible').count().catch(() => 0)) > 0;
+    if (afterUrl !== beforeUrl || !pwStillVisible) {
+      return { ok: true, landedUrl: afterUrl, submitSelector };
+    }
+
+    const message = '로그인에 실패했습니다. 아이디 또는 비밀번호를 확인하세요.';
+    warnings.push(message);
+    emitProgress({ type: 'login_failed', message });
+    return { ok: false };
+  } catch (e) {
+    const message = `로그인 처리 중 오류: ${scrub(e.message || e)}`;
+    warnings.push(message);
+    emitProgress({ type: 'login_failed', message });
+    return { ok: false };
+  } finally {
+    await page.evaluate(() => {
+      document.querySelectorAll('[data-ait-login]').forEach((el) => el.removeAttribute('data-ait-login'));
+    }).catch(() => {});
+  }
+}
+
 async function runSiteAnalysis(job, resultDir) {
   const { chromium } = require('@playwright/test');
   const started = Date.now();
@@ -348,6 +536,16 @@ async function runSiteAnalysis(job, resultDir) {
 
   const screensDir = path.join(resultDir, 'screens');
   fs.mkdirSync(screensDir, { recursive: true });
+  const progressPath = path.join(resultDir, 'progress.jsonl');
+  fs.writeFileSync(progressPath, '', 'utf-8');
+  const emitProgress = (event) => {
+    const line = JSON.stringify({ ts: new Date().toISOString(), ...event }) + '\n';
+    try {
+      fs.appendFileSync(progressPath, line, 'utf-8');
+    } catch {
+      // 진행 파일 기록 실패가 탐색 자체를 멈추게 하지 않는다.
+    }
+  };
 
   const browser = await chromium.launch();
   const contextOptions = { viewport: { width: 1280, height: 800 }, locale: 'ko-KR' };
@@ -365,6 +563,10 @@ async function runSiteAnalysis(job, resultDir) {
   const redirects = [];
   const rawEdges = [];
   const warnings = [];
+  const warn = (message) => {
+    warnings.push(message);
+    emitProgress({ type: 'warning', message });
+  };
   const skipped = { external: 0, excluded: 0, depth: 0, pageLimit: 0 };
   const queue = [{ url: entry, depth: 0 }];
   const queued = new Set([entry]);
@@ -378,22 +580,113 @@ async function runSiteAnalysis(job, resultDir) {
   let mode = 'DOM';
 
   try {
+    if (job.login && job.login.idValue && job.login.passwordValue) {
+      const loginUrl = normalizeUrl(job.login.url || entry, entry) || entry;
+      emitProgress({ type: 'visit', url: loginUrl, depth: 0 });
+      let loginPageOpened = false;
+      try {
+        await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+        await waitSettled(page, requests);
+        loginPageOpened = true;
+      } catch (e) {
+        warn(`열기 실패: ${loginUrl} — ${String(e.message || e).split('\n')[0]}`);
+      }
+
+      let loginNode = null;
+      let finalLoginUrl = loginUrl;
+      if (loginPageOpened) {
+        finalLoginUrl = normalizeUrl(page.url()) || loginUrl;
+        if (finalLoginUrl !== loginUrl) {
+          redirects.push({ from: loginUrl, to: finalLoginUrl });
+        }
+        const collected = await page.evaluate(collectInPage, {
+          selector: INTERACTIVE_SELECTOR, idxAttr: IDX_ATTR, maxElements: limits.maxElementsPerPage,
+        });
+        const loginFields = extractLoginFields(collected.elements);
+        for (const el of collected.elements) {
+          delete el.attrName;
+          Object.assign(el, await resolveSelector(page, el));
+        }
+        const id = `n${nodes.length + 1}`;
+        const shot = `screens/${id}.jpg`;
+        await page.screenshot({ path: path.join(resultDir, shot), type: 'jpeg', quality: 60 }).catch(() => {});
+        const aria = await page.locator('body').ariaSnapshot({ timeout: 5000 }).catch(() => '');
+        loginNode = {
+          id,
+          url: finalLoginUrl,
+          path: new URL(finalLoginUrl).pathname + new URL(finalLoginUrl).search,
+          title: await page.title(),
+          depth: 0,
+          seed: false,
+          screenshot: shot,
+          interactiveCount: collected.interactiveCount,
+          elements: collected.elements,
+          forms: collected.forms,
+          ariaSnapshot: aria.length > 6000 ? `${aria.slice(0, 6000)}\n… (이하 생략)` : aria,
+        };
+        nodes.push(loginNode);
+        byUrl.set(loginUrl, id);
+        byUrl.set(finalLoginUrl, id);
+        emitProgress({
+          type: 'screen',
+          url: finalLoginUrl,
+          title: loginNode.title,
+          elements: collected.elements.length,
+          screenshot: shot,
+        });
+        if (loginFields) {
+          emitProgress({ type: 'login_form', url: finalLoginUrl, fields: loginFields });
+        }
+      }
+
+      for (let i = queue.length - 1; i >= 0; i -= 1) {
+        if (queue[i].url === loginUrl || queue[i].url === finalLoginUrl || queue[i].url === entry) {
+          queued.delete(queue[i].url);
+          queue.splice(i, 1);
+        }
+      }
+      queued.add(loginUrl);
+      queued.add(finalLoginUrl);
+
+      const loginOutcome = await performLogin(
+        page, requests, job.login, finalLoginUrl, emitProgress, warnings, loginNode ? loginNode.elements : null
+      );
+      if (loginOutcome.ok && loginOutcome.landedUrl) {
+        const landedUrl = loginOutcome.landedUrl;
+        if (loginNode && landedUrl !== finalLoginUrl && landedUrl !== loginUrl) {
+          rawEdges.push({
+            from: loginNode.id,
+            toUrl: landedUrl,
+            label: 'Login',
+            selector: loginOutcome.submitSelector || null,
+          });
+        }
+        try {
+          if (new URL(landedUrl).host === host && !queued.has(landedUrl) && !byUrl.has(landedUrl)) {
+            queued.add(landedUrl);
+            queue.unshift({ url: landedUrl, depth: 1 });
+          }
+        } catch { /* 유효하지 않은 URL 무시 */ }
+      }
+    }
+
     while (queue.length > 0) {
       if (Date.now() - started > limits.timeoutMs) {
-        warnings.push(`시간 상한(${limits.timeoutMs}ms)에 도달해 탐색을 멈췄습니다. 남은 대기 ${queue.length}건`);
+        warn(`시간 상한(${limits.timeoutMs}ms)에 도달해 탐색을 멈췄습니다. 남은 대기 ${queue.length}건`);
         break;
       }
       if (nodes.length >= limits.maxPages) {
         skipped.pageLimit += queue.length;
-        warnings.push(`페이지 수 상한(${limits.maxPages})에 도달했습니다. 남은 대기 ${queue.length}건`);
+        warn(`페이지 수 상한(${limits.maxPages})에 도달했습니다. 남은 대기 ${queue.length}건`);
         break;
       }
       const { url, depth, seed } = queue.shift();
 
+      emitProgress({ type: 'visit', url, depth });
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded' });
       } catch (e) {
-        warnings.push(`열기 실패: ${url} — ${String(e.message || e).split('\n')[0]}`);
+        warn(`열기 실패: ${url} — ${String(e.message || e).split('\n')[0]}`);
         continue;
       }
       await waitSettled(page, requests);
@@ -415,10 +708,12 @@ async function runSiteAnalysis(job, resultDir) {
       // 첫 화면에 상호작용 요소가 하나도 없으면 DOM 경로로는 더 볼 것이 없다.
       if (nodes.length === 0 && collected.interactiveCount === 0) {
         mode = 'VISUAL_REQUIRED';
-        warnings.push('첫 화면에 상호작용 가능한 DOM 요소가 없습니다. 화면을 캔버스로 그리는 대상(예: Flutter Web)일 수 있어 시각 기반 탐색이 필요합니다.');
+        warn('첫 화면에 상호작용 가능한 DOM 요소가 없습니다. 화면을 캔버스로 그리는 대상(예: Flutter Web)일 수 있어 시각 기반 탐색이 필요합니다.');
       }
 
+      const loginFields = extractLoginFields(collected.elements);
       for (const el of collected.elements) {
+        delete el.attrName;
         Object.assign(el, await resolveSelector(page, el));
       }
 
@@ -444,12 +739,60 @@ async function runSiteAnalysis(job, resultDir) {
       byUrl.set(url, id);
       byUrl.set(finalUrl, id);
 
+      emitProgress({
+        type: 'screen',
+        url: finalUrl,
+        title: node.title,
+        elements: collected.elements.length,
+        screenshot: shot,
+      });
+      if (loginFields) {
+        emitProgress({ type: 'login_form', url: finalUrl, fields: loginFields });
+      }
+
       if (mode === 'VISUAL_REQUIRED') break;
+
+      let autoLoggedIn = false;
+      if (!(job.login && job.login.idValue && job.login.passwordValue) && nodes.length === 1 && loginFields) {
+        const demoCreds = await page.evaluate(() => {
+          const text = document.body ? document.body.innerText || '' : '';
+          const idMatch = text.match(/Accepted usernames are:\s*([a-zA-Z0-9_.-]+)/i)
+            || text.match(/(?:demo\s*)?(?:username|user\s*id|아이디)\s*[:：]\s*([a-zA-Z0-9_.@-]+)/i);
+          const pwMatch = text.match(/Password for all users:\s*([^\s\n]+)/i)
+            || text.match(/Password[^:\n]*:\s*([^\s\n]+)/i);
+          if (idMatch && idMatch[1] && pwMatch && pwMatch[1]) {
+            return { idValue: idMatch[1].trim(), passwordValue: pwMatch[1].trim() };
+          }
+          return null;
+        }).catch(() => null);
+
+        if (demoCreds && demoCreds.idValue && demoCreds.passwordValue) {
+          const loginOutcome = await performLogin(
+            page, requests, { url: finalUrl, ...demoCreds }, finalUrl, emitProgress, warnings, collected.elements
+          );
+          if (loginOutcome.ok && loginOutcome.landedUrl && loginOutcome.landedUrl !== finalUrl) {
+            const landedUrl = loginOutcome.landedUrl;
+            autoLoggedIn = true;
+            rawEdges.push({
+              from: node.id,
+              toUrl: landedUrl,
+              label: 'Login',
+              selector: loginOutcome.submitSelector || null,
+            });
+            try {
+              if (new URL(landedUrl).host === host && !queued.has(landedUrl) && !byUrl.has(landedUrl)) {
+                queued.add(landedUrl);
+                queue.unshift({ url: landedUrl, depth: depth + 1 });
+              }
+            } catch { /* 유효하지 않은 URL 무시 */ }
+          }
+        }
+      }
 
       for (const el of collected.elements) {
         if (!el.href) continue;
         const target = normalizeUrl(el.href, finalUrl);
-        if (!target) continue;
+        if (!target || target === finalUrl) continue;
         if (new URL(target).host !== host) { skipped.external += 1; continue; }
         if (isExcluded(target, exclude)) { skipped.excluded += 1; continue; }
         rawEdges.push({ from: id, toUrl: target, label: el.name || el.text || target, selector: el.selector });
@@ -458,6 +801,93 @@ async function runSiteAnalysis(job, resultDir) {
         queued.add(target);
         queue.push({ url: target, depth: depth + 1 });
       }
+
+      if (!autoLoggedIn && depth + 1 <= limits.maxDepth && nodes.length < limits.maxPages) {
+        const spaCandidates = [];
+        let hasItemDetailLink = false;
+        const navIncludeRe = /cart|장바구니|checkout|결제|주문|continue-shopping|back-to-products|상세|이동/i;
+        const navExcludeRe = /add to cart|add-to-cart|담기|logout|로그아웃|remove|삭제|cancel|취소|reset|menu|메뉴|open menu|close menu/i;
+
+        for (const el of collected.elements) {
+          if (spaCandidates.length >= 5) break;
+          if (!el.selector || !el.unique) continue;
+
+          const labelBlob = `${el.name || ''} ${el.text || ''} ${el.testId || ''} ${el.id || ''}`.trim();
+          const isCandidateA = el.tag === 'a' && (!el.href || normalizeUrl(el.href, finalUrl) === finalUrl);
+          if (isCandidateA) {
+            if (navExcludeRe.test(labelBlob)) continue;
+            const isItemLink = /item[_-]?\d+[_-]?(img|title)?[_-]?link/i.test(`${el.id || ''} ${el.testId || ''}`);
+            if (isItemLink) {
+              if (hasItemDetailLink) continue;
+              hasItemDetailLink = true;
+            }
+            spaCandidates.push(el);
+            continue;
+          }
+
+          const isCandidateB = (el.tag === 'button' || el.role === 'button')
+            && navIncludeRe.test(labelBlob)
+            && !navExcludeRe.test(labelBlob);
+          if (isCandidateB) {
+            spaCandidates.push(el);
+          }
+        }
+
+        for (const el of spaCandidates) {
+          if (Date.now() - started > limits.timeoutMs || nodes.length >= limits.maxPages) break;
+          try {
+            if (normalizeUrl(page.url()) !== finalUrl) {
+              await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
+              await waitSettled(page, requests);
+            }
+            const matchedCand = candidatesFor(el).find((c) => c.code === el.selector);
+            const loc = matchedCand
+              ? matchedCand.make(page)
+              : el.testId
+                ? page.locator(`[data-testid="${el.testId}"], [data-test="${el.testId}"], [data-test-id="${el.testId}"]`).first()
+                : el.id
+                  ? page.locator(`#${el.id}`).first()
+                  : page.locator(`[${IDX_ATTR}="${el.idx}"]`).first();
+
+            await loc.click({ timeout: 2500 });
+            await waitSettled(page, requests);
+            await page.waitForTimeout(200);
+
+            const afterClickUrl = normalizeUrl(page.url());
+            if (
+              afterClickUrl
+              && afterClickUrl !== finalUrl
+              && new URL(afterClickUrl).host === host
+              && !isExcluded(afterClickUrl, exclude)
+            ) {
+              rawEdges.push({
+                from: id,
+                toUrl: afterClickUrl,
+                label: el.name || el.text || afterClickUrl,
+                selector: el.selector,
+              });
+              if (!queued.has(afterClickUrl) && !byUrl.has(afterClickUrl)) {
+                queued.add(afterClickUrl);
+                queue.push({ url: afterClickUrl, depth: depth + 1 });
+              }
+              await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
+              await waitSettled(page, requests);
+            }
+          } catch {
+            // 개별 SPA 클릭 실패는 무시하고 다음 후보로 진행한다.
+          }
+        }
+      }
+    }
+
+    if (
+      nodes.length === 1
+      && (
+        (nodes[0].elements || []).some((e) => (e.type || '').toLowerCase() === 'password')
+        || extractLoginFields(nodes[0].elements) !== null
+      )
+    ) {
+      warn('로그인 화면에서 탐색이 멈췄습니다. 로그인 계정(아이디·비밀번호)을 입력하고 다시 탐색하거나 화면을 직접 추가하세요.');
     }
   } finally {
     await browser.close();
@@ -505,10 +935,11 @@ async function runSiteAnalysis(job, resultDir) {
     edges,
   };
   fs.writeFileSync(path.join(resultDir, 'result.json'), JSON.stringify(result, null, 2));
+  emitProgress({ type: 'done' });
   console.log(`[analyze] ${mode} · 화면 ${nodes.length} · 전환 ${edges.length} · 요소 ${elementCount} · `
     + `검증된 셀렉터 ${uniqueCount} (${result.stats.selectorCoverage}%) · 불안정 ${fragileCount} · `
     + `없음 ${result.stats.noSelector} · ${result.durationMs}ms`);
   return result;
 }
 
-module.exports = { runSiteAnalysis, normalizeUrl };
+module.exports = { runSiteAnalysis, normalizeUrl, extractLoginFields };

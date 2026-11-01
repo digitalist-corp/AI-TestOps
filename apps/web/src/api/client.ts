@@ -29,7 +29,18 @@ import type {
   RunningAnalysis,
   SiteMap,
   SiteMapNodeDetail,
+  ChatSession,
+  ChatMessage,
+  ChatStreamEvent,
+  PermissionDecision,
+  UserLevel,
+  RecorderAction,
+  RecorderCode,
+  RecorderStartRequest,
+  RecorderState,
+  RecordedStep,
 } from '@/types';
+import { parseChatStreamEvent, readSseStream } from '@/lib/sseParser';
 
 const TOKEN_KEY = 'playops_token';
 const USER_KEY = 'playops_user';
@@ -40,6 +51,28 @@ function serializeProjectForm(data: ProjectFormData | Partial<ProjectFormData>):
   return JSON.stringify(data, (key, value) =>
     (key === 'repositoryToken' || key === 'sourceRepositoryToken') && value === '' ? undefined : value
   );
+}
+
+/**
+ * 서버가 돌려준 오류. 상태 코드(status)와 서버가 붙인 오류 코드(code, 예: RECORDER_CLOSED)로
+ * 갈라 안내해야 할 때 쓴다.
+ */
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** 오류 응답 본문 `{ message, error: { code } }` 에서 ApiError 를 만든다. 본문이 JSON 이 아니어도 status 는 남긴다. */
+async function toApiError(res: Response, fallback?: string): Promise<ApiError> {
+  const body = await res.json().catch(() => ({}));
+  const code = typeof body?.error?.code === 'string' ? body.error.code : undefined;
+  return new ApiError(body?.message || fallback || `서버 응답 오류 (HTTP ${res.status})`, res.status, code);
 }
 
 type ApiRequestInit = RequestInit & {
@@ -98,8 +131,7 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
   if (!res.ok) {
     // 터널(Cloudflare)이 502·504 를 자기 HTML 페이지로 바꾸면 서버가 보낸 메시지가 사라진다.
     // 그때도 빈 오류가 되지 않게 상태 코드를 남긴다.
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `서버 응답 오류 (HTTP ${res.status})`);
+    throw await toApiError(res);
   }
 
   if (res.status === 204) return undefined as T;
@@ -142,6 +174,10 @@ export const api = {
   getSiteMap: (projectId: string) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap`),
 
+  /** 구조 탭 확인 지도: 화면 · 전환 · 테스트 흐름이 어디까지 확인됐고 어디서 막혔는지 */
+  getSiteMapCoverage: (projectId: string) =>
+    request<import('@/types').Coverage>(`/api/projects/${projectId}/sitemap/coverage`),
+
   // token 은 write-only: undefined 면 기존 토큰 유지, 값을 주면 교체.
   updateSiteMapSource: (projectId: string, source: { url: string; branch: string; token?: string }) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap/source`, {
@@ -152,11 +188,35 @@ export const api = {
   getSiteMapNode: (projectId: string, routeKey: string) =>
     request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`),
 
+  /** 사용자가 직접 화면 노드를 추가하거나 수정한다 */
+  addSiteMapNode: (
+    projectId: string,
+    data: {
+      routeKey: string;
+      title?: string;
+      url?: string;
+      authRequired?: boolean;
+      note?: string;
+      fromRouteKey?: string;
+      edgeLabel?: string;
+    }
+  ) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/node`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   /** 제외 표시와 메모. 값을 준 항목만 바꾼다 */
   updateSiteMapNode: (projectId: string, routeKey: string, edit: { excluded?: boolean; note?: string }) =>
     request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`, {
       method: 'PATCH',
       body: JSON.stringify(edit),
+    }),
+
+  /** 화면 노드와 연결된 전환 · 메모를 삭제한다 */
+  deleteSiteMapNode: (projectId: string, routeKey: string) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`, {
+      method: 'DELETE',
     }),
 
   getRunningAnalyses: () => request<RunningAnalysis[]>('/api/sitemap/running'),
@@ -165,8 +225,14 @@ export const api = {
     request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze`, { method: 'POST' }),
 
   /** 소스 저장소 없이 대상 사이트 주소로 화면을 탐색한다 */
-  analyzeSiteMapByUrl: (projectId: string) =>
-    request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze-url`, { method: 'POST' }),
+  analyzeSiteMapByUrl: (
+    projectId: string,
+    login?: { loginUrl?: string; loginId?: string; loginPassword?: string }
+  ) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze-url`, {
+      method: 'POST',
+      ...(login ? { body: JSON.stringify(login) } : {}),
+    }),
 
   fetchSiteMapScreenshot: async (projectId: string, routeKey: string): Promise<Blob> => {
     const auth = getStoredAuth();
@@ -360,6 +426,40 @@ export const api = {
   getAiBootstrap: (projectId: string, bootstrapId: string) =>
     request<import('@/types').AiBootstrapResponse>(`/api/projects/${projectId}/ai/bootstrap/${bootstrapId}`),
 
+  submitAiBootstrapCredentials: (
+    projectId: string,
+    bootstrapId: string,
+    data: { loginId?: string; password?: string; loginPath?: string; skip?: boolean }
+  ) =>
+    request<import('@/types').AiBootstrapResponse>(
+      `/api/projects/${projectId}/ai/bootstrap/${bootstrapId}/credentials`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+
+  fetchAiBootstrapScreenshot: async (
+    projectId: string,
+    bootstrapId: string,
+    file: string
+  ): Promise<Blob> => {
+    const auth = getStoredAuth();
+    const headers = new Headers();
+    if (auth?.token) {
+      headers.set('Authorization', `Bearer ${auth.token}`);
+    }
+    const cleanFile = file.replace(/^screens\//, '');
+    const res = await fetch(
+      `/api/projects/${projectId}/ai/bootstrap/${bootstrapId}/screens/${encodeURIComponent(cleanFile)}`,
+      { headers }
+    );
+    if (!res.ok) {
+      throw new Error(`스크린샷 조회 실패 (${res.status})`);
+    }
+    return res.blob();
+  },
+
   getScenarios: (projectId: string) =>
     request<ScenarioTree>(`/api/projects/${projectId}/scenarios`),
 
@@ -441,6 +541,82 @@ export const api = {
       }),
   },
 
+  chat: {
+    createSession: (arg?: string | { projectId?: string }) => {
+      const projectId = typeof arg === 'string' ? arg : arg?.projectId;
+      return request<ChatSession>('/api/ai/chat/sessions', {
+        method: 'POST',
+        body: JSON.stringify(projectId ? { projectId } : {}),
+      });
+    },
+    listSessions: (projectId?: string) =>
+      request<ChatSession[]>(
+        projectId
+          ? `/api/ai/chat/sessions?projectId=${encodeURIComponent(projectId)}`
+          : '/api/ai/chat/sessions'
+      ),
+    getSession: (id: number) =>
+      request<{ session: ChatSession; messages: ChatMessage[] }>(`/api/ai/chat/sessions/${id}`),
+    deleteSession: (id: number) =>
+      request<void>(`/api/ai/chat/sessions/${id}`, { method: 'DELETE' }),
+    respondPermission: (sessionId: number, requestId: string, decision: PermissionDecision) =>
+      request<void>(
+        `/api/ai/chat/sessions/${sessionId}/permissions/${encodeURIComponent(requestId)}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ decision }),
+        }
+      ),
+    cancel: (sessionId: number) =>
+      request<void>(`/api/ai/chat/sessions/${sessionId}/cancel`, { method: 'POST' }),
+    streamMessage: async (
+      sessionId: number,
+      payload: { content: string; userLevel?: UserLevel },
+      onEvent: (event: ChatStreamEvent) => void,
+      signal?: AbortSignal
+    ): Promise<void> => {
+      const auth = getStoredAuth();
+      const headers = new Headers({
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      });
+      if (auth?.token) {
+        headers.set('Authorization', `Bearer ${auth.token}`);
+      }
+      const res = await fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'omit',
+        signal,
+      });
+
+      if (res.status === 401) {
+        clearStoredAuth();
+        window.location.href = '/login';
+        throw new Error('Unauthorized');
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `서버 응답 오류 (HTTP ${res.status})`);
+      }
+
+      if (!res.body) {
+        throw new Error('스트림 응답 본문이 없습니다.');
+      }
+
+      await readSseStream(
+        res.body,
+        (raw) => {
+          const ev = parseChatStreamEvent(raw);
+          if (ev) onEvent(ev);
+        },
+        signal
+      );
+    },
+  },
+
   admin: {
     getAiProviderSettings: () =>
       request<import('@/types').AiProviderSettingsResponse>('/api/admin/ai-provider-settings'),
@@ -503,6 +679,66 @@ export const api = {
       request<void>(`/api/projects/${projectId}/schedules/${id}`, { method: 'DELETE' }),
   },
 
+  /** 클릭으로 테스트 만들기(녹화). 계약: docs/design/recorder-contract.md */
+  recorder: {
+    start: (projectId: string, body: RecorderStartRequest) =>
+      request<RecorderState>(`/api/projects/${projectId}/recorder/sessions`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    get: (projectId: string, sid: string) =>
+      request<RecorderState>(`/api/projects/${projectId}/recorder/sessions/${sid}`),
+    /** 현재 화면(image/jpeg). 이미지 태그에는 헤더를 못 실어서 blob 으로 받아 쓴다. */
+    screenshot: async (projectId: string, sid: string): Promise<Blob> => {
+      const auth = getStoredAuth();
+      const headers = new Headers();
+      if (auth?.token) headers.set('Authorization', `Bearer ${auth.token}`);
+      const res = await fetch(`/api/projects/${projectId}/recorder/sessions/${sid}/screenshot`, {
+        headers,
+        credentials: 'omit',
+      });
+      if (!res.ok) throw await toApiError(res, `화면 조회 실패 (${res.status})`);
+      return res.blob();
+    },
+    act: (projectId: string, sid: string, action: RecorderAction) =>
+      request<RecorderState>(`/api/projects/${projectId}/recorder/sessions/${sid}/actions`, {
+        method: 'POST',
+        body: JSON.stringify(action),
+      }),
+    putSteps: (projectId: string, sid: string, steps: RecordedStep[]) =>
+      request<RecorderState>(`/api/projects/${projectId}/recorder/sessions/${sid}/steps`, {
+        method: 'PUT',
+        body: JSON.stringify({ steps }),
+      }),
+    code: (projectId: string, sid: string, title?: string) =>
+      request<RecorderCode>(
+        `/api/projects/${projectId}/recorder/sessions/${sid}/code${title ? `?title=${encodeURIComponent(title)}` : ''}`
+      ),
+    /** 같은 경로의 파일이 있으면 409(ApiError.status). */
+    save: (projectId: string, sid: string, body: { specPath: string; title?: string }) =>
+      request<{ specPath: string }>(`/api/projects/${projectId}/recorder/sessions/${sid}/save`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    close: (projectId: string, sid: string) =>
+      request<void>(`/api/projects/${projectId}/recorder/sessions/${sid}`, { method: 'DELETE' }),
+    /**
+     * 페이지를 떠나는 중에 세션을 끝낸다. 화면이 닫혀도 요청이 끝까지 가도록 keepalive 로 보내고,
+     * 응답은 기다리지 않는다. (실패해도 서버가 10분 뒤 스스로 멈춘다)
+     */
+    closeOnLeave: (projectId: string, sid: string) => {
+      const auth = getStoredAuth();
+      const headers = new Headers();
+      if (auth?.token) headers.set('Authorization', `Bearer ${auth.token}`);
+      void fetch(`/api/projects/${projectId}/recorder/sessions/${sid}`, {
+        method: 'DELETE',
+        headers,
+        credentials: 'omit',
+        keepalive: true,
+      }).catch(() => undefined);
+    },
+  },
+
   testSuites: {
     listByProject: (projectId: string) =>
       request<import('@/types').TestSuite[]>(`/api/projects/${projectId}/test-suites`),
@@ -515,3 +751,6 @@ export const api = {
       request<void>(`/api/projects/${projectId}/test-suites/${id}`, { method: 'DELETE' }),
   },
 };
+
+/** 녹화 화면이 쓰는 호출 묶음. 개발용 가짜 응답(recorderMock)도 같은 모양을 맞춘다. */
+export type RecorderApi = typeof api.recorder;

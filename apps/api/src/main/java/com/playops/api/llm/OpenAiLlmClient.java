@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Component
 public class OpenAiLlmClient extends AbstractHttpLlmClient {
@@ -29,16 +30,7 @@ public class OpenAiLlmClient extends AbstractHttpLlmClient {
     @Override
     public LlmResult chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages,
                           List<LlmToolSpec> tools) {
-        List<Map<String, Object>> payloadMessages = new ArrayList<>();
-        payloadMessages.add(Map.of("role", "system", "content", systemPrompt));
-        payloadMessages.addAll(toPayloadMessages(messages));
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", openaiModel);
-        body.put("messages", payloadMessages);
-        if (tools != null && !tools.isEmpty()) {
-            body.put("tools", toPayloadTools(tools));
-        }
+        Map<String, Object> body = requestBody(systemPrompt, messages, tools);
 
         try {
             String responseJson = restClient().post()
@@ -57,6 +49,42 @@ public class OpenAiLlmClient extends AbstractHttpLlmClient {
         }
     }
 
+    /** stream: true 에 include_usage 를 켜야 마지막 조각에 사용량이 실려 온다. 안 켜면 사용량 기록이 0 이 된다. */
+    @Override
+    public LlmResult chatStream(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages,
+                                List<LlmToolSpec> tools, Consumer<String> onTextDelta) {
+        Map<String, Object> body = requestBody(systemPrompt, messages, tools);
+        body.put("stream", true);
+        body.put("stream_options", Map.of("include_usage", true));
+        OpenAiStreamParser parser = new OpenAiStreamParser(objectMapper, openaiModel, onTextDelta);
+        try {
+            postStreaming(CHAT_COMPLETIONS_URL, Map.of("Authorization", "Bearer " + credentials.apiKey()),
+                    body, "OpenAI", parser::accept);
+            return parser.result();
+        } catch (ApiException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(502, "OpenAI API 호출이 중단되었습니다.");
+        } catch (Exception e) {
+            throw new ApiException(502, "OpenAI API 호출 실패: " + e.getMessage());
+        }
+    }
+
+    private Map<String, Object> requestBody(String systemPrompt, List<LlmMessage> messages, List<LlmToolSpec> tools) {
+        List<Map<String, Object>> payloadMessages = new ArrayList<>();
+        payloadMessages.add(Map.of("role", "system", "content", systemPrompt));
+        payloadMessages.addAll(toPayloadMessages(messages));
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", openaiModel);
+        body.put("messages", payloadMessages);
+        if (tools != null && !tools.isEmpty()) {
+            body.put("tools", toPayloadTools(tools));
+        }
+        return body;
+    }
+
     private LlmResult parseResponse(String responseJson) throws Exception {
         JsonNode root = objectMapper.readTree(responseJson);
         JsonNode message = root.path("choices").get(0).path("message");
@@ -70,7 +98,7 @@ public class OpenAiLlmClient extends AbstractHttpLlmClient {
                         call.path("id").asText(),
                         function.path("name").asText(),
                         // OpenAI 는 인자를 JSON "문자열"로 준다. 한 번 더 파싱해야 Map 이 된다.
-                        toArgumentMap(function.path("arguments").asText())
+                        ToolArguments.fromJson(objectMapper, function.path("arguments").asText())
                 ));
             }
         }
@@ -148,26 +176,6 @@ public class OpenAiLlmClient extends AbstractHttpLlmClient {
             return objectMapper.writeValueAsString(arguments == null ? Map.of() : arguments);
         } catch (Exception e) {
             return "{}";
-        }
-    }
-
-    private Map<String, Object> toArgumentMap(String argumentsJson) {
-        if (argumentsJson == null || argumentsJson.isBlank()) {
-            return Map.of();
-        }
-        try {
-            JsonNode node = objectMapper.readTree(argumentsJson);
-            if (!node.isObject()) {
-                return Map.of();
-            }
-            Map<String, Object> arguments = new LinkedHashMap<>();
-            node.fields().forEachRemaining(entry -> {
-                JsonNode value = entry.getValue();
-                arguments.put(entry.getKey(), value.isValueNode() ? value.asText() : value.toString());
-            });
-            return arguments;
-        } catch (Exception e) {
-            return Map.of();
         }
     }
 

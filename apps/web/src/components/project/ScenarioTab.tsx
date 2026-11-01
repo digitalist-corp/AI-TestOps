@@ -1,22 +1,19 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Fragment, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Bookmark,
   ExternalLink,
   FileCode,
   FolderOpen,
   History,
-  Loader2,
   Play,
-  Sparkles,
   Trash2,
   TestTube,
 } from 'lucide-react';
-import type { AiJob, Execution, ExecutionStatus, ScenarioCaseNode, ScenarioTree, TestSuite } from '@/types';
+import type { Execution, ExecutionStatus, ScenarioCaseNode, ScenarioTree, TestSuite } from '@/types';
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { SpecPathField } from '@/components/project/SpecPathField';
 import {
   Dialog,
   DialogContent,
@@ -415,96 +412,9 @@ export function ScenarioTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  const navigate = useNavigate();
-  const [genDialogOpen, setGenDialogOpen] = useState(false);
-  const [genSpecPath, setGenSpecPath] = useState('');
-  const [genInstruction, setGenInstruction] = useState('');
-  const [genLoading, setGenLoading] = useState(false);
-  const [genJob, setGenJob] = useState<AiJob | null>(null);
-  const [genError, setGenError] = useState('');
-  const genPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const genTerminalStatuses: AiJob['status'][] = [
-    'NEEDS_REVIEW', 'APPLIED', 'REJECTED', 'FAILED', 'ERROR', 'CANCELED', 'TIMEOUT',
-  ];
-  const genStatusLabel: Record<AiJob['status'], string> = {
-    PENDING: '대기 중',
-    RUNNING: 'AI가 spec 파일 생성 중...',
-    DIFF_READY: '결과 처리 중',
-    NEEDS_REVIEW: '관리자 검토 대기',
-    APPLIED: '적용 완료',
-    REJECTED: '거부됨',
-    FAILED: '생성 실패',
-    ERROR: '오류 발생',
-    CANCELED: '취소됨',
-    TIMEOUT: '시간 초과',
-  };
-
-  const stopGenPolling = () => {
-    if (genPollRef.current) {
-      clearInterval(genPollRef.current);
-      genPollRef.current = null;
-    }
-  };
-
-  useEffect(() => stopGenPolling, []);
-
-  // 헤더에서 'AI로 만들기' · '선택 실행'을 누르면 ?do= 로 넘어온다.
-  // 탭을 옮기는 순간 이 컴포넌트가 다시 마운트되므로, 상태가 아니라 주소로 창을 연다.
-  const [searchParams, setSearchParams] = useSearchParams();
+  // 헤더에서 '선택 실행'을 누르면 ?do=pick 으로 넘어온다.
+  const [searchParams] = useSearchParams();
   const urlAction = searchParams.get('do');
-  const clearUrlAction = () => {
-    if (!urlAction) return;
-    const next = new URLSearchParams(searchParams);
-    next.delete('do');
-    setSearchParams(next, { replace: true });
-  };
-
-
-  const resetGenDialog = () => {
-    stopGenPolling();
-    setGenDialogOpen(false);
-    setGenJob(null);
-    setGenSpecPath('');
-    setGenInstruction('');
-    setGenError('');
-  };
-
-  const handleGenerateScenario = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!genSpecPath.trim() || !genInstruction.trim()) return;
-    setGenLoading(true);
-    setGenError('');
-    stopGenPolling();
-    try {
-      const job = await api.aiJobs.createTemplateGenerate(projectId, {
-        targetSpecPath: genSpecPath.trim(),
-        instruction: genInstruction.trim(),
-      });
-      setGenJob(job);
-      genPollRef.current = setInterval(async () => {
-        try {
-          const jobs = await api.aiJobs.listByProject(projectId);
-          const updated = jobs.find((j) => j.id === job.id);
-          if (updated) {
-            setGenJob(updated);
-            if (genTerminalStatuses.includes(updated.status)) {
-              stopGenPolling();
-              if (updated.status === 'NEEDS_REVIEW' || updated.status === 'APPLIED') {
-                onRefresh();
-              }
-            }
-          }
-        } catch {
-          // 폴링 중 일시적 오류는 무시하고 다음 tick에 재시도
-        }
-      }, 3000);
-    } catch (err) {
-      setGenError(err instanceof Error ? err.message : 'AI 시나리오 생성 요청 실패');
-    } finally {
-      setGenLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (!selectedCase?.grep) {
@@ -651,15 +561,6 @@ export function ScenarioTab({
               선택 해제
             </Button>
             <Button size="sm" variant="outline" onClick={onRefresh}>새로고침</Button>
-            <Button
-              size="sm"
-              className="bg-ai-accent hover:opacity-90 text-ai-accent-foreground"
-              onClick={() => setGenDialogOpen(true)}
-              title="자연어로 새 테스트 시나리오를 생성해 이 프로젝트에 추가 (검토/승인 필요)"
-            >
-              <Sparkles className="h-3 w-3" />
-              AI로 새 시나리오 생성
-            </Button>
           </div>
         </div>
 
@@ -920,96 +821,6 @@ export function ScenarioTab({
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={genDialogOpen || urlAction === 'generate'}
-        onOpenChange={(open) => {
-          if (open) {
-            setGenDialogOpen(true);
-          } else {
-            resetGenDialog();
-            clearUrlAction();
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-1.5">
-              <Sparkles className="h-4 w-4 text-ai-accent" />
-              AI로 새 시나리오 생성
-            </DialogTitle>
-            <DialogDescription>
-              자연어로 요구사항을 설명하면 AI가 새 spec 파일을 생성합니다. 생성 결과는 자동 반영되지 않고,
-              관리자가 "AI 검토" 메뉴에서 승인해야 실제 프로젝트에 추가됩니다.
-            </DialogDescription>
-          </DialogHeader>
-
-          {!genJob ? (
-            <form onSubmit={handleGenerateScenario} className="space-y-4">
-              <SpecPathField
-                specPaths={tree?.specs.map((spec) => spec.path) ?? []}
-                value={genSpecPath}
-                onChange={setGenSpecPath}
-              />
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">시나리오 요구사항 (자연어)</label>
-                <textarea
-                  rows={4}
-                  value={genInstruction}
-                  onChange={(e) => setGenInstruction(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ai-accent"
-                  placeholder="예: 장바구니에 상품을 담고 결제 페이지로 이동해 총 금액이 표시되는지 확인하는 시나리오를 작성해줘."
-                  required
-                />
-              </div>
-              {genError && <p className="text-xs text-destructive">{genError}</p>}
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={resetGenDialog}>
-                  취소
-                </Button>
-                <Button type="submit" disabled={genLoading} className="bg-ai-accent hover:opacity-90 text-ai-accent-foreground">
-                  {genLoading ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> 요청 중...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-3.5 w-3.5" /> 생성 요청
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-foreground">Job #{genJob.id}</span>
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-ai-accent/15 text-ai-accent">
-                  {genStatusLabel[genJob.status]}
-                </span>
-                {!genTerminalStatuses.includes(genJob.status) && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-ai-accent" />
-                )}
-              </div>
-              <p className="text-xs font-mono text-muted-foreground">{genJob.targetSpecPath}</p>
-              {genJob.riskFlags && genJob.riskFlags !== '[]' && (
-                <p className="text-[11px] text-warning font-mono break-all">위험 신호: {genJob.riskFlags}</p>
-              )}
-              {genJob.errorMessage && <p className="text-xs text-destructive">{genJob.errorMessage}</p>}
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={resetGenDialog}>
-                  닫기
-                </Button>
-                {genJob.status === 'NEEDS_REVIEW' && (
-                  <Button type="button" size="sm" onClick={() => navigate('/ai-jobs')}>
-                    AI 검토로 이동
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
     </div>

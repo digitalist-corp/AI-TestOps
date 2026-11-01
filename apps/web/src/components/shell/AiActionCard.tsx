@@ -8,12 +8,11 @@ import {
   Loader2,
   Play,
   ShieldCheck,
-  TriangleAlert,
   Wrench,
   XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { api, getStoredAuth } from '@/api/client';
+import { api } from '@/api/client';
 import type { AiChatAction, AiJob, AiJobFileDiff, AiJobStatus } from '@/types';
 import { cn } from '@/lib/utils';
 
@@ -56,7 +55,6 @@ const TONE_CLASS: Record<Tone, string> = {
 export function AiActionCard({ action }: { action: AiChatAction }) {
   const navigate = useNavigate();
   const isProposal = action.type === 'RUN_PROPOSAL';
-  const admin = getStoredAuth()?.role === 'ADMIN';
 
   // ── 실행 제안 ─────────────────────────────────────────────────────────
   const [running, setRunning] = useState(false);
@@ -264,12 +262,11 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
                     </div>
                   )}
 
-                  {/* 코드를 보지 않고 승인하는 일을 막기 위해, 펼쳐 본 뒤에만 버튼을 연다. */}
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="xs"
                       onClick={() => review('approve')}
-                      disabled={!diffOpen || !diff || reviewing || !admin}
+                      disabled={reviewing}
                     >
                       {reviewing ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                       승인하고 반영
@@ -278,22 +275,10 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
                       size="xs"
                       variant="outline"
                       onClick={() => review('reject')}
-                      disabled={reviewing || !admin}
+                      disabled={reviewing}
                     >
                       거부
                     </Button>
-                    {!admin ? (
-                      <span className="text-[11px] text-muted-foreground">
-                        승인은 관리자만 할 수 있습니다
-                      </span>
-                    ) : (
-                      !diffOpen && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                          <TriangleAlert className="h-3 w-3" />
-                          변경 내용을 확인해야 승인할 수 있습니다
-                        </span>
-                      )
-                    )}
                   </div>
                 </>
               )}

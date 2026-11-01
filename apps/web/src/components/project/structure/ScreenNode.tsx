@@ -1,35 +1,49 @@
-import { memo, type CSSProperties } from 'react';
+import { memo } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { FileCode2, Globe, Lock, Plus } from 'lucide-react';
-import type { SiteMapNode } from '@/types';
+import { CheckCircle2, CircleDashed, Eye, Lock, Plus, TriangleAlert, type LucideIcon } from 'lucide-react';
+import type { CoverageNode, CoverageNodeState, SiteMapNode } from '@/types';
+import { Badge } from '@/components/ui/Badge';
+import { ISSUE_KIND_META, NODE_STATE_META, elementRatioText } from '@/lib/coverage';
+import { cn } from '@/lib/utils';
 import { SCREEN_H, SCREEN_W, type ScreenStatus } from './layoutGraph';
+
+/** 흐름 재생 중 이 화면의 모습 */
+export interface ScreenPlayback {
+  /** 흐름에서 몇 번째 단계인지 (1부터) */
+  order: number;
+  /** 이미 켜졌는지 */
+  lit: boolean;
+  tone: 'pass' | 'fail' | 'pending';
+  /** 흐름이 이 화면에서 막혔다면 그 이유. 말풍선으로 띄운다 */
+  bubble: string | null;
+}
 
 export interface ScreenNodeData extends Record<string, unknown> {
   node: SiteMapNode;
-  /** 화면 식별 코드 (SCR-01 …) */
-  code: string;
+  /** 예전 3단계 상태(failed · passed · neutral). data-status 로만 남긴다 */
   status: ScreenStatus;
-  rank: number;
+  /** 확인 지도 상태 */
+  state: CoverageNodeState;
+  coverage: CoverageNode;
   entry: boolean;
   /** 경로에서 이 화면이 나오는 순서 (1부터, 여러 번일 수 있다) */
   orders: number[];
-  /** 필터 · 검색에 걸리지 않아 흐리게 그린다 */
+  /** 필터 · 검색에 걸리지 않거나, 다른 흐름을 재생 중이라 흐리게 그린다 */
   dimmed: boolean;
   /** 마우스를 올린 화면 또는 그 이웃 */
   hot: boolean;
   focused: boolean;
   flash: boolean;
+  /** 방금 지도에 나타났다 (페이드인) */
+  appeared: boolean;
+  /** 방금 상태가 바뀌었다 (반짝임) */
+  changed: boolean;
+  play: ScreenPlayback | null;
   onAdd: (routeKey: string) => void;
   onOpen: (routeKey: string) => void;
 }
 
 export type ScreenFlowNode = Node<ScreenNodeData, 'screen'>;
-
-const STATUS_TAG: Record<ScreenStatus, { label: string; title: string; color: string }> = {
-  failed: { label: 'FAIL', title: '실패한 요소 있음', color: 'var(--sg-fail)' },
-  passed: { label: 'PASS', title: '모든 요소 확인됨', color: 'var(--sg-pass)' },
-  neutral: { label: 'UNVERIFIED', title: '확인 전', color: 'var(--c-muted)' },
-};
 
 const MAX_TICKS = 28;
 
@@ -48,26 +62,80 @@ export function verificationTicks(node: Pick<SiteMapNode, 'elementCount' | 'pass
   ];
 }
 
-const TICK_COLOR: Record<ScreenStatus, string> = {
-  passed: 'var(--sg-pass)',
-  failed: 'var(--sg-fail)',
-  neutral: '#2a3a4c',
+/** 눈금 한 칸의 색 */
+export const TICK_CLASS: Record<ScreenStatus, string> = {
+  passed: 'bg-success',
+  failed: 'bg-destructive',
+  neutral: 'bg-border',
 };
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
+/** 상태마다 아이콘 · 색. 색만으로 구분하지 않도록 아이콘 모양도 다르다. */
+export const STATE_ICON: Record<CoverageNodeState, { icon: LucideIcon; tone: string }> = {
+  TESTED: { icon: CheckCircle2, tone: 'text-success' },
+  OBSERVED: { icon: Eye, tone: 'text-info' },
+  UNSEEN: { icon: CircleDashed, tone: 'text-muted-foreground' },
+  BLOCKED: { icon: TriangleAlert, tone: 'text-destructive' },
+};
+
+/** 상자 모양: 통과는 초록 채움, 확인됨은 파랑 테두리, 안 봄은 회색 점선(흐리게), 막힘은 빨강 */
+const STATE_BOX: Record<CoverageNodeState, string> = {
+  TESTED: 'border-success bg-success/10',
+  OBSERVED: 'border-info bg-card shadow-[inset_0_0_0_1px_var(--color-info)]',
+  UNSEEN: 'border-dashed border-border-strong bg-card',
+  BLOCKED: 'border-destructive bg-destructive/5',
+};
+
+/** 요소 비율 막대: 통과 · 실패 · 확인됨 · 안 봄 순서로 칸을 나눈다. 화면 상자와 상세 패널이 함께 쓴다. */
+export function CoverageBar({ counts, className }: { counts: CoverageNode['counts']; className?: string }) {
+  const parts = [
+    { key: 'passed', n: counts.passed, c: 'bg-success', label: '테스트 통과' },
+    { key: 'failed', n: counts.failed, c: 'bg-destructive', label: '실패' },
+    { key: 'observed', n: counts.observed, c: 'bg-info', label: '화면에서 확인됨' },
+    { key: 'unseen', n: counts.unseen, c: 'bg-border', label: '아직 안 봄' },
+  ].filter((p) => p.n > 0);
+  const title = parts.map((p) => `${p.label} ${p.n}`).join(' · ');
+  return (
+    <div className={cn('flex h-1.5 overflow-hidden rounded-full bg-border/60', className)} title={title || '요소 없음'} aria-hidden="true">
+      {parts.map((p) => (
+        <i key={p.key} className={p.c} style={{ width: `${(p.n / Math.max(counts.total, 1)) * 100}%` }} />
+      ))}
+    </div>
+  );
+}
+
+const PLAY_RING: Record<ScreenPlayback['tone'], string> = {
+  pass: 'ring-[3px] ring-success',
+  fail: 'ring-[3px] ring-success',
+  pending: 'ring-[3px] ring-primary',
+};
 
 function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
-  const { node, status, orders } = data;
-  const tag = STATUS_TAG[status];
-  const ticks = verificationTicks(node);
-  const delay = Math.min(data.rank * 90, 900);
-  const style = { width: SCREEN_W, height: SCREEN_H, '--sg-delay': `${delay}ms` } as CSSProperties;
+  const { node, status, state, coverage, orders, play } = data;
+  const meta = NODE_STATE_META[state];
+  const Icon = STATE_ICON[state].icon;
+  // 화면 이름: 제목 → 화면 파일 이름 → 주소
+  const name = node.title ?? node.sourceFile?.split('/').pop() ?? node.routeKey;
+  const firstIssue = coverage.issues[0];
+  const stopped = play?.lit && play.bubble != null;
+  const fade = data.dimmed ? 'opacity-25' : play && !play.lit ? 'opacity-50' : state === 'UNSEEN' || node.excluded || node.stale ? 'opacity-70' : '';
 
   return (
     <div
-      className="sg-node flex flex-col pb-2.5 pl-3.5 pr-3 pt-2.5"
-      style={style}
+      className={cn(
+        'relative flex flex-col rounded-lg border p-3 shadow-sm transition-[border-color,box-shadow,opacity] duration-300',
+        STATE_BOX[state],
+        'hover:shadow-md',
+        data.hot && 'shadow-md',
+        orders.length > 0 && !data.focused && 'ring-2 ring-primary/70',
+        data.focused && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
+        data.flash && !data.focused && 'ring-2 ring-primary/50',
+        play?.lit && (stopped ? 'ring-[3px] ring-destructive' : PLAY_RING[play.tone]),
+        fade,
+        data.appeared && 'coverage-appear'
+      )}
+      style={{ width: SCREEN_W, height: SCREEN_H }}
       data-status={status}
+      data-state={state}
       data-in-path={orders.length > 0}
       data-focused={data.focused}
       data-hot={data.hot}
@@ -79,35 +147,67 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
       <Handle type="target" position={Position.Left} isConnectable={false} className="!h-2 !w-2 !min-w-0 !border-0 !bg-transparent" />
       <Handle type="source" position={Position.Right} isConnectable={false} className="!h-2 !w-2 !min-w-0 !border-0 !bg-transparent" />
 
-      {(data.focused || data.hot) && <span className="sg-brackets" data-kind="lock" />}
-      {data.flash && <span key={String(data.flash)} className="sg-brackets" data-kind="flash" />}
+      {/* 막힌 화면: 살짝 깜빡이는 빨간 링 */}
+      {state === 'BLOCKED' && !data.dimmed && (
+        <span aria-hidden="true" className="coverage-pulse pointer-events-none absolute -inset-1.5 rounded-xl border-2 border-destructive/60" />
+      )}
+      {/* 방금 상태가 바뀐 화면: 잠깐 반짝임 */}
+      {data.changed && (
+        <span aria-hidden="true" className="coverage-flash pointer-events-none absolute -inset-1 rounded-xl ring-4 ring-primary/40" />
+      )}
 
       {orders.length > 0 && (
-        <div className="absolute -top-[11px] left-3 flex gap-1">
+        <div className="absolute -top-3 left-3 flex gap-1">
           {orders.slice(0, 5).map((order) => (
-            <span key={order} className="sg-step rounded-[2px] px-1.5 py-px text-[10px] font-bold tracking-wider">
-              STEP {pad2(order)}
+            <span key={order} className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold leading-none text-primary-foreground shadow-sm">
+              {order}단계
             </span>
           ))}
-          {orders.length > 5 && <span className="sg-step rounded-[2px] px-1.5 py-px text-[10px] font-bold">+{orders.length - 5}</span>}
+          {orders.length > 5 && (
+            <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold leading-none text-primary-foreground shadow-sm">
+              +{orders.length - 5}
+            </span>
+          )}
         </div>
       )}
 
-      {/* 머리줄: 종류 · 코드 · 상태 */}
-      <div className="flex items-center gap-1.5">
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[2px] bg-[var(--c-bg-2)] text-[var(--c-muted)] ring-1 ring-[var(--c-line-2)]">
-          {node.origin === 'SITE' ? <Globe className="h-2.5 w-2.5" /> : <FileCode2 className="h-2.5 w-2.5" />}
+      {play && (
+        <span
+          className={cn(
+            'absolute -top-3 right-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-bold shadow-sm transition-colors',
+            !play.lit
+              ? 'border border-border bg-card text-muted-foreground'
+              : stopped
+                ? 'bg-destructive text-destructive-foreground'
+                : play.tone === 'pending'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-success text-success-foreground'
+          )}
+          title={`흐름의 ${play.order}번째 화면`}
+        >
+          {play.order}
         </span>
-        <span className="sg-label !text-[9px]">{node.origin === 'SITE' ? 'SITE' : 'SCREEN'}</span>
-        <span className="sg-mono text-[9px] text-[var(--c-dim)]">{data.code}</span>
-        {data.entry && <span className="sg-mono rounded-[2px] bg-[var(--c-cyan)]/12 px-1 text-[9px] font-bold text-[var(--c-cyan)]">ENTRY</span>}
-        <span className="sg-mono ml-auto flex items-center gap-1 text-[9px] font-bold tracking-wider" style={{ color: tag.color }} title={tag.title}>
-          <span className={`h-1.5 w-1.5 rounded-full ${status === 'failed' ? 'sg-live' : ''}`} style={{ background: tag.color, boxShadow: `0 0 6px ${tag.color}` }} />
-          {tag.label}
+      )}
+
+      {/* 머리줄: 상태 아이콘 · 화면 이름 · 경로에 추가 */}
+      <div className="flex items-center gap-2">
+        <span role="img" aria-label={meta.label} title={`${meta.label} — ${meta.hint}`} className={cn('shrink-0', STATE_ICON[state].tone)}>
+          <Icon className="h-4 w-4" strokeWidth={2.25} />
         </span>
+        {/* 마우스 클릭은 onNodeClick 이 받는다. 키보드(Enter · Space)로 누른 클릭만 여기서 연다. */}
         <button
           type="button"
-          className="sg-add nodrag ml-1 flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-[2px]"
+          className="min-w-0 flex-1 cursor-pointer truncate text-left text-sm font-semibold text-foreground"
+          title={name === node.routeKey ? name : `${name} (${node.routeKey})`}
+          onClick={(e) => {
+            if (e.detail === 0) data.onOpen(node.routeKey);
+          }}
+        >
+          {name}
+        </button>
+        <button
+          type="button"
+          className="nodrag flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
           title="경로에 추가"
           aria-label={`${node.routeKey} 를 경로에 추가`}
           onClick={(e) => {
@@ -115,71 +215,59 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
             data.onAdd(node.routeKey);
           }}
         >
-          <Plus className="h-3 w-3" strokeWidth={3} />
+          <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
         </button>
       </div>
 
-      {/* 본문: 경로 · 제목 */}
-      <div className="mt-2 flex min-w-0 items-center gap-1.5">
-        {/* 마우스 클릭은 onNodeClick 이 받는다. 키보드(Enter · Space)로 누른 클릭만 여기서 연다. */}
-        <button
-          type="button"
-          className="sg-mono min-w-0 flex-1 cursor-pointer truncate text-left text-[13px] font-semibold text-[var(--c-text)]"
-          title={node.routeKey}
-          onClick={(e) => {
-            if (e.detail === 0) data.onOpen(node.routeKey);
-          }}
-        >
-          {node.routeKey}
-        </button>
-        {node.authRequired && (
-          <span title="로그인해야 열리는 화면" className="shrink-0 text-[var(--c-amber)]">
-            <Lock className="h-3 w-3" />
-          </span>
-        )}
-      </div>
-      <p className="mt-0.5 truncate text-[11px] text-[var(--c-muted)]" title={node.title ?? node.sourceFile ?? node.url ?? ''}>
-        {node.title ?? node.sourceFile?.split('/').pop() ?? node.url ?? '제목 없음'}
+      {/* 상태 한 줄: 막혔으면 그 이유 */}
+      <p className={cn('mt-1 truncate pl-6 text-xs font-medium', STATE_ICON[state].tone)} title={firstIssue?.message ?? meta.hint}>
+        {meta.label}
+        {firstIssue && state === 'BLOCKED' && <span className="font-normal"> · {ISSUE_KIND_META[firstIssue.kind].title}</span>}
       </p>
 
-      {/* 바닥줄: 확인 눈금 · 수치 · 표시 */}
-      <div className="mt-auto space-y-1.5">
-        {ticks.length > 0 ? (
-          <div className="sg-ticks" title={`요소 ${node.elementCount}개`}>
-            {ticks.map((t, i) => (
-              <i key={i} style={{ background: TICK_COLOR[t], animationDelay: `${delay + 300 + i * 18}ms` }} />
-            ))}
-          </div>
-        ) : (
-          <div className="sg-label flex h-[9px] items-center !text-[9px]">NO ELEMENTS</div>
-        )}
-        <div className="sg-mono flex items-center gap-2.5 text-[10px] tabular-nums">
-          <span className="text-[var(--c-dim)]" title="확인된 요소">
-            PASS <b className="text-[var(--sg-pass)]">{pad2(node.passedCount)}</b>
+      {/* 바닥줄: 요소 비율 · 표시 */}
+      <div className="mt-auto pl-6">
+        <div className="mb-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate tabular-nums" title="이 화면에서 찾은 버튼 · 링크 · 입력칸 중 테스트로 확인한 수">
+            {elementRatioText(coverage.counts)}
           </span>
-          <span className="text-[var(--c-dim)]" title="실패한 요소">
-            FAIL <b className={node.failedCount > 0 ? 'text-[var(--sg-fail)]' : 'text-[var(--c-muted)]'}>{pad2(node.failedCount)}</b>
-          </span>
-          <span className="text-[var(--c-dim)]" title="확인 전 요소">
-            UNV <b className="text-[var(--c-muted)]">{pad2(node.unverifiedCount)}</b>
-          </span>
-          <span className="ml-auto flex gap-1">
+          {node.authRequired && (
+            <span title="로그인해야 열리는 화면" className="shrink-0 text-warning">
+              <Lock className="h-3.5 w-3.5" />
+            </span>
+          )}
+          <span className="ml-auto flex shrink-0 gap-1 overflow-hidden">
+            {data.entry && <Badge variant="info" className="px-1.5 py-0 text-[11px]" title="지도를 그리기 시작한 첫 화면">시작</Badge>}
             {node.excluded && (
-              <span className="rounded-[2px] border border-[var(--c-amber)]/50 px-1 text-[9px] text-[var(--c-amber)]" title="제외됨">
-                EXCL
-              </span>
+              <Badge variant="warning" className="px-1.5 py-0 text-[11px]" title="테스트 생성에서 제외됨">
+                제외됨
+              </Badge>
             )}
             {node.stale && (
-              <span
-                className="rounded-[2px] border border-[var(--c-amber)]/50 px-1 text-[9px] text-[var(--c-amber)]"
-                title={node.origin === 'SITE' ? '탐색에서 사라짐' : '코드에 없음'}
-              >
-                MISSING
-              </span>
+              <Badge variant="warning" className="px-1.5 py-0 text-[11px]" title={node.origin === 'SITE' ? '마지막 탐색에서 열리지 않았어요' : '코드에서 사라졌어요'}>
+                사라짐
+              </Badge>
             )}
           </span>
         </div>
+        <CoverageBar counts={coverage.counts} />
       </div>
+
+      {/* 흐름이 이 화면에서 막혔으면 빨간 말풍선으로 이유를 보여 준다 */}
+      {stopped && (
+        <div
+          role="status"
+          className="coverage-appear absolute left-1/2 top-full z-10 mt-3 w-72 -translate-x-1/2 rounded-lg bg-destructive px-3 py-2 text-xs leading-relaxed text-destructive-foreground shadow-lg"
+        >
+          <span aria-hidden="true" className="absolute -top-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 bg-destructive" />
+          <p className="relative flex items-start gap-1.5">
+            <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              <b className="font-semibold">여기서 막혔어요.</b> {play?.bubble}
+            </span>
+          </p>
+        </div>
+      )}
     </div>
   );
 }

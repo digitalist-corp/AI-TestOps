@@ -4,21 +4,21 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 type Theme = 'light' | 'dark';
 
 /**
- * 콘솔 테마를 기본으로 바꾸면서 키를 새로 뒀다. 예전 키에는 고르지 않아도 기본값(light)이 저장돼 있어
- * 사용자가 고른 값과 구분할 수 없다.
+ * 라이트를 기본으로 되돌리면서 키를 새로 뒀다. 예전 키(v2)에는 처음 열 때 저장된 기본값(dark)이 들어 있어
+ * 사용자가 직접 고른 값과 구분할 수 없다. 새 키로 시작하면 모두 라이트로 열리고, 그 뒤로는 고른 값을 따른다.
  */
-const THEME_KEY = 'playops.theme.v2';
+const THEME_KEY = 'playops.theme.v3';
 
 export const THEME_LABEL: Record<Theme, string> = {
   dark: '콘솔',
   light: '라이트 (KRDS)',
 };
 
-/** 기본값은 콘솔. 사용자가 한 번이라도 고른 값이 있으면 그 선택을 따른다. */
+/** 기본값은 라이트. 사용자가 한 번이라도 고른 값이 있으면 그 선택을 따른다. */
 function resolveInitialTheme(): Theme {
   const stored = localStorage.getItem(THEME_KEY);
   if (stored === 'light' || stored === 'dark') return stored;
-  return 'dark';
+  return 'light';
 }
 
 const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void } | null>(null);

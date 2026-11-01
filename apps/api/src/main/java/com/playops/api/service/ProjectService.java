@@ -436,6 +436,14 @@ public class ProjectService {
                 .orElseThrow(() -> new ApiException(404, "Project not found: " + projectId));
     }
 
+    /** 프로젝트 환경변수 JSON 에 새 키 · 값을 병합해 저장한다. 기존에 들어 있던 키는 그대로 보존한다. */
+    @Transactional
+    public Project mergeEnvVariables(String projectId, Map<String, String> additions) {
+        Project project = getProject(projectId);
+        project.setEnvVariables(ProjectEnvVariables.merge(project.getEnvVariables(), additions));
+        return projectRepository.save(project);
+    }
+
     public Path getProjectPath(String projectId) {
         return Path.of(properties.projectsRoot(), projectId);
     }

@@ -1,0 +1,101 @@
+{
+  "status": "READY",
+  "url": "http://host.docker.internal:3000/projects/example.com/dashboard",
+  "title": "AI-TestOps",
+  "viewport": {
+    "width": 1280,
+    "height": 800
+  },
+  "steps": [
+    {
+      "id": "d2f38b33",
+      "action": "goto",
+      "selector": null,
+      "fragile": false,
+      "label": "/login 열기",
+      "value": "/login",
+      "url": "http://host.docker.internal:3000/login"
+    },
+    {
+      "id": "892bf9bd",
+      "action": "assertText",
+      "selector": "getByRole('heading', { name: '사이트 주소만 알려주면 AI가 테스트를 만들고 실행합니다.', exact: true })",
+      "fragile": false,
+      "label": "'사이트 주소만 알려주면 AI가 테스트…' 글자가 '사이트 주소만 알려주면AI가 테스트를 만들고 실행합니다.' 인지 확인",
+      "value": "사이트 주소만 알려주면AI가 테스트를 만들고 실행합니다.",
+      "url": "http://host.docker.internal:3000/login"
+    },
+    {
+      "id": "01ca3dcf",
+      "action": "fill",
+      "selector": "getByRole('textbox', { name: '사용자명', exact: true })",
+      "fragile": false,
+      "label": "'사용자명' 로그인 아이디 입력: admin",
+      "value": "admin",
+      "url": "http://host.docker.internal:3000/login"
+    },
+    {
+      "id": "5537e04c",
+      "action": "fill",
+      "selector": "getByLabel('비밀번호', { exact: true })",
+      "fragile": false,
+      "label": "'비밀번호' 비밀번호 입력 (값은 LOGIN_PASSWORD 환경변수)",
+      "secretEnv": "LOGIN_PASSWORD",
+      "url": "http://host.docker.internal:3000/login"
+    },
+    {
+      "id": "1b07524b",
+      "action": "click",
+      "selector": "getByRole('button', { name: '로그인', exact: true })",
+      "fragile": false,
+      "label": "'로그인' 버튼 클릭",
+      "url": "http://host.docker.internal:3000/projects"
+    },
+    {
+      "id": "47c69055",
+      "action": "assertVisible",
+      "selector": "getByRole('heading', { name: '프로젝트', exact: true })",
+      "fragile": false,
+      "label": "'프로젝트' 보이는지 확인",
+      "url": "http://host.docker.internal:3000/projects"
+    },
+    {
+      "id": "041c9c27",
+      "action": "fill",
+      "selector": "getByRole('textbox', { name: '프로젝트명, 주소, 담당자 검색', exact: true })",
+      "fragile": false,
+      "label": "'프로젝트명, 주소, 담당자 검색' 칸에 'Naver' 입력",
+      "value": "Naver",
+      "url": "http://host.docker.internal:3000/projects"
+    },
+    {
+      "id": "91625dc1",
+      "action": "press",
+      "selector": null,
+      "fragile": false,
+      "label": "Enter 키 누름",
+      "value": "Enter",
+      "url": "http://host.docker.internal:3000/projects"
+    },
+    {
+      "id": "11eae7d6",
+      "action": "goto",
+      "selector": null,
+      "fragile": false,
+      "label": "/projects 열기",
+      "value": "/projects",
+      "url": "http://host.docker.internal:3000/projects"
+    },
+    {
+      "id": "5710bc1a",
+      "action": "click",
+      "selector": "getByRole('button', { name: '열기', exact: true }).nth(0)",
+      "fragile": true,
+      "label": "'열기' 버튼 클릭",
+      "url": "http://host.docker.internal:3000/projects/example.com/dashboard"
+    }
+  ],
+  "screenshotVersion": 8,
+  "error": null,
+  "inspected": null
+}

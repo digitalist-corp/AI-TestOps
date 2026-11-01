@@ -68,4 +68,19 @@ public class AsyncConfig {
         executor.initialize();
         return executor;
     }
+
+    /**
+     * AI 채팅 에이전트의 답변 루프. 한 답변이 모델 스트림 · 허락 대기로 몇 분씩 스레드를 붙잡으므로
+     * 다른 AI 작업 풀과 나눈다. 대부분 기다리는 시간이라 스레드를 넉넉히 두고, 넘치면 503 으로 돌려보낸다.
+     */
+    @Bean(name = "aiChatExecutor")
+    public ThreadPoolTaskExecutor aiChatExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(16);
+        executor.setMaxPoolSize(16);
+        executor.setQueueCapacity(32);
+        executor.setThreadNamePrefix("playops-ai-chat-");
+        executor.initialize();
+        return executor;
+    }
 }

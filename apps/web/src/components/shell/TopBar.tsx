@@ -3,12 +3,14 @@ import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { HelpMenu } from '@/components/shell/HelpMenu';
 import { NotificationBell } from '@/components/shell/NotificationBell';
+import { AiSwitch } from '@/components/shell/AiSwitch';
 import { LiveClock } from '@/components/console/ConsoleText';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { THEME_LABEL, useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
 import { projectTabPath, type ProjectTabId } from '@/config/projectWorkspace';
-import { WORKSPACE_GROUPS, groupOfTab, railLabelOf, tabLabel } from '@/config/shellNav';
+import { groupOfTab, railLabelOf, tabLabel, visibleWorkspaceGroups } from '@/config/shellNav';
 
 /**
  * 상단바: 프로젝트 전환 + 작업 탭 5개 + 계정.
@@ -35,6 +37,7 @@ export function TopBar({
   onLogout: () => void;
 }) {
   const { theme, toggleTheme } = useTheme();
+  const { available: aiAvailable, enabled: aiEnabled, active: aiActive, setEnabled: setAiEnabled } = useAiEnabled();
   const inProject = Boolean(activeProjectId);
   const activeGroup = groupOfTab(currentTab);
   const projectLabel = activeProject?.projectName ?? activeProjectId;
@@ -62,7 +65,7 @@ export function TopBar({
 
       {inProject && activeProjectId ? (
         <nav className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {WORKSPACE_GROUPS.map(({ id, label, icon: Icon, tabs }) => {
+          {visibleWorkspaceGroups(aiActive).map(({ id, label, icon: Icon, tabs, aiOnly }) => {
             const active = activeGroup.id === id;
             return (
               <NavLink
@@ -73,8 +76,12 @@ export function TopBar({
                 className={cn(
                   'flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium transition-colors',
                   active
-                    ? 'bg-primary/10 text-primary ring-1 ring-primary/25 dark:shadow-[inset_0_-2px_0_var(--color-primary)] dark:ring-primary/30'
-                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                    ? aiOnly
+                      ? 'bg-ai-accent/15 text-ai-accent ring-1 ring-ai-accent/30 dark:shadow-[inset_0_-2px_0_var(--color-ai-accent)]'
+                      : 'bg-primary/10 text-primary ring-1 ring-primary/25 dark:shadow-[inset_0_-2px_0_var(--color-primary)] dark:ring-primary/30'
+                    : aiOnly
+                      ? 'text-ai-accent hover:bg-ai-accent/10'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -110,6 +117,8 @@ export function TopBar({
 
       <HelpMenu pathname={pathname} projectTab={projectTab} />
       <NotificationBell />
+      {/* 키가 없으면 저장된 선택과 상관없이 꺼진 모양으로 보인다 */}
+      <AiSwitch available={aiAvailable} enabled={aiAvailable && aiEnabled} onChange={setAiEnabled} />
 
       <div
         className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-border bg-background pl-2.5 pr-1"

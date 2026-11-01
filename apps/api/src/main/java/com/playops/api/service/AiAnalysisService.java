@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class AiAnalysisService {
@@ -114,6 +115,52 @@ public class AiAnalysisService {
         String answer = runAgentLoop(provider, systemPrompt, messages, tools, context,
                 request.getProjectId());
         return new AiChatResponse(answer, context.actions());
+    }
+
+    /** 채팅 에이전트 한 번의 답변에 필요한 준비물: 쓸 공급자 · 시스템 프롬프트. */
+    public record AgentChatSetup(AiModelProvider provider, String systemPrompt) {}
+
+    /**
+     * 채팅 에이전트(세션 채팅)용 준비. 한 번에 답하는 채팅과 같은 페르소나 · 프로젝트 · 최근 실행 요약을 쓰고,
+     * 도구 안내만 에이전트에 맞게 바꾼다. 안내 문장은 실제로 있는 도구에 대해서만 넣어 모델이 없는 도구를 찾지 않게 한다.
+     *
+     * @param toolNames 이번 답변에서 모델에게 줄 도구 이름들
+     */
+    public AgentChatSetup prepareAgentChat(String projectId, String userLevel, Set<String> toolNames) {
+        String level = normalizeUserLevel(userLevel);
+        ExecutionDetailResponse detail = null;
+        if (projectId != null && !projectId.isBlank()) {
+            detail = loadDetailOrNull(findRecentExecutionId(projectId));
+        }
+        StringBuilder sb = buildChatPromptBase(level, detail, projectId);
+        sb.append("\n도구 사용\n");
+        sb.append("- 당신은 도구를 여러 번 이어 부를 수 있는 에이전트입니다. 추측하지 말고 도구로 확인한 사실을 근거로 답하세요.\n");
+        sb.append("- 도구 결과가 실패하면 원인을 읽고 인자를 고쳐 다시 시도하거나 다른 도구를 쓰세요. 같은 호출을 그대로 반복하지 마세요.\n");
+        sb.append("- 서로 관계없는 조회는 한 번에 여러 도구를 같이 불러도 됩니다.\n");
+        if (toolNames.contains("read_file")) {
+            sb.append("- 코드를 언급하기 전에 read_file 로 실제 내용을 먼저 확인하세요. 기억이나 추측으로 코드를 인용하지 마세요.\n");
+        }
+        if (toolNames.contains("grep_files")) {
+            sb.append("- 어느 파일에 있는지 모르면 grep_files 로 먼저 찾으세요.\n");
+        }
+        if (toolNames.contains("sql_query")) {
+            sb.append("- 실행 통계 · 이력처럼 여러 건을 모아 봐야 하는 질문은 sql_query 로 조회하세요. 조회만 가능합니다.\n");
+        }
+        if (toolNames.contains("set_env_variables")) {
+            sb.append("- 로그인 계정이나 환경변수가 필요한데 아직 설정되지 않았다면 사용자에게 아이디·비밀번호 등 필요한 값을 질문해 받아내고(HITL), 사용자가 알려 준 값은 set_env_variables 도구로 프로젝트 환경변수에 직접 저장하세요. 사용자에게 dotenv를 직접 설치하라고 안내하지 마세요.\n");
+        }
+        if (toolNames.contains("fix_test") || toolNames.contains("generate_scenario")) {
+            sb.append("- 사용자가 수정을 요청하면 설명만 하지 말고 fix_test 또는 generate_scenario 를 실제로 호출하세요.\n");
+            sb.append("  이 도구는 파일을 바로 바꾸지 않고 승인 대기 AI 작업만 만듭니다. 승인 전에는 아무것도 바뀌지 않았다는 점을 답변에 분명히 쓰세요.\n");
+            sb.append("- 새 시나리오 파일 경로는 tests/ 아래의 .spec.ts 로 정하세요. 폴더는 자동으로 만들어집니다.\n");
+        }
+        if (toolNames.contains("run_tests")) {
+            sb.append("- 테스트를 돌려 확인해야 하면 run_tests 를 쓰세요. 실행 전에 사용자 허락을 받습니다.\n");
+            sb.append("  사용자가 거부하면 같은 실행을 다시 요청하지 말고, 거부된 사실을 받아들여 답을 이어가세요.\n");
+        } else {
+            sb.append("- 테스트 실행이 필요하면 사용자에게 실행 탭에서 돌려 보라고 안내하세요.\n");
+        }
+        return new AgentChatSetup(resolveProvider(null), sb.toString());
     }
 
     /**
@@ -297,7 +344,6 @@ public class AiAnalysisService {
         }
     }
 
-    /** 대화용 시스템 프롬프트: 페르소나 + 참고 실행 정보 + 답변 지침. 사용자 메시지에는 질문만 담는다. */
     /**
       * 채팅용 시스템 프롬프트.
       *
@@ -305,6 +351,19 @@ public class AiAnalysisService {
       * 요구할 수밖에 없었다. 지금은 프로젝트 정보와 실제 실패 로그 · 실패 케이스를 함께 넣는다.
       */
     private String buildChatSystemPrompt(String userLevel, ExecutionDetailResponse detail, String projectId) {
+        StringBuilder sb = buildChatPromptBase(userLevel, detail, projectId);
+
+        sb.append("\n도구 사용\n");
+        sb.append("- 코드를 언급하기 전에 read_file 로 실제 내용을 먼저 확인하세요. 기억이나 추측으로 코드를 인용하지 마세요.\n");
+        sb.append("- 사용자가 수정을 요청하면 설명만 하지 말고 fix_test 또는 generate_scenario 도구를 실제로 호출하세요.\n");
+        sb.append("- 새 시나리오 파일 경로는 tests/ 아래의 .spec.ts 로 정하세요. 폴더는 자동으로 만들어지므로 미리 만들 필요가 없습니다.\n");
+        sb.append("- 도구로 만든 작업은 사람이 승인해야 반영됩니다. 승인 전에는 아무것도 바뀌지 않았다는 점을 답변에 분명히 쓰세요.\n");
+        sb.append("- 테스트 실행이 필요하면 사용자에게 실행 탭에서 돌려 보라고 안내하세요. 이 대화에서는 테스트를 직접 실행할 수 없습니다.");
+        return sb.toString();
+    }
+
+    /** 페르소나 + 프로젝트 · 최근 실행 정보 + 공통 답변 규칙. 한 번에 답하는 채팅과 채팅 에이전트가 같이 쓴다. */
+    private StringBuilder buildChatPromptBase(String userLevel, ExecutionDetailResponse detail, String projectId) {
         StringBuilder sb = new StringBuilder(buildPersonaPrompt(userLevel));
         sb.append("\n\nPlaywright 테스트 및 E2E 결과 관련 질의응답을 진행합니다.\n");
 
@@ -317,15 +376,9 @@ public class AiAnalysisService {
         sb.append("- 실패 원인을 짚을 때는 근거가 된 로그 줄을 인용하세요.\n");
         sb.append("- 코드 수정이 필요하면 고칠 파일과 바뀔 부분을 구체적으로 제시하세요. 다만 실제 반영은 사람이 승인해야 하므로,\n");
         sb.append("  \"소스 탭의 AI 수정 도움\" 또는 \"AI로 만들기\"로 이어가라고 안내하세요.\n");
-sb.append("- 사용자의 기술 수준(").append(userLevel).append(")에 맞춰 한글 Markdown으로 답하세요.\n");
+        sb.append("- 사용자의 기술 수준(").append(userLevel).append(")에 맞춰 한글 Markdown으로 답하세요.\n");
 
-        sb.append("\n도구 사용\n");
-        sb.append("- 코드를 언급하기 전에 read_file 로 실제 내용을 먼저 확인하세요. 기억이나 추측으로 코드를 인용하지 마세요.\n");
-        sb.append("- 사용자가 수정을 요청하면 설명만 하지 말고 fix_test 또는 generate_scenario 도구를 실제로 호출하세요.\n");
-        sb.append("- 새 시나리오 파일 경로는 tests/ 아래의 .spec.ts 로 정하세요. 폴더는 자동으로 만들어지므로 미리 만들 필요가 없습니다.\n");
-        sb.append("- 도구로 만든 작업은 사람이 승인해야 반영됩니다. 승인 전에는 아무것도 바뀌지 않았다는 점을 답변에 분명히 쓰세요.\n");
-        sb.append("- 테스트를 돌려보자고 할 때는 propose_test_run 을 쓰세요. 직접 실행되지 않고 사용자에게 버튼만 보여집니다.");
-        return sb.toString();
+        return sb;
     }
 
     private void appendProjectContext(StringBuilder sb, String projectId) {

@@ -13,6 +13,9 @@ import java.time.Instant;
         @UniqueConstraint(name = "uk_scenario_origin_spec", columnNames = {"project_id", "spec_path"}))
 public class ScenarioOrigin {
 
+    /** 녹화(클릭으로 테스트 만들기)로 저장한 테스트. 구조 경로 · AI 생성은 아직 값을 적지 않아 null 이다. */
+    public static final String SOURCE_RECORDED = "RECORDED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -31,6 +34,10 @@ public class ScenarioOrigin {
     @Column(name = "selector_keys", columnDefinition = "TEXT")
     private String selectorKeys;
 
+    /** 테스트를 만든 방법. 지금은 녹화만 RECORDED 를 적고, 나머지는 null(routeKeys 로 구분한다). */
+    @Column(length = 20)
+    private String source;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
@@ -43,6 +50,8 @@ public class ScenarioOrigin {
     public void setRouteKeys(String routeKeys) { this.routeKeys = routeKeys; }
     public String getSelectorKeys() { return selectorKeys; }
     public void setSelectorKeys(String selectorKeys) { this.selectorKeys = selectorKeys; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

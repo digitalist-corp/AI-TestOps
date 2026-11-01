@@ -1,21 +1,29 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Loader2, Sparkles } from 'lucide-react';
 import { api } from '@/api/client';
-import type { SiteMap, SiteMapNodeDetail } from '@/types';
+import type { CoverageNodeState, SiteMap, SiteMapNodeDetail } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { useAiEnabled } from '@/lib/aiEnabled';
+import { NODE_STATE_META } from '@/lib/coverage';
 import { ElementTable } from './ElementTable';
 
 /**
  * 화면 목록 보기. 화면을 펼쳐 요소를 보고, 그 화면 하나로 테스트를 만든다.
  * 좁은 화면의 기본 보기이며, 여러 화면을 이어 경로로 만드는 일은 그래프 보기에서 한다.
  */
-export function StructureList({ projectId, siteMap, onError }: {
+export function StructureList({ projectId, siteMap, onError, states, loadDetail = api.getSiteMapNode }: {
   projectId: string;
   siteMap: SiteMap;
   onError: (message: string) => void;
+  /** 확인 지도에서 화면마다의 상태 */
+  states?: Map<string, CoverageNodeState>;
+  /** 화면 상세를 읽는 함수 (개발용 가짜 응답에서 바꿔 낀다) */
+  loadDetail?: (projectId: string, routeKey: string) => Promise<SiteMapNodeDetail>;
 }) {
+  const { active: aiActive } = useAiEnabled();
   const [busy, setBusy] = useState(false);
   const [openRoute, setOpenRoute] = useState<string | null>(null);
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
@@ -34,7 +42,7 @@ export function StructureList({ projectId, siteMap, onError }: {
     setInstruction('');
     setCreatedJob(null);
     setScreenshotUrl(null);
-    api.getSiteMapNode(projectId, routeKey).then(setDetail).catch((e: Error) => onError(e.message));
+    loadDetail(projectId, routeKey).then(setDetail).catch((e: Error) => onError(e.message));
   };
 
   // 스크린샷은 인증 헤더가 필요해 img src 로 바로 걸지 않고 받아서 보여 준다.
@@ -107,7 +115,7 @@ export function StructureList({ projectId, siteMap, onError }: {
       <section className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-3">
           <h3 className="text-sm font-semibold text-foreground">
-            화면 {nodes.length}개 · 전환 {siteMap.edges.length}개
+            화면 {nodes.length}개 · 연결 {siteMap.edges.length}개
           </h3>
         </div>
         {nodes.length === 0 ? (
@@ -132,6 +140,11 @@ export function StructureList({ projectId, siteMap, onError }: {
                     )}
                     <span className="truncate font-mono text-sm text-foreground">{node.routeKey}</span>
                     {node.title && <span className="truncate text-xs text-muted-foreground">{node.title}</span>}
+                    {states?.get(node.routeKey) && (
+                      <Badge variant={NODE_STATE_META[states.get(node.routeKey)!].tone} title={NODE_STATE_META[states.get(node.routeKey)!].hint}>
+                        {NODE_STATE_META[states.get(node.routeKey)!].label}
+                      </Badge>
+                    )}
                     <Badge>요소 {node.elementCount}</Badge>
                     {node.origin === 'SITE' && (
                       <Badge variant="info" title="실제 사이트를 브라우저로 열어 찾은 화면입니다">
@@ -168,14 +181,15 @@ export function StructureList({ projectId, siteMap, onError }: {
                     ) : (
                       <ElementTable elements={detail.elements} origin={node.origin} />
                     )}
-                    {detail && detail.elements.some((element) => element.selector) && (
+                    {/* AI를 끄면 테스트 생성 입력만 숨기고, 화면 · 요소 보기는 그대로 둔다 */}
+                    {aiActive && detail && detail.elements.some((element) => element.selector) && (
                       <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3 @3xl:flex-row @3xl:items-center">
                         {createdJob ? (
                           <p className="text-xs text-foreground">
                             AI 작업 #{createdJob.id} 을 만들었습니다 ({createdJob.specPath}). 생성이 끝나면{' '}
-                            <a className="font-semibold text-primary underline" href="/ai-jobs">
+                            <Link className="font-semibold text-primary underline" to={`/projects/${projectId}/ai-review`}>
                               AI 검토
-                            </a>
+                            </Link>
                             에서 승인해야 프로젝트에 추가됩니다.
                           </p>
                         ) : (

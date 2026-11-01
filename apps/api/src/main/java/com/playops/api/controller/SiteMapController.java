@@ -2,10 +2,12 @@ package com.playops.api.controller;
 
 import com.playops.api.entity.SiteAnalysisRun;
 import com.playops.api.service.SiteAnalysisService;
+import com.playops.api.service.SiteCoverageService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class SiteMapController {
 
     private final SiteAnalysisService siteAnalysisService;
+    private final SiteCoverageService siteCoverageService;
 
-    public SiteMapController(SiteAnalysisService siteAnalysisService) {
+    public SiteMapController(SiteAnalysisService siteAnalysisService, SiteCoverageService siteCoverageService) {
         this.siteAnalysisService = siteAnalysisService;
+        this.siteCoverageService = siteCoverageService;
     }
 
     @GetMapping
@@ -39,16 +43,35 @@ public class SiteMapController {
         return siteAnalysisService.view(projectId);
     }
 
+    /** 확인 지도: 화면마다 어디까지 확인됐고 어디서 막혔는지, 테스트 흐름이 어느 화면까지 갔는지. */
+    @GetMapping("/coverage")
+    public SiteCoverageService.Coverage coverage(@PathVariable String projectId) {
+        return siteCoverageService.view(projectId);
+    }
+
     /** 화면 경로에 / 가 들어 있어 경로 변수 대신 쿼리로 받는다. */
     @GetMapping("/node")
     public SiteAnalysisService.NodeDetail getNode(@PathVariable String projectId, @RequestParam String route) {
         return siteAnalysisService.viewNode(projectId, route);
     }
 
+    /** 사용자가 직접 화면 노드를 추가하거나 수정한다. */
+    @PostMapping("/node")
+    public SiteAnalysisService.SiteMap addNode(@PathVariable String projectId,
+                                               @RequestBody SiteAnalysisService.ManualNodeRequest request) {
+        return siteAnalysisService.saveManualNode(projectId, request);
+    }
+
     @PatchMapping("/node")
     public SiteAnalysisService.NodeDetail editNode(@PathVariable String projectId, @RequestParam String route,
                                                    @RequestBody SiteAnalysisService.NodeEditRequest request) {
         return siteAnalysisService.editNode(projectId, route, request);
+    }
+
+    /** 화면 노드와 메모 · 연결된 전환을 삭제한다. */
+    @DeleteMapping("/node")
+    public SiteAnalysisService.SiteMap deleteNode(@PathVariable String projectId, @RequestParam String route) {
+        return siteAnalysisService.deleteNode(projectId, route);
     }
 
     /** 분석을 시작하고 바로 돌아온다. 진행 상황은 GET 으로 확인한다. */
@@ -61,7 +84,9 @@ public class SiteMapController {
 
     /** 소스 저장소 없이 대상 사이트 주소로 화면을 탐색한다. 시작하고 바로 돌아오며 진행 상황은 GET 으로 확인한다. */
     @PostMapping("/analyze-url")
-    public SiteAnalysisService.SiteMap analyzeUrl(@PathVariable String projectId) {
+    public SiteAnalysisService.SiteMap analyzeUrl(@PathVariable String projectId,
+                                                  @RequestBody(required = false) SiteAnalysisService.AnalyzeUrlRequest request) {
+        siteAnalysisService.saveLoginCredentials(projectId, request);
         SiteAnalysisRun run = siteAnalysisService.startByUrl(projectId);
         siteAnalysisService.runByUrlAsync(run.getId(), SiteAnalysisService.FULL_LIMITS);
         return siteAnalysisService.view(projectId);
