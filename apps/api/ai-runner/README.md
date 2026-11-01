@@ -67,3 +67,11 @@ docker run --rm --add-host host.docker.internal:host-gateway \
 
 > api 는 이미지가 **없을 때만** 빌드한다. `run.js` · `analyze.js` 를 고친 뒤에는 위 명령으로
 > 이미지를 직접 다시 빌드해야 반영된다.
+
+## 녹화 — record.js (클릭으로 테스트 만들기)
+
+job.json 으로 도는 일회성 작업이 아니라, 녹화 세션 동안 떠 있는 작은 HTTP 서버다. api(`RecorderService`)가
+세션마다 `rec-<id>` 컨테이너를 `node /ai-runner/record.js` 로 띄우고 `127.0.0.1:<9400~9499>` 로 부른다.
+사람이 화면에서 누른 좌표의 요소를 Playwright 로 실제로 클릭 · 입력하고, 그 요소 하나만 가리키는 셀렉터로 기록한다.
+셀렉터 후보 · 검증 로직은 `selectors.js`(analyze.js 에서 복사)에 있다. LLM 미사용.
+계약: `docs/design/recorder-contract.md`. 환경변수 · 내부 엔드포인트는 record.js 맨 위 주석 참고.

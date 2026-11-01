@@ -252,7 +252,8 @@ public class AiRunnerDockerService {
         return properties.storageRoot() + "/ai-jobs/" + jobId;
     }
 
-    private void ensureRunnerImage() {
+    /** AI Runner 이미지가 없으면 빌드한다. 녹화(RecorderService)도 같은 이미지를 쓴다. */
+    public void ensureRunnerImage() {
         try {
             runProcessCommand(List.of("docker", "image", "inspect", AI_RUNNER_IMAGE), 10);
             return;
