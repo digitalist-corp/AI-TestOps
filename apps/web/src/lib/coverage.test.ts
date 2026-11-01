@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { layoutGraph, mergeEdges } from '@/components/project/structure/layoutGraph';
+import { createCoverageMock } from './coverageMock';
 import type { Coverage, CoverageFlow, CoverageIssue, CoverageSummary, Execution, SiteMapNode } from '@/types';
 import {
   NODE_STATE_META,
@@ -18,6 +20,7 @@ import {
   summarySentence,
   summaryText,
   timeAgo,
+  withCoverageEdges,
 } from './coverage';
 
 function summary(patch: Partial<CoverageSummary>): CoverageSummary {
@@ -269,5 +272,49 @@ describe('다시 읽기(폴링)', () => {
     const next = new Map([['/a', 'TESTED' as const], ['/b', 'OBSERVED' as const], ['/c', 'UNSEEN' as const]]);
     expect(diffNodeStates(prev, next)).toEqual({ appeared: ['/c'], changed: ['/a'] });
     expect(diffNodeStates(null, next)).toEqual({ appeared: [], changed: [] });
+  });
+});
+
+describe('coverage 에만 있는 전환', () => {
+  const siteMap = {
+    nodes: [screen('/'), screen('/items'), screen('/cart'), screen('/done')],
+    edges: [{ from: '/', to: '/items', kind: 'link', label: '상품', selector: null }],
+  };
+
+  it('지도에 없는 전환을 더하고, 이미 있는 전환 · 자기 자신 · 지도에 없는 화면은 빼고, 중복은 한 번만', () => {
+    const edges = withCoverageEdges(siteMap, [
+      { from: '/', to: '/items' },
+      { from: '/items', to: '/cart' },
+      { from: '/items', to: '/cart' },
+      { from: '/cart', to: '/cart' },
+      { from: '/cart', to: '/gone' },
+    ]);
+    expect(edges.map((e) => `${e.from}->${e.to}`)).toEqual(['/->/items', '/items->/cart']);
+    expect(edges[1]).toMatchObject({ kind: 'flow', label: null, selector: null });
+  });
+
+  it('더할 것이 없으면 지도 전환을 그대로 돌려준다', () => {
+    expect(withCoverageEdges(siteMap, [{ from: '/', to: '/items' }])).toBe(siteMap.edges);
+  });
+
+  it('더한 전환이 배치(dagre)에 들어가 흐름 순서대로 왼쪽 → 오른쪽에 놓인다', () => {
+    const merged = { ...siteMap, edges: withCoverageEdges(siteMap, [{ from: '/items', to: '/cart' }, { from: '/cart', to: '/done' }]) };
+    const { positions, edges } = layoutGraph(merged);
+    expect(edges.map((e) => e.id)).toEqual(['e:/->/items', 'e:/items->/cart', 'e:/cart->/done']);
+    expect(positions['/items'].x).toBeLessThan(positions['/cart'].x);
+    expect(positions['/cart'].x).toBeLessThan(positions['/done'].x);
+  });
+
+  it('가짜 확인 지도: 지도에 없는 결제 → 주문 완료 전환도 그려져, 흐름의 모든 단계 사이에 선이 있다', async () => {
+    const source = createCoverageMock();
+    const map = await source.getSiteMap('p1');
+    const cov = await source.getCoverage('p1');
+    expect(map.edges.some((e) => e.from === '/checkout' && e.to === '/complete')).toBe(false);
+    const ids = new Set(mergeEdges({ nodes: map.nodes, edges: withCoverageEdges(map, cov.edges) }).map((e) => e.id));
+    for (const f of cov.flows) {
+      for (let i = 1; i < f.steps.length; i++) {
+        expect(ids.has(`e:${f.steps[i - 1].routeKey}->${f.steps[i].routeKey}`), f.title).toBe(true);
+      }
+    }
   });
 });

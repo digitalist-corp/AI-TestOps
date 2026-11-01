@@ -27,6 +27,7 @@ import {
   flowForExecution,
   playbackFrame,
   playbackPlan,
+  withCoverageEdges,
   type IssueItem,
   type PlaybackPlan,
 } from '@/lib/coverage';
@@ -149,7 +150,9 @@ function GraphCanvas({
   const searchRef = useRef<HTMLInputElement>(null);
 
   // 탐색 중에도 찾은 화면을 바로 그린다. 새 화면은 페이드인으로 나타난다.
-  const shown = siteMap;
+  // 녹화 · 테스트 흐름이 지나간 전환은 지도(sitemap.edges)에 없고 coverage.edges 에만 있으므로 합쳐서 배치 · 선 · 경로 연결에 쓴다.
+  const graphEdges = useMemo(() => withCoverageEdges(siteMap, coverage.edges), [siteMap, coverage.edges]);
+  const shown = useMemo<SiteMap>(() => (graphEdges === siteMap.edges ? siteMap : { ...siteMap, edges: graphEdges }), [siteMap, graphEdges]);
 
   const laid = useMemo(() => layoutGraph(shown), [shown]);
   const [moved, setMoved] = useState<Record<string, Point>>({});

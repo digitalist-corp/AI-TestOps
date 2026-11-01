@@ -1,6 +1,7 @@
 import type {
   Coverage,
   CoverageAction,
+  CoverageEdge,
   CoverageEdgeState,
   CoverageFlow,
   CoverageFlowSource,
@@ -13,6 +14,7 @@ import type {
   CoverageSummary,
   Execution,
   SiteMap,
+  SiteMapEdge,
   SiteMapElement,
   SiteMapNode,
   SiteMapNodeDetail,
@@ -285,6 +287,30 @@ export function resolveCoverage(siteMap: Pick<SiteMap, 'nodes' | 'edges'>, cover
 
 export function edgeKey(from: string, to: string) {
   return `${from}->${to}`;
+}
+
+/** coverage 에만 있는 전환(지도 분석에는 없고 녹화 · 테스트 흐름이 지나간 전환)에 붙이는 종류 */
+export const FLOW_EDGE_KIND = 'flow';
+
+/**
+ * 지도 전환에 coverage 에만 있는 전환을 더한다. 녹화로 지나간 전환은 서버가 site_edge 에 저장하지 않고
+ * coverage.edges 로만 주므로, 이걸 더해야 그래프에 선이 그려지고 배치(dagre) · 경로 연결 계산에도 들어간다.
+ * 양 끝 화면이 지도에 있고 자기 자신으로 가지 않는 것만, 같은 두 화면 사이에 지도 전환이 이미 있으면 더하지 않는다.
+ */
+export function withCoverageEdges(
+  siteMap: Pick<SiteMap, 'nodes' | 'edges'>,
+  coverageEdges: Pick<CoverageEdge, 'from' | 'to'>[]
+): SiteMapEdge[] {
+  const routes = new Set(siteMap.nodes.map((n) => n.routeKey));
+  const known = new Set(siteMap.edges.map((e) => edgeKey(e.from, e.to)));
+  const extra: SiteMapEdge[] = [];
+  for (const e of coverageEdges) {
+    const key = edgeKey(e.from, e.to);
+    if (e.from === e.to || !routes.has(e.from) || !routes.has(e.to) || known.has(key)) continue;
+    known.add(key);
+    extra.push({ from: e.from, to: e.to, kind: FLOW_EDGE_KIND, label: null, selector: null });
+  }
+  return extra.length === 0 ? siteMap.edges : [...siteMap.edges, ...extra];
 }
 
 // ---------------------------------------------------------------- 막힌 곳

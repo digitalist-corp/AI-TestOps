@@ -172,6 +172,8 @@ function build(fixed: boolean): { siteMap: SiteMap; coverage: Coverage } {
     { from: '/cart', to: '/checkout', state: fixed ? 'TESTED' : 'OBSERVED' },
     { from: '/checkout', to: '/complete', state: fixed ? 'TESTED' : 'FAILED' },
     { from: '/inventory', to: '/account', state: 'UNKNOWN' },
+    // 아직 안 돌린 AI 흐름이 지나갈 전환. 지도에는 없다.
+    { from: '/', to: '/account', state: 'UNKNOWN' },
   ];
   const count = (state: CoverageNode['state']) => coverageNodes.filter((n) => n.state === state).length;
 
@@ -197,7 +199,7 @@ function build(fixed: boolean): { siteMap: SiteMap; coverage: Coverage } {
       { from: '/', to: '/inventory', kind: 'submit', label: '로그인', selector: null },
       { from: '/inventory', to: '/cart', kind: 'link', label: '장바구니', selector: null },
       { from: '/cart', to: '/checkout', kind: 'link', label: '주문하기', selector: null },
-      { from: '/checkout', to: '/complete', kind: 'submit', label: '결제하기', selector: null },
+      // 결제 → 주문 완료는 사이트 탐색이 폼을 제출하지 않아 지도에 없다. coverage.edges 로만 안다.
       { from: '/inventory', to: '/account', kind: 'link', label: '내 정보', selector: null },
     ],
     layouts: [],
