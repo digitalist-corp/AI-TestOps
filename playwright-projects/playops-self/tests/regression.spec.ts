@@ -147,20 +147,20 @@ test.describe.serial('PlayOps Self Regression', () => {
     await takeScreenshot(page, '11_structure_graph.png');
   });
 
-  test('게시판 등록 확인', async ({ page }) => {
+  test('알림 창 확인', async ({ page }) => {
     test.setTimeout(60000);
     await login(page);
-    await page.goto('/board');
-    await page.waitForTimeout(1000);
 
-    await page.click('button:has-text("글 등록")');
-    await page.fill('label:has-text("제목") + input', 'PlayOps 전수 테스트 완료');
-    await page.fill('label:has-text("내용") + textarea', '전체 E2E 자동화 기능 전수 테스트가 정상적으로 종료되었습니다.');
-    await page.click('button:has-text("저장")');
-    await page.waitForTimeout(1500);
+    // 우상단 종을 누르면 알림 창이 열리고, 알림이 없거나 목록이 보인다.
+    const bell = page.getByRole('button', { name: /^알림/ });
+    await expect(bell).toBeVisible();
+    await bell.click();
+    const panel = page.getByRole('dialog', { name: '알림' });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByText('새 알림이 없습니다').or(panel.getByRole('listitem').first())).toBeVisible();
+    await takeScreenshot(page, '12_notifications.png');
 
-    await expect(
-      page.locator('span.truncate.font-medium:has-text("PlayOps 전수 테스트 완료")').first()
-    ).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
   });
 });

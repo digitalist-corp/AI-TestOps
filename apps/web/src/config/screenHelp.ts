@@ -16,11 +16,11 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
   },
   'ai-analysis': {
     title: 'AI 분석',
-    body: '실행 결과를 AI가 수준별로 풀어서 설명해 줍니다. 짧은 질문은 왼쪽 AI 패널이 더 빠릅니다.',
+    body: '실행 결과를 AI가 수준별로 풀어서 설명해 줍니다. 짧은 질문은 오른쪽 아래 AI 채팅이 더 빠릅니다.',
   },
   source: {
     title: '소스 탐색기',
-    body: '테스트 코드를 직접 열고 고치는 편집기입니다. 고칠 내용을 말로 설명하고 싶다면 왼쪽 AI에게 파일 이름과 함께 요청하세요.',
+    body: '테스트 코드를 직접 열고 고치는 편집기입니다. 고칠 내용을 말로 설명하고 싶다면 오른쪽 아래 AI 채팅에 파일 이름과 함께 요청하세요.',
   },
   structure: {
     title: '구조',
@@ -36,7 +36,7 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
   },
   results: {
     title: '결과',
-    body: '끝난 실행의 리포트와 스크린샷 · 동영상 같은 아티팩트를 보는 곳입니다. 실패 원인이 궁금하면 왼쪽 AI에게 물어보세요.',
+    body: '끝난 실행의 리포트와 스크린샷 · 동영상 같은 아티팩트를 보는 곳입니다. 실패 원인이 궁금하면 오른쪽 아래 AI 채팅에 물어보세요.',
   },
   schedules: {
     title: '예약 실행',
@@ -61,13 +61,6 @@ const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
     help: {
       title: 'Runner 컨테이너',
       body: '테스트를 실제로 돌리는 Docker 컨테이너 상태를 보고 정리하는 곳이에요. 실행이 멈춰 있으면 여기부터 확인하세요.',
-    },
-  },
-  {
-    prefix: '/board',
-    help: {
-      title: '공지 / 게시판',
-      body: '팀 공지와 문의를 남기는 곳입니다. 사용 중 막히는 부분도 여기에 적어주세요.',
     },
   },
   {
@@ -102,7 +95,7 @@ const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
 
 const FALLBACK: ScreenHelp = {
   title: 'AI-TestOps',
-  body: '왼쪽 줄은 전체 메뉴, 위쪽 탭은 지금 프로젝트의 작업 화면입니다. 무엇을 해야 할지 모르겠으면 왼쪽 AI에게 먼저 물어보세요.',
+  body: '왼쪽 줄은 전체 메뉴, 위쪽 탭은 지금 프로젝트의 작업 화면입니다. 무엇을 해야 할지 모르겠으면 오른쪽 아래 AI 채팅에 먼저 물어보세요.',
 };
 
 export function screenHelpFor(pathname: string, projectTab?: ProjectTabId): ScreenHelp {
@@ -112,6 +105,6 @@ export function screenHelpFor(pathname: string, projectTab?: ProjectTabId): Scre
 
 /** ? 메뉴에 나열하는 단축키. 실제로 Layout에서 처리하는 것만 적는다. */
 export const SHORTCUTS: { keys: string; description: string }[] = [
-  { keys: 'Ctrl + /', description: 'AI 패널 접기 · 펼치기' },
+  { keys: 'Ctrl + /', description: 'AI 채팅 열기 · 닫기' },
   { keys: 'Ctrl + K', description: '프로젝트 전환' },
 ];
