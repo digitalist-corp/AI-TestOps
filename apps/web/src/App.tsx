@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/LoginPage';
@@ -10,6 +11,13 @@ import { RunnerContainersPage } from '@/pages/RunnerContainersPage';
 import { getStoredAuth } from '@/api/client';
 import { AiEnabledProvider } from '@/lib/aiEnabled';
 
+function GuideRedirect() {
+  useEffect(() => {
+    window.location.replace('/guide/index.html');
+  }, []);
+  return null;
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const auth = getStoredAuth();
   if (!auth) return <Navigate to="/login" replace />;
@@ -21,6 +29,10 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/guide" element={<GuideRedirect />} />
+        <Route path="/guide/*" element={<GuideRedirect />} />
+        <Route path="/antigravity-guide" element={<GuideRedirect />} />
+        <Route path="/antigravity-guide/*" element={<GuideRedirect />} />
         <Route
           element={
             <ProtectedRoute>
