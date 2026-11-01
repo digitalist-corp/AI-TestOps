@@ -68,6 +68,15 @@ public class SiteAnalysisService {
         }
     }
 
+    /** 탐색 전에 로그인 화면에서 채워 넣을 자격 정보. */
+    public record LoginSpec(String url, String idValue, String passwordValue) {}
+
+    /** 사이트 탐색 컨테이너가 도는 동안 progress.jsonl 과 결과 폴더를 알려 주는 콜백. */
+    public interface ProgressCallback {
+        default void onResultDir(Path resultDir) {}
+        void onProgressLine(String line);
+    }
+
     private final ProjectService projectService;
     private final ProjectRepository projectRepository;
     private final GitRepositoryService gitRepositoryService;
@@ -439,13 +448,17 @@ public class SiteAnalysisService {
 
     /** 첫 테스트 생성처럼 탐색 결과를 기다려야 하는 곳에서 부른다. 이미 다른 분석이 돌고 있으면 기다리지 않고 건너뛴다. */
     public UrlOutcome analyzeByUrl(String projectId, UrlLimits limits) {
+        return analyzeByUrl(projectId, limits, null, null);
+    }
+
+    public UrlOutcome analyzeByUrl(String projectId, UrlLimits limits, LoginSpec login, ProgressCallback callback) {
         SiteAnalysisRun run;
         try {
             run = startByUrl(projectId);
         } catch (ApiException e) {
             return new UrlOutcome("ERROR", 0, 0, List.of(), e.getMessage());
         }
-        return executeUrl(run, limits);
+        return executeUrl(run, limits, login, callback);
     }
 
     /** 테스트 생성에 쓸 화면 정보(코드 분석이든 사이트 탐색이든)가 하나라도 있는지. */
@@ -454,10 +467,35 @@ public class SiteAnalysisService {
     }
 
     UrlOutcome executeUrl(SiteAnalysisRun run, UrlLimits limits) {
+        return executeUrl(run, limits, null, null);
+    }
+
+    UrlOutcome executeUrl(SiteAnalysisRun run, UrlLimits limits, LoginSpec login, ProgressCallback callback) {
         Path jobDir = siteAnalysisDir(run.getProjectId()).resolve("run-" + run.getId());
+        Path resultDir = jobDir.resolve("result");
+        Path progressFile = resultDir.resolve("progress.jsonl");
+        java.util.concurrent.atomic.AtomicBoolean running = new java.util.concurrent.atomic.AtomicBoolean(true);
+        java.util.concurrent.atomic.AtomicInteger consumedLines = new java.util.concurrent.atomic.AtomicInteger(0);
+        Thread poller = null;
         try {
             Project project = projectService.getProject(run.getProjectId());
-            Files.createDirectories(jobDir);
+            Files.createDirectories(resultDir);
+            if (callback != null) {
+                callback.onResultDir(resultDir);
+                poller = new Thread(() -> {
+                    while (running.get()) {
+                        try {
+                            Thread.sleep(1_000L);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                        consumedLines.set(readNewProgressLines(progressFile, consumedLines.get(), false, callback::onProgressLine));
+                    }
+                }, "site-progress-" + run.getId());
+                poller.setDaemon(true);
+                poller.start();
+            }
             Map<String, Object> job = new LinkedHashMap<>();
             job.put("jobId", run.getId());
             job.put("baseUrl", project.getBaseUrl());
@@ -470,9 +508,31 @@ public class SiteAnalysisService {
                 Files.copy(storageState, jobDir.resolve("state.json"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 job.put("auth", Map.of("storageStatePath", dockerRunnerService.directoryContainerPath(jobDir) + "/state.json"));
             }
+            if (login != null && login.idValue() != null && !login.idValue().isBlank()
+                    && login.passwordValue() != null && !login.passwordValue().isBlank()) {
+                Map<String, Object> loginMap = new LinkedHashMap<>();
+                if (login.url() != null && !login.url().isBlank()) {
+                    loginMap.put("url", login.url());
+                }
+                loginMap.put("idValue", login.idValue());
+                loginMap.put("passwordValue", login.passwordValue());
+                job.put("login", loginMap);
+            }
 
             Map<String, Object> result = aiRunnerDockerService.runSiteAnalysisJob(
                     project, jobDir, job, limits.timeoutMs() / 1000 + 120);
+            running.set(false);
+            if (poller != null) {
+                poller.interrupt();
+                try {
+                    poller.join(1_000L);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            if (callback != null) {
+                consumedLines.set(readNewProgressLines(progressFile, consumedLines.get(), true, callback::onProgressLine));
+            }
             if (!"COMPLETED".equals(result.get("status"))) {
                 String error = result.get("error") instanceof String e ? e : "사이트 탐색에 실패했습니다.";
                 fail(run, error);
@@ -493,11 +553,51 @@ public class SiteAnalysisService {
             fail(run, e.getMessage());
             return new UrlOutcome("ERROR", 0, 0, List.of(), e.getMessage());
         } finally {
+            running.set(false);
+            if (poller != null) {
+                poller.interrupt();
+            }
             try {
                 Files.deleteIfExists(jobDir.resolve("state.json"));
+                Files.deleteIfExists(jobDir.resolve("job.json"));
             } catch (IOException ignored) {
-                // 세션 파일 정리 실패는 다음 탐색 때 덮어쓴다.
+                // 세션 · 작업 파일 정리 실패는 다음 탐색 때 덮어쓴다.
             }
+        }
+    }
+
+    /** progress.jsonl 에서 아직 읽지 않은 줄만 순서대로 넘긴다. 컨테이너 실행 중에는 줄바꿈으로 끝난 줄까지만 읽는다. */
+    static int readNewProgressLines(
+            Path progressFile,
+            int consumedLines,
+            boolean finalRead,
+            java.util.function.Consumer<String> consumer
+    ) {
+        if (progressFile == null || !Files.isRegularFile(progressFile)) {
+            return consumedLines;
+        }
+        try {
+            String raw = Files.readString(progressFile, StandardCharsets.UTF_8);
+            if (raw.isEmpty()) {
+                return consumedLines;
+            }
+            if (!finalRead) {
+                int lastNewline = raw.lastIndexOf('\n');
+                if (lastNewline < 0) {
+                    return consumedLines;
+                }
+                raw = raw.substring(0, lastNewline);
+            }
+            String[] lines = raw.split("\\r?\\n");
+            for (int i = consumedLines; i < lines.length; i++) {
+                String line = lines[i].trim();
+                if (!line.isEmpty()) {
+                    consumer.accept(line);
+                }
+            }
+            return Math.max(consumedLines, lines.length);
+        } catch (IOException ignored) {
+            return consumedLines;
         }
     }
 
