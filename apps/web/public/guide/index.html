@@ -1,0 +1,3187 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI-TestOps 사용자 가이드</title>
+  <style>
+    /* CSS Variables & Theme */
+    :root {
+      --accent: #D94A0F;
+      --accent-hover: #BF3F0B;
+      --accent-subtle: #FFF5EE;
+      --accent-border: #F7B99B;
+      --accent-glow: rgba(217, 74, 15, 0.15);
+      
+      --bg: #FFFFFF;
+      --bg-page: #FAFBFD;
+      --bg-sidebar: #F8FAFC;
+      --bg-sidebar-hover: #F1F5F9;
+      --bg-card: #FFFFFF;
+      --bg-code: #1E293B;
+      
+      --text: #1E293B;
+      --text-heading: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #64748B;
+      --text-code: #F1F5F9;
+      
+      --border: #E2E8F0;
+      --border-subtle: #EDF2F7;
+      
+      --tip-bg: #EFF6FF;
+      --tip-border: #3B82F6;
+      --tip-text: #1E40AF;
+      --tip-title: #1D4ED8;
+      
+      --warn-bg: #FFFBEB;
+      --warn-border: #F59E0B;
+      --warn-text: #92400E;
+      --warn-title: #B45309;
+      
+      --quote-bg: #FFF7ED;
+      --quote-border: #D94A0F;
+      --quote-text: #7C2D12;
+      
+      --table-header-bg: #F8FAFC;
+      --table-hover: #F8FAFC;
+      
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+      
+      --sidebar-width: 290px;
+      --content-max-width: 860px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --accent: #F97316;
+        --accent-hover: #FB923C;
+        --accent-subtle: #2B180D;
+        --accent-border: #9A3412;
+        --accent-glow: rgba(249, 115, 22, 0.2);
+        
+        --bg: #0F172A;
+        --bg-page: #0B0F19;
+        --bg-sidebar: #090E17;
+        --bg-sidebar-hover: #1E293B;
+        --bg-card: #1E293B;
+        --bg-code: #0B1120;
+        
+        --text: #F1F5F9;
+        --text-heading: #FFFFFF;
+        --text-secondary: #CBD5E1;
+        --text-muted: #94A3B8;
+        --text-code: #F1F5F9;
+        
+        --border: #334155;
+        --border-subtle: #1E293B;
+        
+        --tip-bg: #172554;
+        --tip-border: #3B82F6;
+        --tip-text: #BFDBFE;
+        --tip-title: #93C5FD;
+        
+        --warn-bg: #451A03;
+        --warn-border: #D97706;
+        --warn-text: #FDE68A;
+        --warn-title: #FBBF24;
+        
+        --quote-bg: #2B180D;
+        --quote-border: #F97316;
+        --quote-text: #FED7AA;
+        
+        --table-header-bg: #1E293B;
+        --table-hover: #24324D;
+        
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.5);
+      }
+    }
+
+    /* Global Reset & Base */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+      -webkit-text-size-adjust: 100%;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Helvetica Neue", Arial, sans-serif;
+      color: var(--text);
+      background-color: var(--bg-page);
+      line-height: 1.7;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+      transition: color 0.15s ease;
+    }
+    a:hover {
+      color: var(--accent-hover);
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background-color: var(--bg-sidebar-hover);
+      color: var(--accent);
+      border: 1px solid var(--border-subtle);
+    }
+    pre code {
+      padding: 0;
+      background-color: transparent;
+      color: inherit;
+      border: none;
+    }
+
+    /* Sidebar Layout (Desktop) */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: var(--sidebar-width);
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 50;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+    .sidebar-header {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: var(--bg-sidebar);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .sidebar-logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .sidebar-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #FFFFFF;
+      letter-spacing: 0.5px;
+    }
+    .sidebar-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-heading);
+      letter-spacing: -0.3px;
+    }
+    .sidebar-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .sidebar-nav {
+      padding: 12px 10px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 12px;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover {
+      background-color: var(--bg-sidebar-hover);
+      color: var(--text-heading);
+    }
+    .nav-item.active {
+      background-color: var(--accent-subtle);
+      color: var(--accent);
+      font-weight: 600;
+      border-left-color: var(--accent);
+      padding-left: 9px;
+    }
+    .nav-num {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 18px;
+      margin-top: 2px;
+    }
+    .nav-item.active .nav-num {
+      color: var(--accent);
+    }
+    .nav-text {
+      flex: 1;
+    }
+
+    /* Mobile Topbar & Collapsible Menu */
+    .mobile-topbar {
+      display: none;
+      position: sticky;
+      top: 0;
+      z-index: 60;
+      background-color: var(--bg);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      box-shadow: var(--shadow-sm);
+    }
+    .mobile-topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mobile-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-heading);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mobile-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #FFFFFF;
+    }
+    .mobile-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .mobile-menu-drawer {
+      display: none;
+      max-height: 70vh;
+      overflow-y: auto;
+      padding: 12px 16px 24px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow-lg);
+    }
+    .mobile-menu-drawer.open {
+      display: block;
+    }
+    .mobile-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: var(--text);
+      text-decoration: none;
+      border-radius: 6px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .mobile-nav-item:last-child {
+      border-bottom: none;
+    }
+    .mobile-nav-num {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 20px;
+    }
+    @media (max-width: 991px) {
+      .sidebar {
+        display: none;
+      }
+      .mobile-topbar {
+        display: block;
+      }
+      .main-wrapper {
+        margin-left: 0 !important;
+      }
+    }
+
+    /* Main Content Wrapper */
+    .main-wrapper {
+      margin-left: var(--sidebar-width);
+      background-color: var(--bg-page);
+      min-height: 100vh;
+    }
+    .content-container {
+      max-width: var(--content-max-width);
+      margin: 0 auto;
+      padding: 48px 36px 120px;
+    }
+    @media (max-width: 768px) {
+      .content-container {
+        padding: 24px 18px 80px;
+      }
+    }
+
+    /* Hero Header */
+    .guide-hero {
+      margin-bottom: 48px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: var(--accent-subtle);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .hero-title {
+      font-size: 34px;
+      font-weight: 800;
+      color: var(--text-heading);
+      letter-spacing: -0.6px;
+      line-height: 1.25;
+      margin-bottom: 18px;
+    }
+    .hero-lead {
+      font-size: 16.5px;
+      line-height: 1.75;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    /* TOC Grid (Section 1) */
+    .toc-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 56px;
+    }
+    .toc-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+      margin-top: 20px;
+    }
+    .toc-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.2s ease;
+    }
+    .toc-card:hover {
+      background: var(--accent-subtle);
+      border-color: var(--accent-border);
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .toc-card-num {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .toc-card-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      flex: 1;
+    }
+    .toc-card-arrow {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* Guide Sections & Headings */
+    .guide-section {
+      scroll-margin-top: 70px;
+      margin-bottom: 56px;
+    }
+    .section-heading-h2 {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-heading);
+      letter-spacing: -0.4px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      scroll-margin-top: 70px;
+    }
+    .h2-anchor-text {
+      display: inline-block;
+    }
+    .header-anchor {
+      color: var(--border);
+      text-decoration: none;
+      font-size: 20px;
+      opacity: 0;
+      transition: all 0.15s ease;
+      padding: 0 4px;
+    }
+    .section-heading-h2:hover .header-anchor,
+    .section-heading-h3:hover .header-anchor {
+      opacity: 1;
+      color: var(--accent);
+    }
+    .section-heading-h3 {
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin: 36px 0 16px;
+      scroll-margin-top: 70px;
+    }
+    .guide-p {
+      font-size: 15.5px;
+      line-height: 1.75;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    /* Use Case Banner */
+    .use-case-banner {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 16px 0 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .use-case-tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #FFFFFF;
+      white-space: nowrap;
+    }
+    .use-case-desc {
+      font-size: 15px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    /* Step Lists (Numbered Steps corresponding to screenshots) */
+    .step-list {
+      list-style: none;
+      margin: 16px 0 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      line-height: 1.65;
+      font-size: 15.5px;
+    }
+    .step-badge {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #FFFFFF;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+      box-shadow: 0 2px 4px var(--accent-glow);
+    }
+    .step-text {
+      flex: 1;
+      color: var(--text);
+    }
+    .step-text strong {
+      color: var(--text-heading);
+    }
+
+    /* Bullet Lists */
+    .bullet-list {
+      margin: 14px 0 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 15.5px;
+      color: var(--text);
+    }
+
+    /* Figures & Images */
+    .guide-figure {
+      margin: 22px 0 26px;
+    }
+    .img-frame {
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-md);
+      cursor: zoom-in;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .img-frame:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+      border-color: var(--accent-border);
+    }
+    .img-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .zoom-indicator {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 20px;
+      background: rgba(0, 0, 0, 0.68);
+      color: #FFFFFF;
+      font-size: 12px;
+      font-weight: 500;
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .img-frame:hover .zoom-indicator {
+      opacity: 1;
+    }
+    .guide-figcaption {
+      margin-top: 8px;
+      font-size: 13.5px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+    .image-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 22px 0 26px;
+    }
+    @media (max-width: 640px) {
+      .image-grid-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Callout Boxes */
+    .callout {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 22px 0;
+      line-height: 1.65;
+      font-size: 15px;
+    }
+    .callout-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+      line-height: 1.3;
+    }
+    .callout-body {
+      flex: 1;
+    }
+    .callout-tip {
+      background-color: var(--tip-bg);
+      border-left: 4px solid var(--tip-border);
+      color: var(--tip-text);
+    }
+    .callout-tip strong {
+      color: var(--tip-title);
+    }
+    .callout-warn {
+      background-color: var(--warn-bg);
+      border-left: 4px solid var(--warn-border);
+      color: var(--warn-text);
+    }
+    .callout-warn strong {
+      color: var(--warn-title);
+    }
+    .callout-quote {
+      background-color: var(--quote-bg);
+      border-left: 4px solid var(--quote-border);
+      color: var(--quote-text);
+    }
+    .callout-quote strong {
+      color: var(--accent);
+    }
+
+    /* FAQ Block */
+    .faq-container {
+      margin: 26px 0 32px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 22px;
+      box-shadow: var(--shadow-sm);
+    }
+    .faq-header {
+      font-size: 15.5px;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .faq-header svg {
+      color: var(--accent);
+    }
+    .faq-item {
+      padding: 10px 0;
+      border-top: 1px dashed var(--border);
+    }
+    .faq-item:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+    .faq-q {
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+    .faq-a {
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.6;
+      padding-left: 14px;
+    }
+
+    /* Tables */
+    .table-wrapper {
+      overflow-x: auto;
+      margin: 24px 0 32px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      box-shadow: var(--shadow-sm);
+      -webkit-overflow-scrolling: touch;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14.5px;
+      text-align: left;
+    }
+    th {
+      background: var(--table-header-bg);
+      padding: 12px 18px;
+      font-weight: 700;
+      color: var(--text-heading);
+      border-bottom: 2px solid var(--border);
+      white-space: nowrap;
+    }
+    td {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover td {
+      background-color: var(--table-hover);
+    }
+
+    /* Code Blocks */
+    .code-block-wrapper {
+      margin: 20px 0 26px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+    }
+    .code-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(0, 0, 0, 0.25);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .code-block-dots {
+      display: flex;
+      gap: 6px;
+    }
+    .code-block-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #FF5F56; }
+    .dot-yellow { background: #FFBD2E; }
+    .dot-green { background: #27C93F; }
+    .code-block-title {
+      font-size: 12px;
+      color: #94A3B8;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    pre code {
+      display: block;
+      padding: 18px 20px;
+      color: var(--text-code);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+      line-height: 1.65;
+      overflow-x: auto;
+    }
+
+    /* Lightbox Modal */
+    .lightbox-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+    .lightbox-modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    .lightbox-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(6px);
+    }
+    .lightbox-content {
+      position: relative;
+      z-index: 2;
+      max-width: 92vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .lightbox-img {
+      max-width: 92vw;
+      max-height: 82vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+    .lightbox-caption {
+      margin-top: 12px;
+      color: #FFFFFF;
+      font-size: 15px;
+      font-weight: 500;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+      text-align: center;
+    }
+    .lightbox-close {
+      position: absolute;
+      top: -42px;
+      right: 0;
+      background: transparent;
+      border: none;
+      color: #FFFFFF;
+      font-size: 32px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 6px;
+      opacity: 0.8;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+    }
+    .lightbox-close:hover {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+    body.lightbox-open {
+      overflow: hidden;
+    }
+
+    /* Floating Back to Top Button */
+    .back-to-top {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 40;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-md);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+    }
+    .back-to-top.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+    .back-to-top:hover {
+      color: var(--accent);
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Left Fixed Sidebar (Desktop) -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo-row">
+        <span class="sidebar-badge">Guide</span>
+        <div class="sidebar-title">AI-TestOps</div>
+      </div>
+      <div class="sidebar-subtitle">사용자 가이드 목차</div>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="#5분-빠른-시작" data-section="5분-빠른-시작">
+  <span class="nav-num">01</span>
+  <span class="nav-text">5분 빠른 시작</span>
+</a><a class="nav-item" href="#용어-풀이" data-section="용어-풀이">
+  <span class="nav-num">02</span>
+  <span class="nav-text">용어 풀이</span>
+</a><a class="nav-item" href="#1-로그인과-프로젝트-목록" data-section="1-로그인과-프로젝트-목록">
+  <span class="nav-num">03</span>
+  <span class="nav-text">로그인과 프로젝트 목록</span>
+</a><a class="nav-item" href="#2-프로젝트-등록--ai가-첫-테스트까지" data-section="2-프로젝트-등록--ai가-첫-테스트까지">
+  <span class="nav-num">04</span>
+  <span class="nav-text">프로젝트 등록 — AI가 첫 테스트까지</span>
+</a><a class="nav-item" href="#3-구조-탭--확인-지도" data-section="3-구조-탭--확인-지도">
+  <span class="nav-num">05</span>
+  <span class="nav-text">구조 탭 — 확인 지도</span>
+</a><a class="nav-item" href="#4-클릭으로-만들기--녹화" data-section="4-클릭으로-만들기--녹화">
+  <span class="nav-num">06</span>
+  <span class="nav-text">클릭으로 만들기 — 녹화</span>
+</a><a class="nav-item" href="#5-테스트-탭" data-section="5-테스트-탭">
+  <span class="nav-num">07</span>
+  <span class="nav-text">테스트 탭</span>
+</a><a class="nav-item" href="#6-실행--결과--대시보드" data-section="6-실행--결과--대시보드">
+  <span class="nav-num">08</span>
+  <span class="nav-text">실행 · 결과 · 대시보드</span>
+</a><a class="nav-item" href="#7-ai-켜고-끄기" data-section="7-ai-켜고-끄기">
+  <span class="nav-num">09</span>
+  <span class="nav-text">AI 켜고 끄기</span>
+</a><a class="nav-item" href="#8-ai-탭--ai로-만들기--ai-분석--ai-검토" data-section="8-ai-탭--ai로-만들기--ai-분석--ai-검토">
+  <span class="nav-num">10</span>
+  <span class="nav-text">AI 탭 — AI로 만들기 · AI 분석 · AI 검토</span>
+</a><a class="nav-item" href="#9-ai-채팅" data-section="9-ai-채팅">
+  <span class="nav-num">11</span>
+  <span class="nav-text">AI 채팅</span>
+</a><a class="nav-item" href="#10-설정" data-section="10-설정">
+  <span class="nav-num">12</span>
+  <span class="nav-text">설정 — 프로젝트 설정 · 환경변수 · 예약 실행 · 코드 편집기</span>
+</a><a class="nav-item" href="#11-알림--도움말--프로젝트-전환" data-section="11-알림--도움말--프로젝트-전환">
+  <span class="nav-num">13</span>
+  <span class="nav-text">알림 · 도움말 · 프로젝트 전환</span>
+</a><a class="nav-item" href="#12-관리자-메뉴" data-section="12-관리자-메뉴">
+  <span class="nav-num">14</span>
+  <span class="nav-text">관리자 메뉴</span>
+</a><a class="nav-item" href="#막혔을-때-이렇게-하세요" data-section="막혔을-때-이렇게-하세요">
+  <span class="nav-num">15</span>
+  <span class="nav-text">막혔을 때 이렇게 하세요</span>
+</a><a class="nav-item" href="#화면별-한-줄-요약" data-section="화면별-한-줄-요약">
+  <span class="nav-num">16</span>
+  <span class="nav-text">화면별 한 줄 요약</span>
+</a><a class="nav-item" href="#이-가이드의-사진-다시-찍기" data-section="이-가이드의-사진-다시-찍기">
+  <span class="nav-num">17</span>
+  <span class="nav-text">이 가이드의 사진 다시 찍기</span>
+</a>
+    </nav>
+  </aside>
+
+  <!-- Mobile Topbar & Collapsible Drawer -->
+  <header class="mobile-topbar">
+    <div class="mobile-topbar-inner">
+      <div class="mobile-title">
+        <span class="mobile-badge">Guide</span>
+        <span>AI-TestOps 사용자 가이드</span>
+      </div>
+      <button class="mobile-toggle-btn" id="mobile-toggle" aria-expanded="false" aria-label="목차 토글">
+        <span>목차</span>
+        <span id="mobile-toggle-icon">▾</span>
+      </button>
+    </div>
+    <div class="mobile-menu-drawer" id="mobile-drawer">
+      <a class="mobile-nav-item" href="#5분-빠른-시작">
+  <span class="mobile-nav-num">01</span>
+  <span class="mobile-nav-text">5분 빠른 시작</span>
+</a><a class="mobile-nav-item" href="#용어-풀이">
+  <span class="mobile-nav-num">02</span>
+  <span class="mobile-nav-text">용어 풀이</span>
+</a><a class="mobile-nav-item" href="#1-로그인과-프로젝트-목록">
+  <span class="mobile-nav-num">03</span>
+  <span class="mobile-nav-text">로그인과 프로젝트 목록</span>
+</a><a class="mobile-nav-item" href="#2-프로젝트-등록--ai가-첫-테스트까지">
+  <span class="mobile-nav-num">04</span>
+  <span class="mobile-nav-text">프로젝트 등록 — AI가 첫 테스트까지</span>
+</a><a class="mobile-nav-item" href="#3-구조-탭--확인-지도">
+  <span class="mobile-nav-num">05</span>
+  <span class="mobile-nav-text">구조 탭 — 확인 지도</span>
+</a><a class="mobile-nav-item" href="#4-클릭으로-만들기--녹화">
+  <span class="mobile-nav-num">06</span>
+  <span class="mobile-nav-text">클릭으로 만들기 — 녹화</span>
+</a><a class="mobile-nav-item" href="#5-테스트-탭">
+  <span class="mobile-nav-num">07</span>
+  <span class="mobile-nav-text">테스트 탭</span>
+</a><a class="mobile-nav-item" href="#6-실행--결과--대시보드">
+  <span class="mobile-nav-num">08</span>
+  <span class="mobile-nav-text">실행 · 결과 · 대시보드</span>
+</a><a class="mobile-nav-item" href="#7-ai-켜고-끄기">
+  <span class="mobile-nav-num">09</span>
+  <span class="mobile-nav-text">AI 켜고 끄기</span>
+</a><a class="mobile-nav-item" href="#8-ai-탭--ai로-만들기--ai-분석--ai-검토">
+  <span class="mobile-nav-num">10</span>
+  <span class="mobile-nav-text">AI 탭 — AI로 만들기 · AI 분석 · AI 검토</span>
+</a><a class="mobile-nav-item" href="#9-ai-채팅">
+  <span class="mobile-nav-num">11</span>
+  <span class="mobile-nav-text">AI 채팅</span>
+</a><a class="mobile-nav-item" href="#10-설정">
+  <span class="mobile-nav-num">12</span>
+  <span class="mobile-nav-text">설정 — 프로젝트 설정 · 환경변수 · 예약 실행 · 코드 편집기</span>
+</a><a class="mobile-nav-item" href="#11-알림--도움말--프로젝트-전환">
+  <span class="mobile-nav-num">13</span>
+  <span class="mobile-nav-text">알림 · 도움말 · 프로젝트 전환</span>
+</a><a class="mobile-nav-item" href="#12-관리자-메뉴">
+  <span class="mobile-nav-num">14</span>
+  <span class="mobile-nav-text">관리자 메뉴</span>
+</a><a class="mobile-nav-item" href="#막혔을-때-이렇게-하세요">
+  <span class="mobile-nav-num">15</span>
+  <span class="mobile-nav-text">막혔을 때 이렇게 하세요</span>
+</a><a class="mobile-nav-item" href="#화면별-한-줄-요약">
+  <span class="mobile-nav-num">16</span>
+  <span class="mobile-nav-text">화면별 한 줄 요약</span>
+</a><a class="mobile-nav-item" href="#이-가이드의-사진-다시-찍기">
+  <span class="mobile-nav-num">17</span>
+  <span class="mobile-nav-text">이 가이드의 사진 다시 찍기</span>
+</a>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <div class="main-wrapper">
+    <main class="content-container">
+      <header class="guide-hero">
+<div class="hero-badge">AI-TestOps 안내서</div>
+<h1 class="hero-title">AI-TestOps 사용자 가이드</h1>
+<p class="hero-lead"># AI-TestOps 사용자 가이드</p>
+<p class="hero-lead">이 문서는 AI-TestOps를 처음 쓰는 분을 위한 안내서예요. 코드를 몰라도 괜찮아요.</p>
+<p class="hero-lead">화면마다 사진 위에 번호를 붙였고, 본문의 단계 번호와 사진의 번호가 같아요. 사진을 보면서 번호 순서대로 따라 하면 돼요.</p>
+<div class="callout callout-quote hero-quote">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>AI-TestOps란?</strong> 쇼핑몰 같은 웹사이트가 잘 동작하는지 사람 대신 자동으로 눌러 보고, 결과를 알려 주는 도구예요.</div>
+</div>
+</header>
+<section class="guide-section toc-section" id="목차">
+  <h2 class="section-heading-h2">
+    <span class="h2-anchor-text">목차</span>
+    <a class="header-anchor" href="#목차" aria-label="목차 링크">#</a>
+  </h2>
+  <div class="toc-grid">
+    <a class="toc-card" href="#5분-빠른-시작">
+      <span class="toc-card-num">01</span>
+      <span class="toc-card-title">5분 빠른 시작</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#용어-풀이">
+      <span class="toc-card-num">02</span>
+      <span class="toc-card-title">용어 풀이</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#1-로그인과-프로젝트-목록">
+      <span class="toc-card-num">03</span>
+      <span class="toc-card-title">로그인과 프로젝트 목록</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#2-프로젝트-등록--ai가-첫-테스트까지">
+      <span class="toc-card-num">04</span>
+      <span class="toc-card-title">프로젝트 등록 — AI가 첫 테스트까지</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#3-구조-탭--확인-지도">
+      <span class="toc-card-num">05</span>
+      <span class="toc-card-title">구조 탭 — 확인 지도</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#4-클릭으로-만들기--녹화">
+      <span class="toc-card-num">06</span>
+      <span class="toc-card-title">클릭으로 만들기 — 녹화</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#5-테스트-탭">
+      <span class="toc-card-num">07</span>
+      <span class="toc-card-title">테스트 탭</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#6-실행--결과--대시보드">
+      <span class="toc-card-num">08</span>
+      <span class="toc-card-title">실행 · 결과 · 대시보드</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#7-ai-켜고-끄기">
+      <span class="toc-card-num">09</span>
+      <span class="toc-card-title">AI 켜고 끄기</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#8-ai-탭--ai로-만들기--ai-분석--ai-검토">
+      <span class="toc-card-num">10</span>
+      <span class="toc-card-title">AI 탭 — AI로 만들기 · AI 분석 · AI 검토</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#9-ai-채팅">
+      <span class="toc-card-num">11</span>
+      <span class="toc-card-title">AI 채팅</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#10-설정">
+      <span class="toc-card-num">12</span>
+      <span class="toc-card-title">설정 — 프로젝트 설정 · 환경변수 · 예약 실행 · 코드 편집기</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#11-알림--도움말--프로젝트-전환">
+      <span class="toc-card-num">13</span>
+      <span class="toc-card-title">알림 · 도움말 · 프로젝트 전환</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#12-관리자-메뉴">
+      <span class="toc-card-num">14</span>
+      <span class="toc-card-title">관리자 메뉴</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#막혔을-때-이렇게-하세요">
+      <span class="toc-card-num">15</span>
+      <span class="toc-card-title">막혔을 때 이렇게 하세요</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#화면별-한-줄-요약">
+      <span class="toc-card-num">16</span>
+      <span class="toc-card-title">화면별 한 줄 요약</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+    <a class="toc-card" href="#이-가이드의-사진-다시-찍기">
+      <span class="toc-card-num">17</span>
+      <span class="toc-card-title">이 가이드의 사진 다시 찍기</span>
+      <span class="toc-card-arrow">→</span>
+    </a>
+  </div>
+</section>
+<section class="guide-section" id="5분-빠른-시작">
+  <h2 class="section-heading-h2" id="5분-빠른-시작">
+    <span class="h2-anchor-text">5분 빠른 시작</span>
+    <a class="header-anchor" href="#5분-빠른-시작" aria-label="5분 빠른 시작 링크">#</a>
+  </h2>
+<p class="guide-p">"사이트 등록 → 클릭으로 테스트 만들기 → 실행 → 결과 보기" 네 단계예요.</p>
+<h3 class="section-heading-h3" id="-사이트-등록하기">① 사이트 등록하기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/06-register-ai.jpg" data-alt="프로젝트 등록 — AI 첫 테스트" aria-label="프로젝트 등록 — AI 첫 테스트 크게 보기">
+    <img src="images/06-register-ai.jpg" alt="프로젝트 등록 — AI 첫 테스트" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">프로젝트 등록 — AI 첫 테스트</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>AI 첫 테스트</strong> 칸이 켜져 있어요. AI가 사이트를 둘러보고 첫 테스트를 만들어 줘요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">확인하고 싶은 것을 한 문장으로 적어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>등록</strong>을 눌러요. (사이트 주소와 이름은 <a href="#2-프로젝트-등록--ai가-첫-테스트까지">2장</a>에서 설명해요.)</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="-클릭으로-테스트-만들기">② 클릭으로 테스트 만들기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/24-recorder-steps.jpg" data-alt="기록된 단계" aria-label="기록된 단계 크게 보기">
+    <img src="images/24-recorder-steps.jpg" alt="기록된 단계" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">기록된 단계</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">사이트 화면에서 <strong>확인할 곳 지정</strong>을 고르고 보여야 하는 곳을 눌러요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">지금까지 누른 동작이 오른쪽 <strong>기록된 단계</strong>에 쌓여요. 코드를 쓸 필요가 없어요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="-실행하기">③ 실행하기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/30-tests-list.jpg" data-alt="테스트 탭에서 실행" aria-label="테스트 탭에서 실행 크게 보기">
+    <img src="images/30-tests-list.jpg" alt="테스트 탭에서 실행" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">테스트 탭에서 실행</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">실행할 테스트에 체크해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>선택 케이스 실행</strong>을 눌러요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">하나만 돌리려면 그 줄 오른쪽의 ▷를 눌러요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="-결과-보기">④ 결과 보기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/35-results-summary.jpg" data-alt="결과 요약" aria-label="결과 요약 크게 보기">
+    <img src="images/35-results-summary.jpg" alt="결과 요약" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">결과 요약</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>통과 · 실패 개수</strong>를 봐요. 초록은 통과, 빨강은 실패예요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">실패했다면 <strong>실패한 케이스</strong>에서 어느 테스트가 왜 멈췄는지 읽어요.</div>
+  </li>
+</ol>
+</section>
+<section class="guide-section" id="용어-풀이">
+  <h2 class="section-heading-h2" id="용어-풀이">
+    <span class="h2-anchor-text">용어 풀이</span>
+    <a class="header-anchor" href="#용어-풀이" aria-label="용어 풀이 링크">#</a>
+  </h2>
+<div class="table-wrapper">
+  <table>
+    <thead><tr><th>말</th><th>쉬운 뜻</th></tr></thead>
+    <tbody>
+      <tr><td>프로젝트</td><td>테스트할 사이트 하나예요. 쇼핑몰이면 프로젝트 하나를 만들어요.</td></tr><tr><td>테스트(케이스)</td><td>"로그인하면 상품이 보인다" 같은 확인 한 가지예요.</td></tr><tr><td>테스트 파일(spec)</td><td>테스트 여러 개를 담은 파일이에요.</td></tr><tr><td>테스트 흐름</td><td>테스트 하나가 지나가는 화면의 순서예요. 로그인 → 상품 → 장바구니 같은 길이에요.</td></tr><tr><td>실행</td><td>테스트를 실제로 한 번 돌리는 일이에요. 결과는 통과 또는 실패예요.</td></tr><tr><td>셀렉터</td><td>화면에서 어떤 버튼인지 가리키는 이름표예요. <strong>몰라도 돼요.</strong> 도구가 알아서 붙여요.</td></tr><tr><td>환경변수</td><td>테스트가 쓰는 계정 · 주소 같은 값을 따로 보관하는 곳이에요. 비밀번호는 가려져요.</td></tr><tr><td>승인</td><td>AI가 만든 변경을 사람이 확인하고 "반영해도 좋아요"라고 허락하는 일이에요. 승인 전에는 아무것도 바뀌지 않아요.</td></tr><tr><td>아티팩트</td><td>실행이 남긴 자료예요. 스크린샷 · 동영상 · 로그 파일이 있어요.</td></tr><tr><td>Runner</td><td>테스트를 돌리는 실행 상자(컨테이너)예요.</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+<section class="guide-section" id="1-로그인과-프로젝트-목록">
+  <h2 class="section-heading-h2" id="1-로그인과-프로젝트-목록">
+    <span class="h2-anchor-text">1. 로그인과 프로젝트 목록</span>
+    <a class="header-anchor" href="#1-로그인과-프로젝트-목록" aria-label="1. 로그인과 프로젝트 목록 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">처음 접속했을 때, 그리고 어떤 프로젝트가 있는지 볼 때.</span>
+</div>
+<h3 class="section-heading-h3" id="로그인">로그인</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/01-login.jpg" data-alt="로그인 화면" aria-label="로그인 화면 크게 보기">
+    <img src="images/01-login.jpg" alt="로그인 화면" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">로그인 화면</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>사용자명</strong>을 입력해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>비밀번호</strong>를 입력해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>로그인</strong>을 눌러요.</div>
+  </li>
+</ol>
+<p class="guide-p">계정은 관리자에게 받아요. 로그인 카드 아래에는 <strong>기본 계정으로 시작</strong> 버튼도 있어요. 누르면 사진에 안내된 기본 계정으로 바로 들어가요.</p>
+<div class="callout callout-warn">
+  <div class="callout-icon">⚠</div>
+  <div class="callout-body"><strong>주의</strong> — 기본 계정은 누구나 알 수 있는 값이에요. 운영 서버에서는 꼭 비밀번호를 바꾸세요. 바꾸는 방법은 <a href="#12-관리자-메뉴">관리자 메뉴</a>의 사용자 관리에 있어요.</div>
+</div>
+<h3 class="section-heading-h3" id="프로젝트-목록">프로젝트 목록</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/02-projects-list.jpg" data-alt="프로젝트 목록" aria-label="프로젝트 목록 크게 보기">
+    <img src="images/02-projects-list.jpg" alt="프로젝트 목록" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">프로젝트 목록</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>검색창</strong>에 이름이나 주소를 넣어 프로젝트를 찾아요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>프로젝트 등록</strong>으로 새 사이트를 추가해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>열기</strong>를 누르면 그 프로젝트의 작업 화면으로 들어가요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>실행</strong>을 누르면 그 프로젝트의 모든 테스트를 바로 돌려요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">5</span>
+    <div class="step-text">오른쪽 작은 버튼들은 결과 · 소스 · 환경변수 · 수정 · 삭제예요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — 프로젝트가 아직 하나도 없으면 목록이 비어 있어요. 오른쪽 위 <strong>프로젝트 등록</strong>부터 시작하세요.</div>
+</div>
+<h3 class="section-heading-h3" id="프로젝트-안의-화면">프로젝트 안의 화면</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/03-project-tour.jpg" data-alt="프로젝트 화면 둘러보기" aria-label="프로젝트 화면 둘러보기 크게 보기">
+    <img src="images/03-project-tour.jpg" alt="프로젝트 화면 둘러보기" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">프로젝트 화면 둘러보기</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>프로젝트 이름 칸</strong>을 누르면 다른 프로젝트로 바꿔요. (Ctrl + K)</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>위쪽 탭</strong>으로 하는 일을 바꿔요: 대시보드 · 구조 · 테스트 · 실행 · 설정 · AI.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>?</strong> 버튼은 지금 화면의 설명을 보여 줘요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>AI 스위치</strong>로 AI 기능을 켜고 꺼요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">5</span>
+    <div class="step-text"><strong>전체 실행</strong>은 이 프로젝트의 모든 테스트를 돌려요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">6</span>
+    <div class="step-text">오른쪽 아래 동그란 버튼은 <strong>AI 채팅</strong>이에요.</div>
+  </li>
+</ol>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. 왼쪽 세로 줄은 뭐예요?</strong></div>
+  <div class="faq-a"><strong>A.</strong> 프로젝트와 상관없이 쓰는 전체 메뉴예요. <a href="#12-관리자-메뉴">12장</a>에서 설명해요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="2-프로젝트-등록--ai가-첫-테스트까지">
+  <h2 class="section-heading-h2" id="2-프로젝트-등록--ai가-첫-테스트까지">
+    <span class="h2-anchor-text">2. 프로젝트 등록 — AI가 첫 테스트까지</span>
+    <a class="header-anchor" href="#2-프로젝트-등록--ai가-첫-테스트까지" aria-label="2. 프로젝트 등록 — AI가 첫 테스트까지 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">새 사이트를 처음 테스트할 때. 주소만 넣으면 AI가 첫 테스트까지 만들어 줘요.</span>
+</div>
+<h3 class="section-heading-h3" id="사이트-주소와-이름">사이트 주소와 이름</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/05-register-site.jpg" data-alt="프로젝트 등록 1" aria-label="프로젝트 등록 1 크게 보기">
+    <img src="images/05-register-site.jpg" alt="프로젝트 등록 1" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">프로젝트 등록 1</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>테스트할 사이트</strong> 칸에 주소를 붙여넣어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>확인</strong>을 눌러 주소가 열리는지 봐요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">결과가 나와요. 초록 글씨면 열린다는 뜻이에요. 같은 컴퓨터나 회사 안의 로컬 주소는 이 확인이 막혀도 등록은 돼요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>프로젝트 이름</strong>을 알아보기 쉽게 적어요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="ai에게-첫-테스트-맡기기">AI에게 첫 테스트 맡기기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/06-register-ai.jpg" data-alt="프로젝트 등록 2" aria-label="프로젝트 등록 2 크게 보기">
+    <img src="images/06-register-ai.jpg" alt="프로젝트 등록 2" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">프로젝트 등록 2</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>등록 직후 AI가 첫 테스트를 만들고 실행해 봅니다</strong> 칸을 켜요. 파란 테두리가 켜진 상태예요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">확인하고 싶은 것을 한 문장으로 적어요. 예: "로그인 후 상품을 장바구니에 담는지 확인"</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>등록</strong>을 눌러요. 실행 방식은 기본값 그대로 두면 돼요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — AI 스위치가 꺼져 있으면 이 칸 대신 기본 점검 테스트(첫 화면 · 스크립트 오류 · 내부 링크)가 만들어져요.</div>
+</div>
+<h3 class="section-heading-h3" id="진행-창">진행 창</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/07-bootstrap-progress.jpg" data-alt="첫 테스트 진행 창" aria-label="첫 테스트 진행 창 크게 보기">
+    <img src="images/07-bootstrap-progress.jpg" alt="첫 테스트 진행 창" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">첫 테스트 진행 창</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>세 단계</strong>가 차례로 진행돼요: 사이트 둘러보기 → 테스트 코드 쓰기 → 실행해 확인하기.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">AI가 <strong>지금 보고 있는 주소</strong>가 보여요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>다녀간 주소와 화면 썸네일</strong>이 쌓여요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="로그인-화면을-만나면">로그인 화면을 만나면</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/08-bootstrap-login.jpg" data-alt="로그인 정보 요청" aria-label="로그인 정보 요청 크게 보기">
+    <img src="images/08-bootstrap-login.jpg" alt="로그인 정보 요청" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">로그인 정보 요청</figcaption>
+</figure>
+<p class="guide-p">사이트에 로그인이 필요하면 AI가 멈추고 계정을 물어봐요.</p>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>이 사이트는 로그인이 필요합니다</strong> 알림이 떠요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">테스트용 <strong>아이디와 비밀번호</strong>를 넣어요. 이 사이트의 데모 계정은 <code>demo</code> / <code>demo1234</code>예요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>저장하고 계속</strong>을 눌러요. 입력한 값은 이 프로젝트의 환경변수에 저장돼요.</div>
+  </li>
+</ol>
+<p class="guide-p">로그인 없이 둘러보려면 <strong>로그인 없이 계속</strong>을 눌러도 돼요.</p>
+<h3 class="section-heading-h3" id="완료">완료</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/09-bootstrap-done.jpg" data-alt="첫 테스트 완료" aria-label="첫 테스트 완료 크게 보기">
+    <img src="images/09-bootstrap-done.jpg" alt="첫 테스트 완료" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">첫 테스트 완료</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>AI가 만든 테스트가 실제로 통과했습니다</strong> 문구가 보이면 성공이에요. 실패해도 AI가 최대 2번까지 스스로 고쳐 봐요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>프로젝트 열기</strong>를 눌러 작업 화면으로 가요.</div>
+  </li>
+</ol>
+<div class="callout callout-warn">
+  <div class="callout-icon">⚠</div>
+  <div class="callout-body"><strong>주의</strong> — 처음에는 실행 환경을 받느라 몇 분 걸릴 수 있어요. 창을 닫아도 작업은 계속돼요. 결과는 실행 탭에서 볼 수 있어요.</div>
+</div>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. 등록한 뒤 이름이나 주소를 바꿀 수 있어요?</strong></div>
+  <div class="faq-a"><strong>A.</strong> 네. 프로젝트 목록의 연필 버튼이나 설정 탭의 <strong>설정 수정</strong>에서 바꿔요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="3-구조-탭--확인-지도">
+  <h2 class="section-heading-h2" id="3-구조-탭--확인-지도">
+    <span class="h2-anchor-text">3. 구조 탭 — 확인 지도</span>
+    <a class="header-anchor" href="#3-구조-탭--확인-지도" aria-label="3. 구조 탭 — 확인 지도 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">사이트의 화면 중 어디까지 테스트로 확인했고, 어디서 막혔는지 한눈에 보고 싶을 때.</span>
+</div>
+<h3 class="section-heading-h3" id="요약">요약</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/10-structure-summary.jpg" data-alt="구조 요약" aria-label="구조 요약 크게 보기">
+    <img src="images/10-structure-summary.jpg" alt="구조 요약" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">구조 요약</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>한 줄 요약</strong>이 먼저 나와요. 예: "화면 6개를 찾았어요. 1곳에서 막혔어요."</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>색 막대</strong>는 화면의 상태를 비율로 보여 줘요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>막힌 곳 보기</strong>를 누르면 막힌 이유로 바로 가요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>사이트 주소로 찾기</strong>는 사이트를 다시 둘러보고 화면을 새로 모아요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="지도">지도</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/11-structure-map.jpg" data-alt="확인 지도" aria-label="확인 지도 크게 보기">
+    <img src="images/11-structure-map.jpg" alt="확인 지도" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">확인 지도</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>색의 뜻</strong>이에요: 테스트 통과(초록) · 화면에서 확인됨(파란 테두리) · 아직 안 봄(점선) · 막힘(빨강). 선은 화면 사이 이동이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>상자 하나가 화면 하나</strong>예요. 상자를 누르면 자세한 내용이 나와요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">오른쪽 <strong>테스트 흐름 · 막힌 곳</strong> 탭으로 목록을 바꿔요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/12-structure-node.jpg" data-alt="화면 상자 읽는 법" aria-label="화면 상자 읽는 법 크게 보기">
+    <img src="images/12-structure-node.jpg" alt="화면 상자 읽는 법" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">화면 상자 읽는 법</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">상자에는 화면 이름 · 상태 · 확인한 버튼 수가 적혀 있어요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="테스트-흐름과-재생">테스트 흐름과 재생</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/13-structure-flows.jpg" data-alt="테스트 흐름" aria-label="테스트 흐름 크게 보기">
+    <img src="images/13-structure-flows.jpg" alt="테스트 흐름" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">테스트 흐름</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">흐름 카드 하나가 테스트 하나예요. 누르면 지도에서 그 길을 보여 줘요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">지나가는 화면 옆의 ✓는 통과, ✗는 실패예요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/14-structure-replay.jpg" data-alt="흐름 재생" aria-label="흐름 재생 크게 보기">
+    <img src="images/14-structure-replay.jpg" alt="흐름 재생" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">흐름 재생</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">재생 중인 흐름이 강조돼요. 지도 위에서 한 칸씩 지나가고, 실패한 곳에서 멈춰요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="막힌-곳">막힌 곳</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/15-structure-issue.jpg" data-alt="막힌 곳 카드" aria-label="막힌 곳 카드 크게 보기">
+    <img src="images/15-structure-issue.jpg" alt="막힌 곳 카드" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">막힌 곳 카드</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>막힌 화면과 쉬운 이유</strong>가 적혀 있어요. 예: "버튼이나 입력칸을 찾지 못했어요".</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>추천하는 다음 행동</strong> 버튼이 있어요. 예: 다시 녹화하기, 다시 실행.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>자세히</strong>를 열면 셀렉터와 테스트 파일이 보여요. 개발자용 정보라서 몰라도 돼요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="사이트-주소로-찾기">사이트 주소로 찾기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/16-structure-explore.jpg" data-alt="사이트 탐색" aria-label="사이트 탐색 크게 보기">
+    <img src="images/16-structure-explore.jpg" alt="사이트 탐색" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">사이트 탐색</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">탐색하는 동안 찾은 화면이 지도에 하나씩 나타나요. 최대 3분이 걸려요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>로그인 탐색</strong>을 쓰면 로그인한 뒤의 화면까지 찾아요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/17-structure-after-explore.jpg" data-alt="탐색이 끝난 뒤" aria-label="탐색이 끝난 뒤 크게 보기">
+    <img src="images/17-structure-after-explore.jpg" alt="탐색이 끝난 뒤" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">탐색이 끝난 뒤</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">끝나면 요약과 지도가 새로 그려져요.</div>
+  </li>
+</ol>
+<div class="callout callout-warn">
+  <div class="callout-icon">⚠</div>
+  <div class="callout-body"><strong>주의</strong> — 사이트 탐색은 링크만 따라가요. 버튼을 누르거나 입력하지 않아요.</div>
+</div>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. "막힘"이 계속 남아요.</strong></div>
+  <div class="faq-a"><strong>A.</strong> 막힌 곳 카드의 추천 행동을 따라 고친 뒤 테스트를 다시 실행하면 지도가 새로 바뀌어요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="4-클릭으로-만들기--녹화">
+  <h2 class="section-heading-h2" id="4-클릭으로-만들기--녹화">
+    <span class="h2-anchor-text">4. 클릭으로 만들기 — 녹화</span>
+    <a class="header-anchor" href="#4-클릭으로-만들기--녹화" aria-label="4. 클릭으로 만들기 — 녹화 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">코드를 쓰지 않고, 사이트를 직접 눌러 보여 주면서 테스트를 만들고 싶을 때. AI 없이 동작해요.</span>
+</div>
+<h3 class="section-heading-h3" id="시작">시작</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/20-recorder-start.jpg" data-alt="녹화 시작" aria-label="녹화 시작 크게 보기">
+    <img src="images/20-recorder-start.jpg" alt="녹화 시작" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">녹화 시작</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">사용 방법은 <strong>세 단계</strong>예요: 화면을 클릭 · 입력하기 → 확인할 곳 지정하기 → 저장하기.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>시작할 주소</strong>를 정해요. 비워 두면 프로젝트 주소로 시작해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>녹화 시작</strong>을 눌러요. 처음에는 브라우저를 준비하느라 30초쯤 걸려요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="입력하기">입력하기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/22-recorder-fill.jpg" data-alt="입력 팝오버" aria-label="입력 팝오버 크게 보기">
+    <img src="images/22-recorder-fill.jpg" alt="입력 팝오버" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">입력 팝오버</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>입력</strong> 모드를 골라요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">입력칸을 누르면 작은 창이 떠요. 값을 넣고 Enter를 눌러요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/23-recorder-password.jpg" data-alt="비밀번호 단계" aria-label="비밀번호 단계 크게 보기">
+    <img src="images/23-recorder-password.jpg" alt="비밀번호 단계" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">비밀번호 단계</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">비밀번호 칸은 값 대신 <strong>환경변수 LOGIN_PASSWORD</strong>로 기록돼요. 비밀번호가 테스트 코드에 남지 않아요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="마우스를-올려-보기">마우스를 올려 보기</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/21-recorder-hover.jpg" data-alt="셀렉터 미리보기" aria-label="셀렉터 미리보기 크게 보기">
+    <img src="images/21-recorder-hover.jpg" alt="셀렉터 미리보기" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">셀렉터 미리보기</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">위쪽에서 <strong>누를 때 할 일</strong>을 골라요: 클릭 · 입력 · 확인: 보이는지 · 확인: 글자.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">누를 곳에 마우스를 올리면 파란 테두리가 생겨요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">테두리 위의 <strong>이름표</strong>가 도구가 붙인 셀렉터예요. 몰라도 돼요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="확인할-곳-지정">확인할 곳 지정</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/24-recorder-steps.jpg" data-alt="기록된 단계" aria-label="기록된 단계 크게 보기">
+    <img src="images/24-recorder-steps.jpg" alt="기록된 단계" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">기록된 단계</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>확인: 보이는지</strong>를 고르고 화면에 보여야 하는 곳을 눌러요. 눈 모양 단계가 생겨요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">오른쪽 <strong>기록된 단계</strong>에서 고치기 · 지우기 · 순서 바꾸기를 할 수 있어요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="코드-보기와-저장">코드 보기와 저장</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/25-recorder-code.jpg" data-alt="만들어진 코드" aria-label="만들어진 코드 크게 보기">
+    <img src="images/25-recorder-code.jpg" alt="만들어진 코드" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">만들어진 코드</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>코드 보기</strong>를 누르면 자동으로 만든 테스트 코드가 보여요. 읽지 않아도 돼요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>복사</strong>로 코드를 가져갈 수 있어요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/26-recorder-saved.jpg" data-alt="저장" aria-label="저장 크게 보기">
+    <img src="images/26-recorder-saved.jpg" alt="저장" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">저장</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>테스트 이름</strong>과 <strong>저장 경로</strong>를 적고 <strong>저장</strong>을 눌러요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">"테스트 파일로 저장했어요"가 보이면 끝이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>바로 실행</strong>을 누르면 방금 만든 테스트를 바로 돌려요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — 로그인이 필요한 사이트라면 로그인부터 눌러 보여 주세요. 로그인도 테스트의 한 단계가 돼요.</div>
+</div>
+<div class="callout callout-warn">
+  <div class="callout-icon">⚠</div>
+  <div class="callout-body"><strong>주의</strong> — 녹화 화면은 실제 사이트예요. 누른 내용이 그대로 실행돼요. 운영 사이트에서는 주문 같은 일을 조심하세요. 10분 동안 아무것도 안 하면 녹화가 자동으로 끝나요.</div>
+</div>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. 같은 이름으로 저장하면요?</strong></div>
+  <div class="faq-a"><strong>A.</strong> 같은 경로에는 저장되지 않아요. 다른 경로로 저장하세요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="5-테스트-탭">
+  <h2 class="section-heading-h2" id="5-테스트-탭">
+    <span class="h2-anchor-text">5. 테스트 탭</span>
+    <a class="header-anchor" href="#5-테스트-탭" aria-label="5. 테스트 탭 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">만들어 둔 테스트를 보고, 골라서 실행하고, 자주 쓰는 조합을 묶어 둘 때.</span>
+</div>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/30-tests-list.jpg" data-alt="테스트 목록" aria-label="테스트 목록 크게 보기">
+    <img src="images/30-tests-list.jpg" alt="테스트 목록" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">테스트 목록</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">실행할 테스트 <strong>앞의 칸에 체크</strong>해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>선택 케이스 실행</strong>을 눌러요. 체크한 것만 돌아요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>묶음으로 저장</strong>으로 자주 쓰는 조합에 이름을 붙여 둬요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text">줄 오른쪽 <strong>▷</strong>는 그 테스트 하나만 실행해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">5</span>
+    <div class="step-text">오른쪽 <strong>케이스 실행 이력</strong>에는 테스트 이름을 누르면 지난 결과가 나와요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="묶음-저장">묶음 저장</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/31-tests-suite.jpg" data-alt="테스트 묶음" aria-label="테스트 묶음 크게 보기">
+    <img src="images/31-tests-suite.jpg" alt="테스트 묶음" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">테스트 묶음</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>묶음 이름</strong>을 적어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>순차 실행</strong>을 켜면 하나씩 차례로 돌려요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>저장</strong>을 눌러요. 저장한 묶음은 목록 위에 나타나고, 눌러서 한 번에 다시 돌릴 수 있어요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="케이스-실행-이력">케이스 실행 이력</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/38-tests-case-history.jpg" data-alt="케이스 이력" aria-label="케이스 이력 크게 보기">
+    <img src="images/38-tests-case-history.jpg" alt="케이스 이력" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">케이스 이력</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">테스트 <strong>이름</strong>을 눌러요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">오른쪽에 그 테스트의 <strong>지난 실행 결과</strong>가 나와요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — 케이스 이력에는 ▷로 하나만 실행한 기록이 나와요. 여러 개를 한꺼번에 돌린 기록은 <a href="#6-실행--결과--대시보드">실행 탭</a>에서 봐요.</div>
+</div>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. 새 테스트는 어떻게 추가해요?</strong></div>
+  <div class="faq-a"><strong>A.</strong> <a href="#4-클릭으로-만들기--녹화">클릭으로 만들기</a>나 <a href="#8-ai-탭--ai로-만들기--ai-분석--ai-검토">AI로 만들기</a>로 만들어요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="6-실행--결과--대시보드">
+  <h2 class="section-heading-h2" id="6-실행--결과--대시보드">
+    <span class="h2-anchor-text">6. 실행 · 결과 · 대시보드</span>
+    <a class="header-anchor" href="#6-실행--결과--대시보드" aria-label="6. 실행 · 결과 · 대시보드 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">테스트가 지금 어떻게 돌고 있는지, 끝난 뒤 무엇이 통과하고 실패했는지 볼 때.</span>
+</div>
+<h3 class="section-heading-h3" id="실행-중">실행 중</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/32-runs-live.jpg" data-alt="실행 중" aria-label="실행 중 크게 보기">
+    <img src="images/32-runs-live.jpg" alt="실행 중" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">실행 중</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>방금 시작한 실행</strong>이 목록 맨 위에 "실행 중"으로 나타나요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>스트리밍 중</strong>이라는 표시는 로그가 아직 흐르고 있다는 뜻이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">위쪽 <strong>진행 로그</strong>가 실시간으로 쌓여요. 영어가 많아도 걱정하지 마세요. 끝나면 결과 탭에서 쉬운 요약을 봐요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="실행-이력">실행 이력</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/33-runs-history.jpg" data-alt="실행 이력" aria-label="실행 이력 크게 보기">
+    <img src="images/33-runs-history.jpg" alt="실행 이력" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">실행 이력</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">가장 최근 실행이 맨 위에 있어요. 줄을 누르면 그 실행의 로그가 보여요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>성공 · 실패</strong> 표시로 결과를 한눈에 알아요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>새로고침</strong>으로 목록을 다시 불러요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="결과-탭">결과 탭</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/34-results-log.jpg" data-alt="결과 로그" aria-label="결과 로그 크게 보기">
+    <img src="images/34-results-log.jpg" alt="결과 로그" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">결과 로그</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>볼 실행</strong>을 골라요. 기본은 가장 최근 실행이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">로그의 <strong>끝부분</strong>에 몇 개가 통과 · 실패했는지 요약돼요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/35-results-summary.jpg" data-alt="결과 요약" aria-label="결과 요약 크게 보기">
+    <img src="images/35-results-summary.jpg" alt="결과 요약" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">결과 요약</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>통과 · 실패 개수</strong> 카드를 봐요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>실패한 케이스</strong>에 실패한 테스트 이름과 오류 문장이 나와요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/36-results-report.jpg" data-alt="HTML 리포트" aria-label="HTML 리포트 크게 보기">
+    <img src="images/36-results-report.jpg" alt="HTML 리포트" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">HTML 리포트</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">화면 안에서 Playwright가 만든 <strong>자세한 보고서</strong>를 봐요. 테스트별 결과와 걸린 시간이 나와요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>새 탭에서 열기</strong>로 크게 볼 수 있어요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/37-results-artifacts.jpg" data-alt="아티팩트" aria-label="아티팩트 크게 보기">
+    <img src="images/37-results-artifacts.jpg" alt="아티팩트" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">아티팩트</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>아티팩트</strong>를 누르면 스크린샷과 동영상을 바로 열어 볼 수 있고, 내려받기 아이콘으로 저장해요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — 실패한 순간의 스크린샷을 먼저 열어 보세요. 어느 화면에서 멈췄는지 가장 빨리 알 수 있어요.</div>
+</div>
+<h3 class="section-heading-h3" id="대시보드">대시보드</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/39-dashboard.jpg" data-alt="대시보드" aria-label="대시보드 크게 보기">
+    <img src="images/39-dashboard.jpg" alt="대시보드" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">대시보드</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>숫자 요약</strong>: 최종 결과 · 성공률 · 평균 소요 · 전체 소요 · 실행 건수예요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>상태 분포</strong>: 성공과 실패의 비율이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>최근 실행 소요시간</strong>: 실행마다 얼마나 걸렸는지 막대로 보여 줘요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>결과 보기</strong>를 누르면 결과 탭으로 가요.</div>
+  </li>
+</ol>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. 실행 이력을 지우고 싶어요.</strong></div>
+  <div class="faq-a"><strong>A.</strong> 실행 탭에서 줄을 고르고 <strong>선택 삭제</strong>, 전부 지우려면 <strong>전체 초기화</strong>를 눌러요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="7-ai-켜고-끄기">
+  <h2 class="section-heading-h2" id="7-ai-켜고-끄기">
+    <span class="h2-anchor-text">7. AI 켜고 끄기</span>
+    <a class="header-anchor" href="#7-ai-켜고-끄기" aria-label="7. AI 켜고 끄기 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">AI 기능이 필요 없거나, 잠깐 끄고 싶을 때. 끄면 화면은 그대로이고 AI 기능만 사라져요.</span>
+</div>
+<div class="image-grid-2">
+  <figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/40-ai-off.jpg" data-alt="AI 끔" aria-label="AI 끔 크게 보기">
+    <img src="images/40-ai-off.jpg" alt="AI 끔" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 끔</figcaption>
+</figure>
+  <figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/41-ai-on.jpg" data-alt="AI 켬" aria-label="AI 켬 크게 보기">
+    <img src="images/41-ai-on.jpg" alt="AI 켬" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 켬</figcaption>
+</figure>
+</div>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">위쪽 오른쪽의 <strong>AI 스위치</strong>를 눌러요. 켜면 파란색, 끄면 회색이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">켜면 위쪽 탭에 <strong>AI 탭</strong>이 생겨요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">켜면 오른쪽 아래에 <strong>AI 채팅 버튼</strong>이 생겨요.</div>
+  </li>
+</ol>
+<div class="table-wrapper">
+  <table>
+    <thead><tr><th>&nbsp;</th><th>AI 끔</th><th>AI 켬</th></tr></thead>
+    <tbody>
+      <tr><td>위쪽 탭</td><td>대시보드 · 구조 · 테스트 · 실행 · 설정</td><td>여기에 <strong>AI</strong> 탭이 더해져요</td></tr><tr><td>오른쪽 아래</td><td>아무것도 없어요</td><td><strong>AI 채팅</strong> 버튼이 있어요</td></tr><tr><td>프로젝트 등록</td><td>기본 점검 테스트가 만들어져요</td><td>AI가 첫 테스트를 만들어요</td></tr><tr><td>코드 편집기</td><td>직접 고치기만 가능해요</td><td><strong>AI 수정 도움</strong> 버튼이 더해져요</td></tr><tr><td>클릭으로 만들기 · 실행 · 결과</td><td>똑같이 써요</td><td>똑같이 써요</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout callout-warn">
+  <div class="callout-icon">⚠</div>
+  <div class="callout-body"><strong>주의</strong> — AI 스위치가 켜지지 않으면 관리자가 AI 키를 아직 등록하지 않은 거예요. <a href="#12-관리자-메뉴">관리자 메뉴</a>를 보세요.</div>
+</div>
+</section>
+<section class="guide-section" id="8-ai-탭--ai로-만들기--ai-분석--ai-검토">
+  <h2 class="section-heading-h2" id="8-ai-탭--ai로-만들기--ai-분석--ai-검토">
+    <span class="h2-anchor-text">8. AI 탭 — AI로 만들기 · AI 분석 · AI 검토</span>
+    <a class="header-anchor" href="#8-ai-탭--ai로-만들기--ai-분석--ai-검토" aria-label="8. AI 탭 — AI로 만들기 · AI 분석 · AI 검토 링크">#</a>
+  </h2>
+<p class="guide-p">AI를 켜야 보이는 탭이에요. <strong>AI가 만든 변경은 사람이 승인해야만 반영돼요.</strong></p>
+<h3 class="section-heading-h3" id="ai로-만들기">AI로 만들기</h3>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">코드를 모르지만 "이걸 확인해 줘"를 말로 시키고 싶을 때.</span>
+</div>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/50-ai-generate.jpg" data-alt="AI로 만들기" aria-label="AI로 만들기 크게 보기">
+    <img src="images/50-ai-generate.jpg" alt="AI로 만들기" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI로 만들기</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>추천 문장</strong>을 눌러 골라도 돼요. 사이트에서 찾은 화면을 바탕으로 만든 문장이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">확인하고 싶은 것을 <strong>문장으로</strong> 적거나 고친 문장을 다듬어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>테스트 만들기</strong>를 눌러요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/51-ai-generate-running.jpg" data-alt="만드는 중" aria-label="만드는 중 크게 보기">
+    <img src="images/51-ai-generate-running.jpg" alt="만드는 중" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">만드는 중</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>작업 번호와 진행 상태</strong>가 나와요. 다른 화면으로 가도 계속돼요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/52-ai-generate-ready.jpg" data-alt="검토 대기" aria-label="검토 대기 크게 보기">
+    <img src="images/52-ai-generate-ready.jpg" alt="검토 대기" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">검토 대기</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>검토 대기</strong> 상태가 되면 다 만든 거예요. 아직 파일에 반영되지는 않았어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>검토하러 가기</strong>를 눌러요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="ai-검토">AI 검토</h3>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">AI가 만든 코드를 보고 반영할지 정할 때.</span>
+</div>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/55-ai-review.jpg" data-alt="AI 검토 목록" aria-label="AI 검토 목록 크게 보기">
+    <img src="images/55-ai-review.jpg" alt="AI 검토 목록" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 검토 목록</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>검토 대기</strong> 작업이 위쪽에 보여요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>변경 내용 보기</strong>로 무엇이 바뀌는지 펼쳐요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">괜찮으면 <strong>승인 및 적용</strong>을 눌러요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text">아니면 <strong>거부</strong>를 눌러요. 거부하면 아무것도 바뀌지 않아요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/56-ai-review-diff.jpg" data-alt="변경 내용" aria-label="변경 내용 크게 보기">
+    <img src="images/56-ai-review-diff.jpg" alt="변경 내용" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">변경 내용</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">새로 생기는 테스트 코드가 보여요. 코드를 읽기 어려우면 위의 한 줄 설명만 읽어도 돼요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">확인했으면 <strong>승인 및 적용</strong>을 눌러요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/57-ai-review-approved.jpg" data-alt="승인 완료" aria-label="승인 완료 크게 보기">
+    <img src="images/57-ai-review-approved.jpg" alt="승인 완료" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">승인 완료</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">승인하면 <strong>적용 완료</strong>가 돼요. 적용 뒤에는 확인 실행이 한 번 더 돌 수 있어요. 이제 테스트 탭에 새 테스트가 생겨요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="ai-분석">AI 분석</h3>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">테스트가 실패했는데 이유를 쉬운 말로 듣고 싶을 때.</span>
+</div>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/53-ai-analysis-setup.jpg" data-alt="AI 분석 설정" aria-label="AI 분석 설정 크게 보기">
+    <img src="images/53-ai-analysis-setup.jpg" alt="AI 분석 설정" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 분석 설정</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>분석할 실행</strong>을 골라요. 실패한 실행을 고르면 좋아요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>설명 수준</strong>을 골라요: 비전공자 · 주니어 · 시니어.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>AI 분석 실행</strong>을 눌러요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/54-ai-analysis-result.jpg" data-alt="AI 분석 결과" aria-label="AI 분석 결과 크게 보기">
+    <img src="images/54-ai-analysis-result.jpg" alt="AI 분석 결과" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 분석 결과</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">왜 실패했는지와 어떻게 고치면 되는지가 고른 수준에 맞게 나와요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — 처음이라면 <strong>비전공자</strong>를 고르세요. 용어를 풀어서 설명해 줘요.</div>
+</div>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. AI가 만든 걸 승인하면 바로 위험하지 않아요?</strong></div>
+  <div class="faq-a"><strong>A.</strong> 승인 전에는 파일이 바뀌지 않아요. 승인한 변경도 적용 뒤에 한 번 더 확인 실행을 해요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="9-ai-채팅">
+  <h2 class="section-heading-h2" id="9-ai-채팅">
+    <span class="h2-anchor-text">9. AI 채팅</span>
+    <a class="header-anchor" href="#9-ai-채팅" aria-label="9. AI 채팅 링크">#</a>
+  </h2>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">짧게 물어보거나, 말로 일을 시키고 싶을 때. 어느 화면에서나 쓸 수 있어요.</span>
+</div>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/60-chat-button.jpg" data-alt="채팅 버튼" aria-label="채팅 버튼 크게 보기">
+    <img src="images/60-chat-button.jpg" alt="채팅 버튼" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">채팅 버튼</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">오른쪽 아래 <strong>동그란 버튼</strong>을 눌러요. 단축키는 Ctrl + /예요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/61-chat-open.jpg" data-alt="채팅 창" aria-label="채팅 창 크게 보기">
+    <img src="images/61-chat-open.jpg" alt="채팅 창" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">채팅 창</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>넓게 보기 · 작게 보기</strong>로 창 크기를 바꿔요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>새 대화</strong>를 눌러 새로 시작해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">아래 입력칸에 질문을 쓰고 Enter를 눌러요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/62-chat-streaming.jpg" data-alt="답을 쓰는 중" aria-label="답을 쓰는 중 크게 보기">
+    <img src="images/62-chat-streaming.jpg" alt="답을 쓰는 중" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">답을 쓰는 중</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">답이 <strong>실시간으로</strong> 한 글자씩 이어서 나와요. 위쪽에 쓰는 중임을 알리는 표시가 있어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">마음에 안 들면 <strong>중단</strong>을 눌러 멈춰요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="질문-실행-결과를-상태별로-세어-줘">질문 ① 실행 결과를 상태별로 세어 줘</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/63-chat-db.jpg" data-alt="DB 조회" aria-label="DB 조회 크게 보기">
+    <img src="images/63-chat-db.jpg" alt="DB 조회" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">DB 조회</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">AI가 <strong>DB 조회 도구</strong>를 써요. 어떤 질문으로 조회했는지 펼쳐서 볼 수 있어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">조회한 <strong>결과 표</strong>가 나와요. 그 아래에 쉬운 말로 정리해 줘요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="질문-실패한-테스트를-다시-실행해-줘">질문 ② 실패한 테스트를 다시 실행해 줘</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/64-chat-permission.jpg" data-alt="허락 카드" aria-label="허락 카드 크게 보기">
+    <img src="images/64-chat-permission.jpg" alt="허락 카드" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">허락 카드</figcaption>
+</figure>
+<p class="guide-p">무언가를 바꾸거나 실행하는 일은 AI가 먼저 허락을 물어봐요.</p>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>AI가 하려는 일</strong>이 카드에 적혀 있어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>허용</strong>: 이번 한 번만 허락해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>이 대화에서 항상 허용</strong>: 이 대화 동안은 묻지 않고 해요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>거부</strong>: 하지 않아요.</div>
+  </li>
+</ol>
+<p class="guide-p">AI가 먼저 글로 "실행할까요?"라고 되물으면 "네"라고 답해 주세요. 그러면 허락 카드가 나와요.</p>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/65-chat-after-allow.jpg" data-alt="허용한 뒤" aria-label="허용한 뒤 크게 보기">
+    <img src="images/65-chat-after-allow.jpg" alt="허용한 뒤" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">허용한 뒤</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">허용하면 <strong>허용함</strong> 기록이 남고, AI가 실행한 뒤 결과를 알려 줘요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — "이 파일 고쳐 줘"처럼 파일 이름과 함께 요청하면 더 정확해요.</div>
+</div>
+</section>
+<section class="guide-section" id="10-설정">
+  <h2 class="section-heading-h2" id="10-설정">
+    <span class="h2-anchor-text">10. 설정</span>
+    <a class="header-anchor" href="#10-설정" aria-label="10. 설정 링크">#</a>
+  </h2>
+<p class="guide-p">프로젝트의 기본값을 바꾸는 곳이에요. 위쪽 <strong>설정</strong> 탭 안에 <strong>설정 · 예약 실행 · 코드 편집기</strong> 세 가지가 있어요.</p>
+<h3 class="section-heading-h3" id="프로젝트-설정">프로젝트 설정</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/70-settings.jpg" data-alt="설정" aria-label="설정 크게 보기">
+    <img src="images/70-settings.jpg" alt="설정" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">설정</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">위쪽의 <strong>보조 탭</strong>으로 설정 · 예약 실행 · 코드 편집기를 오가요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>환경 정보</strong> 카드에 사이트 주소 · 서버 구분 · 관리자 같은 기본 정보가 있어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>설정 수정</strong>을 누르면 바꿀 수 있어요. 바꾼 값은 다음 실행부터 적용돼요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>Docker Runner</strong>는 테스트를 돌리는 실행 상자예요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="환경변수">환경변수</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/71-settings-env.jpg" data-alt="환경변수" aria-label="환경변수 크게 보기">
+    <img src="images/71-settings-env.jpg" alt="환경변수" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">환경변수</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>이름(KEY)</strong>을 적어요. 예: LOGIN_ID</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>비밀번호</strong> 같은 값은 ●●●로 가려서 보관돼요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text">여러 개를 한 번에 넣으려면 <strong>.env / JSON 붙여넣기</strong>를 써요.</div>
+  </li>
+</ol>
+<div class="callout callout-warn">
+  <div class="callout-icon">⚠</div>
+  <div class="callout-body"><strong>주의</strong> — 비밀번호 값은 화면에 다시 보여 주지 않아요. 사진을 찍거나 공유할 때도 환경변수 창은 조심하세요.</div>
+</div>
+<h3 class="section-heading-h3" id="예약-실행">예약 실행</h3>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">매일 아침처럼 정해진 때 테스트가 저절로 돌게 하고 싶을 때.</span>
+</div>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/72-schedules-new.jpg" data-alt="예약 추가" aria-label="예약 추가 크게 보기">
+    <img src="images/72-schedules-new.jpg" alt="예약 추가" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">예약 추가</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>예약 이름</strong>을 적어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">특정 테스트 파일만 돌리려면 경로를 적어요. 비우면 <strong>전체</strong>를 돌려요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>몇 시에</strong> 돌릴지 정해요. 서버 시각 기준이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>무슨 요일에</strong> 돌릴지 골라요. 아무것도 고르지 않으면 매일이에요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">5</span>
+    <div class="step-text"><strong>활성화</strong>를 켜 두면 그 시각에 실행돼요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/72b-schedules-list.jpg" data-alt="예약 목록" aria-label="예약 목록 크게 보기">
+    <img src="images/72b-schedules-list.jpg" alt="예약 목록" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">예약 목록</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">등록한 예약이 목록에 나타나요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>예약 추가</strong>로 더 만들 수 있어요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="코드-편집기">코드 편집기</h3>
+<div class="use-case-banner">
+  <span class="use-case-tag">이럴 때 쓰세요</span>
+  <span class="use-case-desc">테스트 파일을 직접 열어 고치고 싶을 때.</span>
+</div>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/73-source-editor.jpg" data-alt="코드 편집기" aria-label="코드 편집기 크게 보기">
+    <img src="images/73-source-editor.jpg" alt="코드 편집기" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">코드 편집기</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">왼쪽 <strong>파일 탐색기</strong>에서 파일을 골라요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">오른쪽에서 코드를 고쳐요. 바뀐 줄이 표시돼요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>저장</strong>을 눌러야 반영돼요. 저장하지 않으면 사라져요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/74-source-ai-help.jpg" data-alt="AI 수정 도움" aria-label="AI 수정 도움 크게 보기">
+    <img src="images/74-source-ai-help.jpg" alt="AI 수정 도움" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 수정 도움</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">AI를 켜면 <strong>AI 수정 도움</strong> 버튼이 생겨요. 열린 파일을 AI에게 고쳐 달라고 할 수 있어요. 결과는 에디터에 적용한 뒤 저장해야 반영돼요.</div>
+  </li>
+</ol>
+<div class="faq-container">
+  <div class="faq-header">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+    <span>자주 묻는 질문</span>
+  </div>
+  <div class="faq-item">
+  <div class="faq-q"><strong>Q. 코드가 영어라서 어려워요.</strong></div>
+  <div class="faq-a"><strong>A.</strong> 고치지 않아도 돼요. <a href="#4-클릭으로-만들기--녹화">클릭으로 만들기</a>나 AI 도움으로 만드는 게 더 쉬워요.</div>
+</div>
+</div>
+</section>
+<section class="guide-section" id="11-알림--도움말--프로젝트-전환">
+  <h2 class="section-heading-h2" id="11-알림--도움말--프로젝트-전환">
+    <span class="h2-anchor-text">11. 알림 · 도움말 · 프로젝트 전환</span>
+    <a class="header-anchor" href="#11-알림--도움말--프로젝트-전환" aria-label="11. 알림 · 도움말 · 프로젝트 전환 링크">#</a>
+  </h2>
+<h3 class="section-heading-h3" id="알림">알림</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/80-notifications.jpg" data-alt="알림" aria-label="알림 크게 보기">
+    <img src="images/80-notifications.jpg" alt="알림" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">알림</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">오른쪽 위 <strong>종</strong>의 빨간 숫자는 아직 안 본 알림 수예요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text">알림 하나를 누르면 해당 결과로 가요. 테스트 종료 · 예약 실행 완료 · 예약 실행 실패를 알려 줘요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>모두 지우기</strong>로 확인한 알림을 지워요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="도움말">도움말</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/81-help-menu.jpg" data-alt="도움말" aria-label="도움말 크게 보기">
+    <img src="images/81-help-menu.jpg" alt="도움말" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">도움말</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">위쪽 <strong>?</strong> 버튼을 눌러요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>지금 이 화면</strong> 설명이 나와요. 화면마다 내용이 달라요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>키보드 단축키</strong>가 있어요: Ctrl + /는 AI 채팅, Ctrl + K는 프로젝트 전환이에요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="프로젝트-전환">프로젝트 전환</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/82-project-switch.jpg" data-alt="프로젝트 전환" aria-label="프로젝트 전환 크게 보기">
+    <img src="images/82-project-switch.jpg" alt="프로젝트 전환" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">프로젝트 전환</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">Ctrl + K를 누르거나 프로젝트 이름 칸을 눌러요. 이름으로 찾아서 고르면 그 프로젝트로 가요.</div>
+  </li>
+</ol>
+</section>
+<section class="guide-section" id="12-관리자-메뉴">
+  <h2 class="section-heading-h2" id="12-관리자-메뉴">
+    <span class="h2-anchor-text">12. 관리자 메뉴</span>
+    <a class="header-anchor" href="#12-관리자-메뉴" aria-label="12. 관리자 메뉴 링크">#</a>
+  </h2>
+<p class="guide-p">왼쪽 세로 줄은 프로젝트와 상관없이 쓰는 <strong>전체 메뉴</strong>예요.</p>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/90-rail.jpg" data-alt="왼쪽 세로 줄" aria-label="왼쪽 세로 줄 크게 보기">
+    <img src="images/90-rail.jpg" alt="왼쪽 세로 줄" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">왼쪽 세로 줄</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>프로젝트 목록</strong></div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>Runner 컨테이너</strong></div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>Playwright 템플릿</strong></div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">4</span>
+    <div class="step-text"><strong>AI 설정 · 사용량</strong></div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">5</span>
+    <div class="step-text"><strong>사용자 관리</strong> (관리자만 보여요)</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="ai-설정--사용량">AI 설정 · 사용량</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/91-ai-settings.jpg" data-alt="AI 설정" aria-label="AI 설정 크게 보기">
+    <img src="images/91-ai-settings.jpg" alt="AI 설정" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 설정</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>쓸 AI</strong>를 골라요: Claude 또는 GPT. 모든 AI 기능이 여기서 고른 AI를 써요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>사용 중</strong> 표시가 지금 쓰는 AI예요. 키가 등록되지 않은 AI는 고를 수 없어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>단가</strong>를 넣으면 쓴 비용을 추정해 줘요. 실제 청구액은 각 AI 회사 콘솔에서 확인하세요.</div>
+  </li>
+</ol>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/92-ai-usage.jpg" data-alt="AI 사용량" aria-label="AI 사용량 크게 보기">
+    <img src="images/92-ai-usage.jpg" alt="AI 사용량" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">AI 사용량</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>기간</strong>(7일 · 30일 · 90일)을 바꿔 볼 수 있어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>기능별</strong>로 어디에 많이 썼는지 알 수 있어요.</div>
+  </li>
+</ol>
+<div class="callout callout-warn">
+  <div class="callout-icon">⚠</div>
+  <div class="callout-body"><strong>주의</strong> — API 키 입력 칸은 이 가이드의 사진에 담지 않았어요. 키는 관리자만 등록하고, 등록한 키는 다시 보이지 않아요.</div>
+</div>
+<h3 class="section-heading-h3" id="사용자-관리">사용자 관리</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/93-users.jpg" data-alt="사용자 관리" aria-label="사용자 관리 크게 보기">
+    <img src="images/93-users.jpg" alt="사용자 관리" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">사용자 관리</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>사용자 등록</strong>으로 함께 쓸 사람의 계정을 만들어요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>연필</strong>을 눌러 역할이나 비밀번호를 바꿔요. 기본 계정의 비밀번호도 여기서 바꿔요.</div>
+  </li>
+</ol>
+<h3 class="section-heading-h3" id="runner-컨테이너">Runner 컨테이너</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/94-runners.jpg" data-alt="Runner 컨테이너" aria-label="Runner 컨테이너 크게 보기">
+    <img src="images/94-runners.jpg" alt="Runner 컨테이너" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">Runner 컨테이너</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text"><strong>Runner 현황</strong>에서 지금 도는 실행 상자 수를 봐요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">2</span>
+    <div class="step-text"><strong>호스트/도커 현황</strong>에서 서버의 CPU · 메모리를 봐요.</div>
+  </li>
+  <li class="step-item">
+    <span class="step-badge">3</span>
+    <div class="step-text"><strong>미사용 Runner 삭제</strong>로 안 쓰는 상자를 정리해요.</div>
+  </li>
+</ol>
+<div class="callout callout-tip">
+  <div class="callout-icon">💡</div>
+  <div class="callout-body"><strong>팁</strong> — 실행이 멈춘 것 같으면 여기부터 확인하세요.</div>
+</div>
+<h3 class="section-heading-h3" id="playwright-템플릿">Playwright 템플릿</h3>
+<figure class="guide-figure">
+  <div class="img-frame" role="button" tabindex="0" data-src="images/95-templates.jpg" data-alt="Playwright 템플릿" aria-label="Playwright 템플릿 크게 보기">
+    <img src="images/95-templates.jpg" alt="Playwright 템플릿" loading="lazy">
+    <span class="zoom-indicator">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line><line x1="11" y1="8" x2="11" y2="14"></line><line x1="8" y1="11" x2="14" y2="11"></line></svg>
+      <span>크게 보기</span>
+    </span>
+  </div>
+  <figcaption class="guide-figcaption">Playwright 템플릿</figcaption>
+</figure>
+<ol class="step-list">
+  <li class="step-item">
+    <span class="step-badge">1</span>
+    <div class="step-text">새 프로젝트를 만들 때 처음 깔리는 테스트 코드 묶음이에요. 기본 템플릿이 하나 있어요.</div>
+  </li>
+</ol>
+</section>
+<section class="guide-section" id="막혔을-때-이렇게-하세요">
+  <h2 class="section-heading-h2" id="막혔을-때-이렇게-하세요">
+    <span class="h2-anchor-text">막혔을 때 이렇게 하세요</span>
+    <a class="header-anchor" href="#막혔을-때-이렇게-하세요" aria-label="막혔을 때 이렇게 하세요 링크">#</a>
+  </h2>
+<div class="table-wrapper">
+  <table>
+    <thead><tr><th>이런 일이 생기면</th><th>이렇게 하세요</th></tr></thead>
+    <tbody>
+      <tr><td>등록 창의 <strong>확인</strong>이 "로컬 주소는 접근할 수 없습니다"라고 해요</td><td>같은 컴퓨터나 회사 안의 주소는 확인이 막혀요. 등록은 그대로 진행돼요.</td></tr><tr><td>첫 테스트 진행 창에서 멈춰 있어요</td><td>로그인 정보를 묻는 카드가 아래에 떠 있는지 보세요. 계정을 넣고 <strong>저장하고 계속</strong>을 누르세요.</td></tr><tr><td>처음 실행이 오래 걸려요</td><td>처음에는 실행 환경을 받느라 몇 분 걸려요. 창을 닫아도 계속돼요.</td></tr><tr><td>AI 스위치가 켜지지 않아요</td><td>관리자가 AI 키를 등록해야 해요. <a href="#ai-설정--사용량">AI 설정 · 사용량</a>을 보세요.</td></tr><tr><td>구조 탭에 <strong>막힘</strong>이 있어요</td><td><strong>막힌 곳</strong> 카드를 열고 추천 행동(다시 녹화하기 · 다시 실행)을 따라 하세요.</td></tr><tr><td>결과에 오류 문장이 영어로 나와요</td><td><strong>AI 분석</strong>에서 설명 수준을 <strong>비전공자</strong>로 고르고 분석하세요.</td></tr><tr><td>실패했는데 이유를 모르겠어요</td><td>결과 탭의 <strong>스크린샷</strong>을 열어 어느 화면에서 멈췄는지 보세요.</td></tr><tr><td>로그인이 필요한 화면이 지도에 안 보여요</td><td>설정의 <strong>환경변수</strong>에 LOGIN_ID와 LOGIN_PASSWORD를 넣고 <strong>로그인 탐색</strong>을 쓰세요.</td></tr><tr><td>케이스 실행 이력이 비어 있어요</td><td>그 테스트를 ▷로 하나만 실행해 보세요. 여러 개를 함께 돌린 기록은 실행 탭에 있어요.</td></tr><tr><td>실행이 계속 대기해요</td><td><strong>Runner 컨테이너</strong> 화면에서 실행 상자 상태를 확인하세요.</td></tr><tr><td>녹화가 시작되지 않아요</td><td><strong>다시 시도</strong>를 누르세요. 그래도 안 되면 처음으로 돌아가 다시 시작하세요.</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+<section class="guide-section" id="화면별-한-줄-요약">
+  <h2 class="section-heading-h2" id="화면별-한-줄-요약">
+    <span class="h2-anchor-text">화면별 한 줄 요약</span>
+    <a class="header-anchor" href="#화면별-한-줄-요약" aria-label="화면별 한 줄 요약 링크">#</a>
+  </h2>
+<div class="table-wrapper">
+  <table>
+    <thead><tr><th>화면</th><th>한 줄 요약</th></tr></thead>
+    <tbody>
+      <tr><td>로그인</td><td>계정으로 들어가요.</td></tr><tr><td>프로젝트 목록</td><td>테스트할 사이트를 카드로 모아 둔 곳이에요.</td></tr><tr><td>프로젝트 등록</td><td>주소만 넣으면 AI가 첫 테스트까지 만들어요.</td></tr><tr><td>대시보드</td><td>최근 결과와 성공률을 숫자와 그림으로 봐요.</td></tr><tr><td>구조</td><td>어디까지 확인했고 어디서 막혔는지 지도로 봐요.</td></tr><tr><td>테스트</td><td>테스트를 골라 실행하고 묶음으로 저장해요.</td></tr><tr><td>클릭으로 만들기</td><td>사이트를 눌러 보여 주면 테스트가 돼요.</td></tr><tr><td>실행 이력</td><td>돌린 실행의 목록과 실시간 로그예요.</td></tr><tr><td>결과</td><td>통과 · 실패, 리포트, 스크린샷을 봐요.</td></tr><tr><td>설정</td><td>주소 · 환경변수 · 실행 방식을 바꿔요.</td></tr><tr><td>예약 실행</td><td>정해진 시각에 저절로 돌려요.</td></tr><tr><td>코드 편집기</td><td>테스트 파일을 직접 고쳐요.</td></tr><tr><td>AI로 만들기</td><td>문장으로 쓰면 AI가 테스트를 만들어요.</td></tr><tr><td>AI 분석</td><td>실패 이유를 내 수준에 맞게 설명해요.</td></tr><tr><td>AI 검토</td><td>AI가 만든 변경을 사람이 승인해요.</td></tr><tr><td>AI 채팅</td><td>말로 묻고, 허락하면 일을 해 줘요.</td></tr><tr><td>AI 설정 · 사용량</td><td>쓸 AI를 고르고 사용량을 봐요.</td></tr><tr><td>사용자 관리</td><td>계정과 역할을 관리해요.</td></tr><tr><td>Runner 컨테이너</td><td>테스트를 돌리는 실행 상자 상태예요.</td></tr><tr><td>Playwright 템플릿</td><td>새 프로젝트에 깔리는 기본 테스트 묶음이에요.</td></tr>
+    </tbody>
+  </table>
+</div>
+</section>
+<section class="guide-section" id="이-가이드의-사진-다시-찍기">
+  <h2 class="section-heading-h2" id="이-가이드의-사진-다시-찍기">
+    <span class="h2-anchor-text">이 가이드의 사진 다시 찍기</span>
+    <a class="header-anchor" href="#이-가이드의-사진-다시-찍기" aria-label="이 가이드의 사진 다시 찍기 링크">#</a>
+  </h2>
+<p class="guide-p">사진은 <code>scripts/</code>의 도구로 다시 찍을 수 있어요. 화면이 바뀌면 같은 방법으로 새로 찍어요.</p>
+<div class="code-block-wrapper">
+  <div class="code-block-header">
+    <div class="code-block-dots">
+      <span class="code-block-dot dot-red"></span>
+      <span class="code-block-dot dot-yellow"></span>
+      <span class="code-block-dot dot-green"></span>
+    </div>
+    <span class="code-block-title">bash</span>
+  </div>
+  <pre><code>docs/user-guide/scripts/run.sh          # 모든 사진
+docs/user-guide/scripts/run.sh 07 08    # 장면 번호로 골라서</code></pre>
+</div>
+<ul class="bullet-list">
+  <li>관리자 계정은 저장소의 <code>.env</code>에서 읽어요. 사진과 문서에는 남기지 않아요.</li>
+  <li>장면별로 어떤 사진을 찍는지는 <code>scripts/scenes/</code> 파일 맨 위 설명에 적혀 있어요.</li>
+  <li>화면 하나만 보고 싶으면 <code>run.sh --peek /projects</code>처럼 써요.</li>
+</ul>
+</section>
+    </main>
+  </div>
+
+  <!-- Lightbox Modal -->
+  <div class="lightbox-modal" id="lightbox-modal" role="dialog" aria-modal="true" aria-label="이미지 확대 보기">
+    <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      <button class="lightbox-close" id="lightbox-close" aria-label="닫기">✕</button>
+      <img class="lightbox-img" id="lightbox-img" src="" alt="">
+      <div class="lightbox-caption" id="lightbox-caption"></div>
+    </div>
+  </div>
+
+  <!-- Back to Top Button -->
+  <button class="back-to-top" id="back-to-top" aria-label="맨 위로 이동">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15"></polyline>
+    </svg>
+  </button>
+
+  <!-- Vanilla Inline JavaScript -->
+  <script>
+    (function() {
+      // --- Lightbox Modal ---
+      var modal = document.getElementById('lightbox-modal');
+      var modalImg = document.getElementById('lightbox-img');
+      var modalCaption = document.getElementById('lightbox-caption');
+      var closeBtn = document.getElementById('lightbox-close');
+      var backdrop = document.getElementById('lightbox-backdrop');
+
+      function openLightbox(src, alt) {
+        modalImg.src = src;
+        modalImg.alt = alt || '';
+        modalCaption.textContent = alt || '';
+        modal.classList.add('active');
+        document.body.classList.add('lightbox-open');
+      }
+
+      function closeLightbox() {
+        modal.classList.remove('active');
+        document.body.classList.remove('lightbox-open');
+        setTimeout(function() {
+          modalImg.src = '';
+          modalCaption.textContent = '';
+        }, 200);
+      }
+
+      document.querySelectorAll('.img-frame').forEach(function(frame) {
+        frame.addEventListener('click', function() {
+          var src = this.getAttribute('data-src');
+          var alt = this.getAttribute('data-alt');
+          openLightbox(src, alt);
+        });
+        frame.addEventListener('keydown', function(e) {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            var src = this.getAttribute('data-src');
+            var alt = this.getAttribute('data-alt');
+            openLightbox(src, alt);
+          }
+        });
+      });
+
+      closeBtn.addEventListener('click', closeLightbox);
+      backdrop.addEventListener('click', closeLightbox);
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+          closeLightbox();
+        }
+      });
+
+      // --- Mobile Drawer Toggle ---
+      var mobileBtn = document.getElementById('mobile-toggle');
+      var mobileDrawer = document.getElementById('mobile-drawer');
+      var mobileIcon = document.getElementById('mobile-toggle-icon');
+
+      if (mobileBtn && mobileDrawer) {
+        mobileBtn.addEventListener('click', function() {
+          var isOpen = mobileDrawer.classList.toggle('open');
+          mobileBtn.setAttribute('aria-expanded', isOpen);
+          mobileIcon.textContent = isOpen ? '✕' : '▾';
+        });
+
+        mobileDrawer.querySelectorAll('a').forEach(function(link) {
+          link.addEventListener('click', function() {
+            mobileDrawer.classList.remove('open');
+            mobileBtn.setAttribute('aria-expanded', 'false');
+            mobileIcon.textContent = '▾';
+          });
+        });
+      }
+
+      // --- ScrollSpy Active TOC Highlighting ---
+      var sections = document.querySelectorAll('section.guide-section');
+      var navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+
+      function updateActiveNav() {
+        var scrollPos = window.scrollY + 100;
+        var currentSectionId = '';
+
+        sections.forEach(function(sec) {
+          var top = sec.offsetTop;
+          var height = sec.offsetHeight;
+          if (scrollPos >= top && scrollPos < top + height) {
+            currentSectionId = sec.id;
+          }
+        });
+
+        if (!currentSectionId && sections.length > 0) {
+          currentSectionId = sections[0].id;
+        }
+
+        navItems.forEach(function(item) {
+          if (item.getAttribute('data-section') === currentSectionId) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+      }
+
+      var ticking = false;
+      window.addEventListener('scroll', function() {
+        if (!ticking) {
+          window.requestAnimationFrame(function() {
+            updateActiveNav();
+            // Back to top button visibility
+            var btt = document.getElementById('back-to-top');
+            if (btt) {
+              if (window.scrollY > 400) {
+                btt.classList.add('visible');
+              } else {
+                btt.classList.remove('visible');
+              }
+            }
+            ticking = false;
+          });
+          ticking = true;
+        }
+      });
+
+      updateActiveNav();
+
+      // --- Back to Top ---
+      var btt = document.getElementById('back-to-top');
+      if (btt) {
+        btt.addEventListener('click', function() {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
