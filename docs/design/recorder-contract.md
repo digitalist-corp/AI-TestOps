@@ -9,7 +9,7 @@
 - api 가 녹화 세션마다 `playops-ai-runner` 이미지로 컨테이너 하나를 띄운다: `docker run -d --rm --name rec-<sessionId> --network container:playops-api ... node /ai-runner/record.js`
   - api 와 네트워크 공간을 같이 쓰므로 record.js 는 세션마다 다른 포트(9400~9499)에서 HTTP 서버를 열고, api 는 `http://127.0.0.1:<port>` 로 부른다.
   - 컨테이너 안에서 Playwright Chromium(headless, 1280x800)으로 대상 사이트를 연다.
-- 세션 상한: 사용자당 1개, 전체 4개. 10분 동안 동작이 없으면 api 가 컨테이너를 멈춘다.
+- 세션 상한: 사용자당 1개(새로 시작하면 이전 세션을 닫음), 전체 2개. 10분 동안 동작이 없으면 api 가 컨테이너를 멈춘다.
 - 프로젝트에 로그인 선행 세션(storageState)이 있으면 `useLogin: true` 일 때 그 상태로 시작.
 
 ## REST (api, 모두 Bearer 인증, 남의 세션이면 404)
