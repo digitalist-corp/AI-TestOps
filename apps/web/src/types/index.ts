@@ -780,3 +780,130 @@ export interface ScreenTestSummary {
   passedCases: number;
   failedCases: number;
 }
+
+/** AI 채팅 에이전트 세션 (docs/design/ai-chat-agent-contract.md) */
+export type ChatSession = {
+  id: number;
+  projectId: string | null;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StopReason = 'END' | 'CANCELLED' | 'MAX_TURNS' | 'ERROR';
+export type ToolTier = 'READ' | 'RUN' | 'CHANGE';
+export type ToolStatus = 'running' | 'ok' | 'error' | 'denied' | 'cancelled';
+export type PermissionDecision = 'ALLOW' | 'ALLOW_SESSION' | 'DENY';
+
+export type ToolDisplayTableData = {
+  columns: string[];
+  rows: (string | number | boolean | null)[][];
+  truncated: boolean;
+  sql?: string;
+};
+
+export type ToolDisplayCodeData = {
+  path?: string;
+  language?: string;
+  content: string;
+};
+
+export type ToolDisplayJobData = {
+  jobId: number;
+  jobType: string;
+  status: string;
+  specPath?: string;
+};
+
+export type ToolDisplayExecutionData = {
+  executionId: number;
+  status: string;
+  projectId: string;
+};
+
+export type ToolDisplayListData = {
+  items: { label: string; detail?: string }[];
+};
+
+export type ToolDisplay =
+  | { kind: 'table'; data: ToolDisplayTableData }
+  | { kind: 'code'; data: ToolDisplayCodeData }
+  | { kind: 'job'; data: ToolDisplayJobData }
+  | { kind: 'execution'; data: ToolDisplayExecutionData }
+  | { kind: 'list'; data: ToolDisplayListData };
+
+export type ChatTextBlock = {
+  type: 'text';
+  text: string;
+};
+
+export type ChatToolPermission = {
+  requestId: string;
+  reason: string;
+  decision?: PermissionDecision;
+};
+
+export type ChatToolBlock = {
+  type: 'tool';
+  callId: string;
+  name: string;
+  tier: ToolTier;
+  input: Record<string, unknown>;
+  status: ToolStatus;
+  summary?: string;
+  output?: string;
+  display?: ToolDisplay;
+  durationMs?: number;
+  permission?: ChatToolPermission;
+};
+
+export type ChatBlock = ChatTextBlock | ChatToolBlock;
+
+export type ChatUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
+export type ChatMessage = {
+  id: number;
+  role: 'user' | 'assistant';
+  createdAt: string;
+  blocks: ChatBlock[]; // user 는 text 블록 하나
+  stopReason?: StopReason; // assistant 만
+  usage?: ChatUsage;
+  errorMessage?: string;
+};
+
+export type ChatStreamEvent =
+  | { type: 'message_start'; data: { userMessageId: number; messageId: number } }
+  | { type: 'text_delta'; data: { delta: string } }
+  | {
+      type: 'tool_start';
+      data: { callId: string; name: string; tier: ToolTier; input: Record<string, unknown> };
+    }
+  | {
+      type: 'permission_request';
+      data: {
+        requestId: string;
+        callId: string;
+        name: string;
+        input: Record<string, unknown>;
+        reason: string;
+      };
+    }
+  | { type: 'permission_resolved'; data: { requestId: string; decision: PermissionDecision } }
+  | {
+      type: 'tool_end';
+      data: {
+        callId: string;
+        status: 'ok' | 'error' | 'denied' | 'cancelled';
+        summary?: string;
+        output?: string;
+        display?: ToolDisplay;
+        durationMs?: number;
+      };
+    }
+  | { type: 'usage'; data: { inputTokens: number; outputTokens: number } }
+  | { type: 'error'; data: { message: string } }
+  | { type: 'message_end'; data: { messageId: number; stopReason: StopReason } };
+
