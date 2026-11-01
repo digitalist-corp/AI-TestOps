@@ -98,12 +98,12 @@ class RecorderServiceTest {
     }
 
     @Test
-    void totalLimitIsFour() {
-        for (long u = 1; u <= RecorderService.MAX_TOTAL; u++) {
-            start(u);
-        }
+    void totalLimitIsTwo() {
+        assertThat(RecorderService.MAX_TOTAL).isEqualTo(2);
+        start(1);
+        start(2);
 
-        assertThatThrownBy(() -> start(99))
+        assertThatThrownBy(() -> start(3))
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).getStatus()).isEqualTo(409));
     }

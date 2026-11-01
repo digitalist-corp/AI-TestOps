@@ -46,7 +46,7 @@ import java.util.regex.Pattern;
  *
  * 세션마다 AI Runner 이미지로 record.js 컨테이너를 하나 띄우고(포트 9400~9499), 화면의 클릭 · 입력을
  * 그 컨테이너에 전달한다. 세션은 메모리에만 둔다 — api 가 다시 켜지면 남은 rec-* 컨테이너를 지운다.
- * 상한: 사용자당 1개(새로 시작하면 이전 것을 닫는다), 전체 4개. 10분 동안 동작이 없으면 컨테이너를 멈춘다.
+ * 상한: 사용자당 1개(새로 시작하면 이전 것을 닫는다), 전체 2개(브라우저 하나가 메모리를 최대 1.5GB 쓴다). 10분 동안 동작이 없으면 컨테이너를 멈춘다.
  */
 @Service
 public class RecorderService {
@@ -56,7 +56,7 @@ public class RecorderService {
     static final String CONTAINER_PREFIX = "rec-";
     static final int PORT_MIN = 9400;
     static final int PORT_MAX = 9499;
-    static final int MAX_TOTAL = 4;
+    static final int MAX_TOTAL = 2;
     static final Duration IDLE_LIMIT = Duration.ofMinutes(10);
     static final Duration KEEP_CLOSED = Duration.ofMinutes(30);
     static final Duration READY_TIMEOUT = Duration.ofSeconds(90);

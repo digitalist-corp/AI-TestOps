@@ -88,6 +88,46 @@ function absoluteUrl(raw) {
   return u.toString();
 }
 
+// ---------------------------------------------------------------- 내부 주소 차단
+// 녹화 컨테이너는 api 와 네트워크 공간을 같이 쓰므로, 막지 않으면 사용자가 api 내부 화면(127.0.0.1:8080 등)이나
+// DB 같은 내부 서비스를 열어 볼 수 있다. 페이지의 모든 요청(context.route)과 goto 동작을 같은 규칙으로 막는다.
+// 단 RECORDER_BASE_URL 의 호스트와 같으면 허용한다 (로컬 개발에서 host.docker.internal · localhost 를 쓰는 경우).
+const INTERNAL_MESSAGE = '내부 주소는 열 수 없습니다';
+const INTERNAL_NAMES = ['playops-api', 'postgres', 'playops-postgres'];
+
+function hostOf(url) {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  } catch {
+    return null;
+  }
+}
+
+/** loopback(localhost, 127.0.0.0/8, ::1, 0.0.0.0)이거나 api 쪽 컨테이너 이름이면 true. URL 파서가 정규화한 호스트를 받는다. */
+function isInternalHost(host) {
+  if (!host) return false;
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host === '::1' || host === '0.0.0.0' || host === '::') return true;
+  if (/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+  // IPv4 를 담은 IPv6 (::ffff:127.0.0.1 → ::ffff:7f00:1, ::ffff:0.0.0.0 → ::ffff:0:0)
+  if (/^::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}$/.test(host) || host === '::ffff:0:0') return true;
+  return INTERNAL_NAMES.includes(host);
+}
+
+function isBlockedUrl(url, baseUrl = BASE_URL) {
+  let u;
+  try { u = new URL(url); } catch { return false; }
+  if (!['http:', 'https:', 'ws:', 'wss:'].includes(u.protocol)) return false;
+  const host = hostOf(url);
+  const baseHost = baseUrl ? hostOf(baseUrl) : null;
+  if (baseHost && host === baseHost) return false;
+  return isInternalHost(host);
+}
+
+function assertNotInternal(url) {
+  if (isBlockedUrl(url)) throw new Error(INTERNAL_MESSAGE);
+}
+
 /** baseUrl 과 같은 출처면 경로만 남긴다 (Playwright config 의 baseURL 을 쓰게). */
 function toRecordedPath(url) {
   if (!BASE_URL) return url;
@@ -154,6 +194,10 @@ async function followPopups() {
   while (popups.length > 0) {
     const url = await popups.shift();
     if (!url || url === 'about:blank') continue;
+    if (isBlockedUrl(url)) {
+      log('내부 주소 팝업은 따라가지 않습니다', url);
+      continue;
+    }
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
       await settle();
@@ -217,6 +261,7 @@ const actions = {
 
   async goto(a) {
     const url = absoluteUrl(a.url);
+    assertNotInternal(url);
     await page.goto(url, { waitUntil: 'domcontentloaded' });
     await settle();
     const recorded = toRecordedPath(url);
@@ -369,13 +414,22 @@ async function shutdown(code) {
 async function startBrowser() {
   const { chromium } = require('@playwright/test');
   browser = await chromium.launch();
-  const options = { viewport: VIEWPORT, locale: 'ko-KR' };
+  // 서비스 워커의 요청은 context.route 에 걸리지 않으므로 막는다.
+  const options = { viewport: VIEWPORT, locale: 'ko-KR', serviceWorkers: 'block' };
   if (STORAGE_STATE && fs.existsSync(STORAGE_STATE)) {
     options.storageState = STORAGE_STATE;
     log('로그인 세션으로 시작', STORAGE_STATE);
   }
   context = await browser.newContext(options);
   await sel.installMutationClock(context);
+  await context.route('**/*', (route) => {
+    const reqUrl = route.request().url();
+    if (isBlockedUrl(reqUrl)) {
+      log('내부 주소 요청 차단', reqUrl);
+      return route.abort('blockedbyclient').catch(() => {});
+    }
+    return route.continue().catch(() => {});
+  });
   // 새 탭 · 팝업은 주소만 받아 두고 닫는다 — 동작이 끝난 뒤 같은 탭으로 따라간다 (followPopups).
   context.on('page', (p) => {
     if (!page || p === page) return;
@@ -389,6 +443,7 @@ async function startBrowser() {
   attachPage(await context.newPage());
 
   const url = absoluteUrl(START_URL);
+  assertNotInternal(url);
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await settle();
   const recorded = toRecordedPath(url);
@@ -425,7 +480,11 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('[record] 시작 실패:', oneLine(e));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e) => {
+    console.error('[record] 시작 실패:', oneLine(e));
+    process.exit(1);
+  });
+}
+
+module.exports = { isBlockedUrl, isInternalHost };
