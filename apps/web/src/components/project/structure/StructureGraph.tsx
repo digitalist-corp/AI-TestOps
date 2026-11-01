@@ -11,7 +11,7 @@ import {
   type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { ArrowRight, CheckCircle2, Network } from 'lucide-react';
+import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMap, SiteMapNode } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -44,7 +44,7 @@ const MINIMAP_GROUP_COLOR = 'color-mix(in oklab, var(--color-info) 20%, transpar
 /** 범례 한 줄. 왼쪽에 색 표시, 오른쪽에 뜻. */
 function LegendItem({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <span className="flex items-center gap-2">
+    <span className="flex items-center gap-1.5">
       {children}
       {label}
     </span>
@@ -110,6 +110,7 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
   const [matchIndex, setMatchIndex] = useState(-1);
   const [filters, setFilters] = useState<GraphFilters>({ statuses: [], authOnly: false });
   const [showMenuLinks, setShowMenuLinks] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [instruction, setInstruction] = useState('');
   const [busy, setBusy] = useState(false);
@@ -407,8 +408,6 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
     return c;
   }, [shown.nodes, laid.edges]);
 
-  const empty = shown.nodes.length === 0;
-
   return (
     <div
       className={cn(
@@ -433,10 +432,8 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
         counts={counts}
         showMenuLinks={showMenuLinks}
         onShowMenuLinks={setShowMenuLinks}
-        moved={Object.keys(moved).length > 0}
-        onResetLayout={() => setMoved({})}
-        fullscreen={fullscreen}
-        onFullscreen={() => setFullscreen((v) => !v)}
+        showMiniMap={showMiniMap}
+        onShowMiniMap={setShowMiniMap}
         analysis={siteMap.analysis}
         liveScreens={siteMap.nodes.length}
         viewSwitch={viewSwitch}
@@ -471,60 +468,53 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="var(--color-border)" />
 
-          {!empty && (
-            /* 표시 전용 패널이라 클릭은 아래 캔버스로 흘려보낸다. 막으면 패널 뒤에 놓인 화면 카드를 누를 수 없다. */
-            <Panel
-              position="top-left"
-              className="pointer-events-none !m-4 w-60 rounded-lg border border-border bg-card px-3 py-2.5 text-xs text-muted-foreground shadow-sm select-none"
-            >
-              <p className="mb-1.5 text-xs font-semibold text-foreground">범례</p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                <LegendItem label="통과"><i className="h-2 w-4 rounded-sm bg-success" /></LegendItem>
-                <LegendItem label="실패"><i className="h-2 w-4 rounded-sm bg-destructive" /></LegendItem>
-                <LegendItem label="미확인"><i className="h-2 w-4 rounded-sm bg-border" /></LegendItem>
-                <LegendItem label="화면 전환"><LegendLine color="var(--color-border-strong)" width={1.5} /></LegendItem>
-                <LegendItem label="선택한 경로"><LegendLine color="var(--color-primary)" width={2.5} /></LegendItem>
-                <LegendItem label="공용 메뉴"><LegendLine color="var(--color-info)" dash="2 4" /></LegendItem>
-                <LegendItem label="전환 없음"><LegendLine color="var(--color-warning)" dash="5 4" /></LegendItem>
-              </div>
-              <p className="mt-2.5 border-t border-border pt-2 text-[11px]">
-                / 검색 · F 전체 보기 · Esc 닫기 · 끌어서 위치 바꾸기
-              </p>
-            </Panel>
-          )}
-
-          <Panel position="bottom-left" className="!m-4">
-            <ZoomControls />
+          {/* 표시 전용 패널이라 클릭은 아래 캔버스로 흘려보낸다. 막으면 패널 뒤에 놓인 화면 카드를 누를 수 없다. */}
+          <Panel
+            position="top-left"
+            className="pointer-events-none !m-3 flex flex-wrap items-center gap-x-3.5 gap-y-1 rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-sm select-none"
+            role="group"
+            aria-label="범례"
+          >
+            <LegendItem label="통과"><i className="h-2 w-2 rounded-full bg-success" /></LegendItem>
+            <LegendItem label="실패"><i className="h-2 w-2 rounded-full bg-destructive" /></LegendItem>
+            <LegendItem label="미확인"><i className="h-2 w-2 rounded-full bg-border-strong" /></LegendItem>
+            <LegendItem label="화면 전환"><LegendLine color="var(--color-border-strong)" width={1.5} /></LegendItem>
+            {path.chips.length > 0 && (
+              <LegendItem label="선택한 경로"><LegendLine color="var(--color-primary)" width={2.5} /></LegendItem>
+            )}
+            {showMenuLinks && (
+              <LegendItem label="공용 메뉴"><LegendLine color="var(--color-info)" dash="2 4" /></LegendItem>
+            )}
+            {path.brokenCount > 0 && (
+              <LegendItem label="전환 없음"><LegendLine color="var(--color-warning)" dash="5 4" /></LegendItem>
+            )}
           </Panel>
 
-          <MiniMap<GraphNode>
-            position="bottom-right"
-            pannable
-            zoomable
-            className="overflow-hidden rounded-lg border border-border shadow-sm"
-            bgColor="var(--color-card)"
-            nodeBorderRadius={3}
-            nodeStrokeWidth={0}
-            nodeColor={(n) => (n.type === 'screen' ? MINIMAP_COLOR[(n as ScreenFlowNode).data.status] : MINIMAP_GROUP_COLOR)}
-            maskStrokeColor="var(--color-primary)"
-            maskStrokeWidth={1.5}
-            style={{ marginRight: focused ? DETAIL_PANEL_WIDTH + 4 : 16, marginBottom: 16, transition: 'margin 300ms ease' }}
-          />
-        </ReactFlow>
+          <Panel position="bottom-left" className="!m-4">
+            <ZoomControls
+              fullscreen={fullscreen}
+              onFullscreen={() => setFullscreen((v) => !v)}
+              moved={Object.keys(moved).length > 0}
+              onResetLayout={() => setMoved({})}
+            />
+          </Panel>
 
-        {empty && (
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-              <Network className="h-8 w-8" />
-            </div>
-            <p className="text-sm font-semibold text-foreground">{running ? '화면을 찾고 있습니다' : '아직 찾은 화면이 없습니다'}</p>
-            <p className="max-w-sm text-xs text-muted-foreground">
-              {running
-                ? '분석이 끝나면 화면과 전환을 그래프로 한 번에 그립니다.'
-                : '소스 저장소를 연결해 코드를 분석하거나, 사이트 주소로 탐색하면 여기에 화면 지도가 그려집니다.'}
-            </p>
-          </div>
-        )}
+          {showMiniMap && (
+            <MiniMap<GraphNode>
+              position="bottom-right"
+              pannable
+              zoomable
+              className="overflow-hidden rounded-lg border border-border shadow-sm"
+              bgColor="var(--color-card)"
+              nodeBorderRadius={3}
+              nodeStrokeWidth={0}
+              nodeColor={(n) => (n.type === 'screen' ? MINIMAP_COLOR[(n as ScreenFlowNode).data.status] : MINIMAP_GROUP_COLOR)}
+              maskStrokeColor="var(--color-primary)"
+              maskStrokeWidth={1.5}
+              style={{ marginRight: focused ? DETAIL_PANEL_WIDTH + 4 : 16, marginBottom: 16, transition: 'margin 300ms ease' }}
+            />
+          )}
+        </ReactFlow>
 
         {focused && nodeByRoute.has(focused) && (
           <ScreenDetailPanel

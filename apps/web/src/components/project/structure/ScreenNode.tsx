@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { FileCode2, Globe, Lock, Plus } from 'lucide-react';
+import { Lock, Plus } from 'lucide-react';
 import type { SiteMapNode } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
@@ -54,12 +54,20 @@ export const TICK_CLASS: Record<ScreenStatus, string> = {
   neutral: 'bg-border',
 };
 
+/** 상태 점 색. 점 하나로 실패 · 통과 · 확인 전을 구분한다. */
+const STATUS_DOT: Record<ScreenStatus, string> = {
+  failed: 'bg-destructive',
+  passed: 'bg-success',
+  neutral: 'bg-border-strong',
+};
+
 function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
   const { node, status, orders } = data;
   const tag = STATUS_TAG[status];
-  const ticks = verificationTicks(node);
   // 경로에 담겼거나 상세를 연 화면은 파란 테두리를 지키고, 마우스를 올려도 회색으로 바뀌지 않는다.
   const emphasized = orders.length > 0 || data.focused;
+  // 화면 이름: 제목 → 화면 파일 이름 → 경로. 경로 자체가 이름이면 아래 경로 줄은 생략한다.
+  const name = node.title ?? node.sourceFile?.split('/').pop() ?? node.routeKey;
 
   return (
     <div
@@ -101,18 +109,25 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
         </div>
       )}
 
-      {/* 머리줄: 찾은 방법 · 시작 화면 · 상태 · 경로에 추가 */}
-      <div className="flex items-center gap-1.5">
+      {/* 머리줄: 상태 점 · 화면 이름 · 경로에 추가 */}
+      <div className="flex items-center gap-2">
         <span
-          className="flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground"
-          title={node.origin === 'SITE' ? '사이트 탐색으로 찾은 화면' : '코드 분석으로 찾은 화면'}
+          role="img"
+          aria-label={tag.label}
+          title={tag.title}
+          className={cn('h-2.5 w-2.5 shrink-0 rounded-full', STATUS_DOT[status])}
+        />
+        {/* 마우스 클릭은 onNodeClick 이 받는다. 키보드(Enter · Space)로 누른 클릭만 여기서 연다. */}
+        <button
+          type="button"
+          className="min-w-0 flex-1 cursor-pointer truncate text-left text-sm font-semibold text-foreground"
+          title={name}
+          onClick={(e) => {
+            if (e.detail === 0) data.onOpen(node.routeKey);
+          }}
         >
-          {node.origin === 'SITE' ? <Globe className="h-4 w-4" /> : <FileCode2 className="h-4 w-4" />}
-        </span>
-        {data.entry && <Badge variant="info">시작 화면</Badge>}
-        <Badge variant={tag.variant} className="ml-auto" title={tag.title}>
-          {tag.label}
-        </Badge>
+          {name}
+        </button>
         <button
           type="button"
           className="nodrag flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
@@ -127,67 +142,39 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
         </button>
       </div>
 
-      {/* 본문: 경로 · 제목 */}
-      <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
-        {/* 마우스 클릭은 onNodeClick 이 받는다. 키보드(Enter · Space)로 누른 클릭만 여기서 연다. */}
-        <button
-          type="button"
-          className="min-w-0 flex-1 cursor-pointer truncate text-left font-mono text-sm font-semibold text-foreground"
-          title={node.routeKey}
-          onClick={(e) => {
-            if (e.detail === 0) data.onOpen(node.routeKey);
-          }}
-        >
+      {name !== node.routeKey && (
+        <p className="mt-1 truncate pl-[18px] font-mono text-xs text-muted-foreground" title={node.routeKey}>
           {node.routeKey}
-        </button>
+        </p>
+      )}
+
+      {/* 바닥줄: 요소 수 · 표시 */}
+      <div className="mt-auto flex min-w-0 items-center gap-2 pl-[18px] text-xs text-muted-foreground">
+        <span className="shrink-0 tabular-nums" title="이 화면에서 찾은 버튼 · 링크 · 입력칸 수">
+          요소 {node.elementCount}개
+        </span>
         {node.authRequired && (
           <span title="로그인해야 열리는 화면" className="shrink-0 text-warning">
             <Lock className="h-3.5 w-3.5" />
           </span>
         )}
-      </div>
-      <p className="mt-0.5 truncate text-xs text-muted-foreground" title={node.title ?? node.sourceFile ?? node.url ?? ''}>
-        {node.title ?? node.sourceFile?.split('/').pop() ?? node.url ?? '제목 없음'}
-      </p>
-
-      {/* 바닥줄: 확인 눈금 · 수치 · 표시 */}
-      <div className="mt-auto space-y-1.5">
-        {ticks.length > 0 ? (
-          <div className="flex h-2 gap-0.5" title={`요소 ${node.elementCount}개`}>
-            {ticks.map((t, i) => (
-              <i key={i} className={cn('flex-1 rounded-sm', TICK_CLASS[t])} />
-            ))}
-          </div>
-        ) : (
-          <div className="flex h-2 items-center text-[11px] text-muted-foreground">확인할 요소가 없습니다</div>
-        )}
-        <div className="flex min-w-0 items-center gap-2.5 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-          <span title="확인된 요소">
-            통과 <b className="font-semibold text-success">{node.passedCount}</b>
-          </span>
-          <span title="실패한 요소">
-            실패 <b className={cn('font-semibold', node.failedCount > 0 ? 'text-destructive' : 'text-muted-foreground')}>{node.failedCount}</b>
-          </span>
-          <span title="확인 전 요소">
-            미확인 <b className="font-semibold text-muted-foreground">{node.unverifiedCount}</b>
-          </span>
-          <span className="ml-auto flex min-w-0 gap-1 overflow-hidden">
-            {node.excluded && (
-              <Badge variant="warning" className="px-1.5 py-0 text-[11px]" title="테스트 생성에서 제외됨">
-                제외됨
-              </Badge>
-            )}
-            {node.stale && (
-              <Badge
-                variant="warning"
-                className="px-1.5 py-0 text-[11px]"
-                title={node.origin === 'SITE' ? '탐색에서 사라짐' : '코드에 없음'}
-              >
-                {node.origin === 'SITE' ? '사라짐' : '코드에 없음'}
-              </Badge>
-            )}
-          </span>
-        </div>
+        <span className="ml-auto flex min-w-0 gap-1 overflow-hidden">
+          {data.entry && <Badge variant="info" className="px-1.5 py-0 text-[11px]">시작 화면</Badge>}
+          {node.excluded && (
+            <Badge variant="warning" className="px-1.5 py-0 text-[11px]" title="테스트 생성에서 제외됨">
+              제외됨
+            </Badge>
+          )}
+          {node.stale && (
+            <Badge
+              variant="warning"
+              className="px-1.5 py-0 text-[11px]"
+              title={node.origin === 'SITE' ? '탐색에서 사라짐' : '코드에 없음'}
+            >
+              {node.origin === 'SITE' ? '사라짐' : '코드에 없음'}
+            </Badge>
+          )}
+        </span>
       </div>
     </div>
   );
