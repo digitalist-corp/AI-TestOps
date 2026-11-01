@@ -17,9 +17,10 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
-import type { AiAvailability, PlaywrightTemplate, Project, ProjectFormData, SiteCheckResult } from '@/types';
+import type { PlaywrightTemplate, Project, ProjectFormData, SiteCheckResult } from '@/types';
 import { DEFAULT_PROJECT_FORM } from '@/types';
 import { api } from '@/api/client';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -262,14 +263,13 @@ export function ProjectFormDialog({
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [projectIdTouched, setProjectIdTouched] = useState(false);
   const [siteCheck, setSiteCheck] = useState<SiteCheckResult | null>(null);
-  const [aiAvailability, setAiAvailability] = useState<AiAvailability | null>(null);
   const [checkingSite, setCheckingSite] = useState(false);
+  // AI 키가 없거나 사용자가 AI 스위치를 꺼 두었으면 첫 테스트 생성(AI)은 아예 내놓지 않는다.
+  const { active: aiActive } = useAiEnabled();
 
   useEffect(() => {
     if (open && !initial) {
       api.getTemplates().then(setTemplates).catch(() => setTemplates([]));
-      // AI 키가 등록되어 있지 않으면 첫 테스트 생성을 아예 켜지 못하게 한다.
-      api.getAiAvailability().then(setAiAvailability).catch(() => setAiAvailability(null));
     }
   }, [open, initial]);
 
@@ -437,9 +437,8 @@ export function ProjectFormDialog({
       setLoading(false);
       return;
     }
-    const aiUsable = aiAvailability ? aiAvailability.anyConfigured : true;
     const bootstrapInstruction =
-      !initial && aiUsable && aiBootstrapEnabled && aiBootstrapInstruction.trim()
+      !initial && aiActive && aiBootstrapEnabled && aiBootstrapInstruction.trim()
         ? aiBootstrapInstruction.trim()
         : undefined;
     try {
@@ -730,20 +729,21 @@ export function ProjectFormDialog({
                   <Sparkles className="h-4 w-4 text-ai-accent" />
                   <h3 className="text-[15px] font-bold text-foreground">첫 테스트</h3>
                 </div>
-                {aiAvailability && !aiAvailability.anyConfigured ? (
-                  <div className="rounded-sm border border-warning bg-warning/10 px-3.5 py-2.5 text-[13px] text-warning">
-                    AI 키가 없어도 기본 점검 테스트(첫 화면 응답 · 스크립트 오류 · 내부 링크)가 Playwright로 만들어집니다.
-                    AI가 사이트에 맞춘 테스트를 만들게 하려면 관리자 설정에서 Claude 또는 GPT 키를 등록하세요.
-                  </div>
-                ) : (
+                {aiActive ? (
                   <ToggleRow
                     checked={aiBootstrapEnabled}
                     onChange={setAiBootstrapEnabled}
                     title="등록 직후 AI가 첫 테스트를 만들고 실행해 봅니다"
                     detail="AI가 이 사이트를 열어 화면 요소를 확인하고, 그 요소로 테스트 케이스를 만든 뒤 실제로 실행해 통과하는지까지 보여줍니다. 실패하면 실행 로그를 보고 최대 2번 스스로 고칩니다. 처음에는 실행 환경을 받느라 몇 분 걸릴 수 있습니다."
                   />
+                ) : (
+                  // AI 키가 없을 때도, 스위치를 꺼 둔 때도 같은 안내 — AI 없이 쓰는 정상 경로이므로 경고색은 쓰지 않는다.
+                  <div className="rounded-sm border border-border bg-card px-3.5 py-2.5 text-[13px] text-muted-foreground">
+                    AI 없이도 기본 점검 테스트(첫 화면 응답 · 스크립트 오류 · 내부 링크)가 Playwright로 만들어집니다.
+                    AI가 사이트에 맞춘 테스트를 만들게 하려면 관리자 설정에서 AI 키를 등록하고, 상단바의 AI 스위치를 켜세요.
+                  </div>
                 )}
-                {aiBootstrapEnabled && (
+                {aiActive && aiBootstrapEnabled && (
                   <textarea
                     rows={3}
                     value={aiBootstrapInstruction}

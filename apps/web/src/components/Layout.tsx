@@ -7,6 +7,7 @@ import { AiPanel } from '@/components/shell/AiPanel';
 import { ProjectSwitcherDialog } from '@/components/shell/ProjectSwitcherDialog';
 import { SubTabBar, TopBar } from '@/components/shell/TopBar';
 import { api, clearStoredAuth, getStoredAuth } from '@/api/client';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { railLabelOf, tabLabel } from '@/config/shellNav';
 import type { Project } from '@/types';
 import {
@@ -28,8 +29,8 @@ function activeWorkspaceTab(pathname: string): ProjectTabId {
  *   [레일] [ 상단바 + 보조 탭 + 본문 ]
  *
  * - 레일: 프로젝트와 무관한 전역 메뉴
- * - 상단바: 프로젝트 전환 + 작업 탭, 오른쪽에 도움말 · 알림
- * - 오른쪽 아래 AI 버튼: AI 키가 등록돼 있을 때만 보이고, 누르면 채팅 창이 뜬다 (Ctrl+/)
+ * - 상단바: 프로젝트 전환 + 작업 탭, 오른쪽에 도움말 · 알림 · AI 스위치
+ * - 오른쪽 아래 AI 버튼: AI 키가 있고 AI 스위치가 켜져 있을 때만 보이고, 누르면 채팅 창이 뜬다 (Ctrl+/)
  */
 export function Layout() {
   const navigate = useNavigate();
@@ -37,9 +38,10 @@ export function Layout() {
   const { projectId } = useParams<{ projectId: string }>();
   const auth = getStoredAuth();
   const admin = auth?.role === 'ADMIN';
+  // AI 키가 있고 사용자가 스위치를 켜 둔 경우에만 AI 버튼 · 채팅이 얹힌다.
+  const { active: aiActive } = useAiEnabled();
 
   const [projectSwitcherOpen, setProjectSwitcherOpen] = useState(false);
-  const [aiAvailable, setAiAvailable] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
 
@@ -70,20 +72,10 @@ export function Layout() {
     };
   }, [activeProjectId]);
 
-  // 관리자가 AI 설정에서 키를 넣거나 빼면 화면을 옮길 때 반영된다.
+  // AI를 끄거나 키가 없어지면 열려 있던 채팅 창도 닫는다.
   useEffect(() => {
-    let ignore = false;
-    api.getAiAvailability()
-      .then((availability) => {
-        if (!ignore) setAiAvailable(availability.anyConfigured);
-      })
-      .catch(() => {
-        if (!ignore) setAiAvailable(false);
-      });
-    return () => {
-      ignore = true;
-    };
-  }, [location.pathname]);
+    if (!aiActive) setAiOpen(false);
+  }, [aiActive]);
 
   // Ctrl+/ : AI 채팅, Ctrl+K : 프로젝트 전환, Esc : AI 채팅 닫기 (? 메뉴의 단축키 목록과 같아야 한다)
   useEffect(() => {
@@ -95,7 +87,7 @@ export function Layout() {
       if (!event.ctrlKey && !event.metaKey) return;
       if (event.key === '/') {
         event.preventDefault();
-        if (aiAvailable) setAiOpen((prev) => !prev);
+        if (aiActive) setAiOpen((prev) => !prev);
       } else if (event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setProjectSwitcherOpen(true);
@@ -103,7 +95,7 @@ export function Layout() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [aiAvailable]);
+  }, [aiActive]);
 
   const handleLogout = async () => {
     try {
@@ -149,7 +141,7 @@ export function Layout() {
           <main className="@container h-full overflow-auto pb-16">
             <Outlet />
           </main>
-          {aiAvailable && (aiOpen ? (
+          {aiActive && (aiOpen ? (
             <AiPanel onClose={() => setAiOpen(false)} contextLabel={contextLabel} projectId={activeProjectId} />
           ) : (
             <button

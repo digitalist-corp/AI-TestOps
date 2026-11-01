@@ -3,7 +3,9 @@ import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { HelpMenu } from '@/components/shell/HelpMenu';
 import { NotificationBell } from '@/components/shell/NotificationBell';
+import { AiSwitch } from '@/components/shell/AiSwitch';
 import { LiveClock } from '@/components/console/ConsoleText';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { THEME_LABEL, useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
@@ -35,6 +37,7 @@ export function TopBar({
   onLogout: () => void;
 }) {
   const { theme, toggleTheme } = useTheme();
+  const { available: aiAvailable, enabled: aiEnabled, setEnabled: setAiEnabled } = useAiEnabled();
   const inProject = Boolean(activeProjectId);
   const activeGroup = groupOfTab(currentTab);
   const projectLabel = activeProject?.projectName ?? activeProjectId;
@@ -110,6 +113,8 @@ export function TopBar({
 
       <HelpMenu pathname={pathname} projectTab={projectTab} />
       <NotificationBell />
+      {/* 키가 없으면 저장된 선택과 상관없이 꺼진 모양으로 보인다 */}
+      <AiSwitch available={aiAvailable} enabled={aiAvailable && aiEnabled} onChange={setAiEnabled} />
 
       <div
         className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-border bg-background pl-2.5 pr-1"
