@@ -343,6 +343,35 @@ public class SiteMapPromptService {
         return keys;
     }
 
+    /** 글 안에 적힌 셀렉터 호출 하나. text 는 사람이 읽을 모양, key 는 selectorKey 형식이다. */
+    record SelectorCall(String method, String value, String name, String text, String key) {}
+
+    /**
+     * 글(셀렉터 식 · Playwright 오류 메시지)에 적힌 셀렉터 호출을 적힌 순서대로 돌려준다.
+     * getByRole('navigation').getByRole('link', ...) 처럼 이어진 식은 범위와 대상이 각각 하나씩 나온다.
+     */
+    static List<SelectorCall> selectorCallsIn(String text) {
+        List<SelectorCall> calls = new ArrayList<>();
+        if (text == null) {
+            return calls;
+        }
+        Matcher m = SELECTOR_CALL.matcher(text);
+        while (m.find()) {
+            String value = unescape(m.group(3));
+            String name = m.group(5) == null ? null : unescape(m.group(5));
+            String shown = m.group().trim() + (m.group().contains("{") ? " })" : ")");
+            calls.add(new SelectorCall(m.group(1), value, name, shown, selectorKey(m.group(1), value, name)));
+        }
+        return calls;
+    }
+
+    /** 셀렉터 식이 가리키는 요소의 키 (keysOf 와 같은 형식, 순서 유지 · 중복 제거). 녹화 단계를 기록할 때 쓴다. */
+    public static List<String> selectorKeysIn(String selector) {
+        Set<String> keys = new LinkedHashSet<>();
+        selectorCallsIn(selector).forEach(call -> keys.add(call.key()));
+        return new ArrayList<>(keys);
+    }
+
     private static String unescape(String value) {
         return value.replaceAll("\\\\(.)", "$1");
     }
@@ -350,12 +379,28 @@ public class SiteMapPromptService {
     // ---------------------------------------------------------------- 기록
 
     public void recordOrigin(String projectId, String specPath, List<String> routeKeys, List<String> selectorKeys) {
+        recordOrigin(projectId, specPath, routeKeys, selectorKeys, null);
+    }
+
+    /**
+     * @param source 테스트를 만든 방법(ScenarioOrigin.SOURCE_*). null 이면 이미 적힌 값을 그대로 둔다.
+     *               AI 로 고친 녹화 테스트가 녹화 출신이라는 표시를 잃지 않게 하려는 것이다.
+     */
+    public void recordOrigin(String projectId, String specPath, List<String> routeKeys, List<String> selectorKeys,
+                             String source) {
         try {
             ScenarioOrigin origin = originRepository.findByProjectIdAndSpecPath(projectId, specPath)
                     .orElseGet(ScenarioOrigin::new);
             origin.setProjectId(projectId);
             origin.setSpecPath(specPath);
-            origin.setRouteKeys(objectMapper.writeValueAsString(routeKeys == null ? List.of() : routeKeys));
+            if (source != null) {
+                origin.setSource(source);
+            }
+            // 화면을 고르지 않고 고친 경우(자율 교정 등) 이미 아는 지나간 화면 순서는 지우지 않는다.
+            boolean keepRoutes = (routeKeys == null || routeKeys.isEmpty()) && !readStrings(origin.getRouteKeys()).isEmpty();
+            if (!keepRoutes) {
+                origin.setRouteKeys(objectMapper.writeValueAsString(routeKeys == null ? List.of() : routeKeys));
+            }
             origin.setSelectorKeys(objectMapper.writeValueAsString(selectorKeys));
             origin.setUpdatedAt(Instant.now());
             originRepository.save(origin);
@@ -438,13 +483,7 @@ public class SiteMapPromptService {
     /** 글 안에 적힌 셀렉터 호출을 키로 바꾼다 (Playwright 오류 메시지의 "waiting for getByRole(...)" 등). */
     private static Set<String> keysIn(String text) {
         Set<String> keys = new HashSet<>();
-        if (text == null) {
-            return keys;
-        }
-        Matcher m = SELECTOR_CALL.matcher(text);
-        while (m.find()) {
-            keys.add(selectorKey(m.group(1), unescape(m.group(3)), m.group(5) == null ? null : unescape(m.group(5))));
-        }
+        selectorCallsIn(text).forEach(call -> keys.add(call.key()));
         return keys;
     }
 

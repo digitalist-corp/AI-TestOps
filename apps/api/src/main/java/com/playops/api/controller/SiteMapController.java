@@ -2,6 +2,7 @@ package com.playops.api.controller;
 
 import com.playops.api.entity.SiteAnalysisRun;
 import com.playops.api.service.SiteAnalysisService;
+import com.playops.api.service.SiteCoverageService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -23,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class SiteMapController {
 
     private final SiteAnalysisService siteAnalysisService;
+    private final SiteCoverageService siteCoverageService;
 
-    public SiteMapController(SiteAnalysisService siteAnalysisService) {
+    public SiteMapController(SiteAnalysisService siteAnalysisService, SiteCoverageService siteCoverageService) {
         this.siteAnalysisService = siteAnalysisService;
+        this.siteCoverageService = siteCoverageService;
     }
 
     @GetMapping
@@ -38,6 +41,12 @@ public class SiteMapController {
                                                     @RequestBody SiteAnalysisService.SourceRequest request) {
         siteAnalysisService.updateSource(projectId, request);
         return siteAnalysisService.view(projectId);
+    }
+
+    /** 확인 지도: 화면마다 어디까지 확인됐고 어디서 막혔는지, 테스트 흐름이 어느 화면까지 갔는지. */
+    @GetMapping("/coverage")
+    public SiteCoverageService.Coverage coverage(@PathVariable String projectId) {
+        return siteCoverageService.view(projectId);
     }
 
     /** 화면 경로에 / 가 들어 있어 경로 변수 대신 쿼리로 받는다. */
