@@ -113,7 +113,8 @@ export function TopBar({
 
       <HelpMenu pathname={pathname} projectTab={projectTab} />
       <NotificationBell />
-      <AiSwitch available={aiAvailable} enabled={aiEnabled} onChange={setAiEnabled} />
+      {/* 키가 없으면 저장된 선택과 상관없이 꺼진 모양으로 보인다 */}
+      <AiSwitch available={aiAvailable} enabled={aiAvailable && aiEnabled} onChange={setAiEnabled} />
 
       <div
         className="flex h-9 shrink-0 items-center gap-1 rounded-lg border border-border bg-background pl-2.5 pr-1"
