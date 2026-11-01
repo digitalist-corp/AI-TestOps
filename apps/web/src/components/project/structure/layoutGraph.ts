@@ -49,7 +49,8 @@ export interface GroupBox {
 
 /**
  * 빨강: 실패 요소가 하나라도 있음. 초록: 실패 없이 모든 요소(1개 이상)가 확인됨.
- * 회색: 그 밖(미확인만, 확인 · 미확인 섞임, 요소 없음).
+ * 회색: 그 밖(확인 전 요소만, 섞임, 요소 없음).
+ * 화면에 보이는 상태는 확인 지도의 4단계(lib/coverage)이고, 이 값은 화면 상자의 data-status 로만 남긴다(회귀 테스트 호환).
  */
 export function nodeStatus(node: Pick<SiteMapNode, 'failedCount' | 'passedCount' | 'elementCount'>): ScreenStatus {
   if (node.failedCount > 0) return 'failed';

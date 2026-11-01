@@ -722,7 +722,7 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'structure' && projectId && (
-            <StructureTab projectId={projectId} />
+            <StructureTab projectId={projectId} onOpenEnv={() => setEnvDialogOpen(true)} />
           )}
 
           {activeTab === 'schedules' && projectId && (

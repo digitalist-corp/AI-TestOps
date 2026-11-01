@@ -254,3 +254,33 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .console-live, .console-sweep { animation: none; }
 }
+
+/* 구조 탭 확인 지도: 새 화면 페이드인 · 상태 바뀜 반짝임 · 막힌 화면 링 · 흐름 재생 선 그리기 */
+@keyframes coverage-appear {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes coverage-flash {
+  0%, 100% { opacity: 0; }
+  35% { opacity: 1; }
+}
+@keyframes coverage-pulse {
+  0%, 100% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 0.75; transform: scale(1.025); }
+}
+@keyframes coverage-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.coverage-appear { animation: coverage-appear 600ms ease-out both; }
+.coverage-flash { animation: coverage-flash 1.1s ease-in-out 2 both; }
+.coverage-pulse { animation: coverage-pulse 2.2s ease-in-out infinite; }
+/* pathLength=1 인 선에만 쓴다 */
+.coverage-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: coverage-draw 520ms ease-out forwards; }
+/* 탐색 중 화면이 늘어 배치가 바뀌면 상자가 새 자리로 미끄러진다. 끌어 옮기는 중에는 끈다. */
+.coverage-live .react-flow__node:not(.dragging) { transition: transform 450ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .coverage-appear, .coverage-flash, .coverage-pulse, .coverage-draw { animation: none; }
+  .coverage-draw { stroke-dashoffset: 0; }
+  .coverage-live .react-flow__node { transition: none; }
+}

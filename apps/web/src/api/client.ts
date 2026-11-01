@@ -174,6 +174,10 @@ export const api = {
   getSiteMap: (projectId: string) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap`),
 
+  /** 구조 탭 확인 지도: 화면 · 전환 · 테스트 흐름이 어디까지 확인됐고 어디서 막혔는지 */
+  getSiteMapCoverage: (projectId: string) =>
+    request<import('@/types').Coverage>(`/api/projects/${projectId}/sitemap/coverage`),
+
   // token 은 write-only: undefined 면 기존 토큰 유지, 값을 주면 교체.
   updateSiteMapSource: (projectId: string, source: { url: string; branch: string; token?: string }) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap/source`, {

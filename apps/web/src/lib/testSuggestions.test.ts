@@ -17,6 +17,7 @@ function node(routeKey: string, patch: Partial<SiteMapNode> = {}): SiteMapNode {
     authRequired: false,
     passedCount: 0,
     failedCount: 0,
+    observedCount: 0,
     unverifiedCount: 0,
     ...patch,
   };

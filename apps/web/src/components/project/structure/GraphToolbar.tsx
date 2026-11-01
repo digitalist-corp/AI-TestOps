@@ -1,23 +1,17 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown, ListFilter, Loader2, Search } from 'lucide-react';
-import type { SiteMapAnalysis } from '@/types';
+import type { CoverageNodeState, SiteMapAnalysis } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { NODE_STATES, NODE_STATE_META } from '@/lib/coverage';
 import { cn } from '@/lib/utils';
-import type { ScreenStatus } from './layoutGraph';
 
 export interface GraphFilters {
-  statuses: ScreenStatus[];
+  statuses: CoverageNodeState[];
   authOnly: boolean;
 }
 
-const STATUS_FILTERS: { status: ScreenStatus; label: string; title: string; dot: string }[] = [
-  { status: 'failed', label: '실패', title: '실패한 요소가 있는 화면', dot: 'bg-destructive' },
-  { status: 'passed', label: '통과', title: '모든 요소가 확인된 화면', dot: 'bg-success' },
-  { status: 'neutral', label: '미확인', title: '확인 전 화면', dot: 'bg-muted-foreground' },
-];
-
-type Counts = Record<ScreenStatus, number> & { screens: number; transitions: number; auth: number };
+type Counts = Record<CoverageNodeState, number> & { screens: number; transitions: number; auth: number };
 
 /** 필터 메뉴 안의 체크 한 줄 */
 function CheckRow({ checked, onChange, title, children, count }: {
@@ -85,7 +79,7 @@ function FilterMenu({ filters, onFilters, counts, showMenuLinks, onShowMenuLinks
     };
   }, [open]);
 
-  const toggleStatus = (status: ScreenStatus, on: boolean) =>
+  const toggleStatus = (status: CoverageNodeState, on: boolean) =>
     onFilters({
       ...filters,
       statuses: on ? [...filters.statuses, status] : filters.statuses.filter((s) => s !== status),
@@ -119,16 +113,16 @@ function FilterMenu({ filters, onFilters, counts, showMenuLinks, onShowMenuLinks
           className="absolute right-0 top-10 z-30 w-64 rounded-lg border border-border bg-card p-1.5 shadow-lg"
         >
           <MenuHeading>상태</MenuHeading>
-          {STATUS_FILTERS.map((f) => (
+          {NODE_STATES.map((state) => (
             <CheckRow
-              key={f.status}
-              checked={filters.statuses.includes(f.status)}
-              onChange={(on) => toggleStatus(f.status, on)}
-              title={f.title}
-              count={counts[f.status]}
+              key={state}
+              checked={filters.statuses.includes(state)}
+              onChange={(on) => toggleStatus(state, on)}
+              title={NODE_STATE_META[state].hint}
+              count={counts[state]}
             >
-              <span className={cn('h-2 w-2 shrink-0 rounded-full', f.dot)} />
-              {f.label}
+              <span className={cn('h-2 w-2 shrink-0 rounded-full', NODE_STATE_META[state].bar)} />
+              {NODE_STATE_META[state].label}
             </CheckRow>
           ))}
           <CheckRow
@@ -269,7 +263,7 @@ export const GraphToolbar = forwardRef<HTMLInputElement, {
               style={analysis.screenCount > 0 ? { width: `${percent}%` } : undefined}
             />
           </div>
-          <span className="text-xs text-muted-foreground">끝나면 완성된 그래프를 한 번에 그립니다.</span>
+          <span className="text-xs text-muted-foreground">찾은 화면이 지도에 하나씩 나타납니다.</span>
         </div>
       )}
     </div>

@@ -1,13 +1,17 @@
 import { memo, type CSSProperties } from 'react';
 import { EdgeLabelRenderer, Position, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
+import { Unlink } from 'lucide-react';
+import type { CoverageEdgeState } from '@/types';
+import { EDGE_STATE_META } from '@/lib/coverage';
 
 /**
  * - transition: 분석에서 찾은 화면 전환
  * - layout: 공용 메뉴 영역에서 메뉴 링크 화면으로
  * - virtual-menu: 경로에서 이웃한 두 화면이 공용 메뉴로만 이어짐
  * - virtual-broken: 경로에서 이웃한 두 화면 사이에 찾은 길이 없음 (끊긴 구간)
+ * - flow: 테스트 흐름을 재생할 때 단계 사이에 그려지는 선
  */
-export type PathEdgeKind = 'transition' | 'layout' | 'virtual-menu' | 'virtual-broken';
+export type PathEdgeKind = 'transition' | 'layout' | 'virtual-menu' | 'virtual-broken' | 'flow';
 
 export interface PathEdgeData extends Record<string, unknown> {
   kind: PathEdgeKind;
@@ -17,6 +21,10 @@ export interface PathEdgeData extends Record<string, unknown> {
   count: number;
   hot: boolean;
   dimmed: boolean;
+  /** 확인 지도에서 이 전환의 상태 (transition 일 때) */
+  coverage?: CoverageEdgeState;
+  /** 흐름 재생 선의 색 (flow 일 때). fail 은 막힌 단계로 들어가는 선 */
+  flowTone?: 'pass' | 'fail' | 'pending';
 }
 
 export type PathFlowEdge = Edge<PathEdgeData, 'path'>;
@@ -50,6 +58,9 @@ const STROKE = {
   path: 'var(--color-primary)',
   menu: 'var(--color-info)',
   broken: 'var(--color-warning)',
+  tested: 'var(--color-success)',
+  failed: 'var(--color-destructive)',
+  unknown: 'var(--color-border)',
 };
 
 /** 선 모양. 색만으로 구분하지 않도록 공용 메뉴는 점선, 끊긴 구간은 긴 점선으로 그린다. */
@@ -63,11 +74,57 @@ const EDGE_STYLE: Record<'base' | 'hot' | 'path' | 'menu' | 'broken' | 'layout' 
   layoutHot: { stroke: STROKE.menu, strokeWidth: 1.5, strokeDasharray: '2 5', strokeLinecap: 'round' },
 };
 
+/**
+ * 확인 지도 상태별 전환선: 테스트로 지나감은 초록 실선, 화면에서 이동 확인은 회색 실선,
+ * 막힘은 빨강 점선(+ 끊김 표시), 아직 모름은 연한 점선.
+ */
+const COVERAGE_STYLE: Record<CoverageEdgeState, { style: CSSProperties; marker: string }> = {
+  TESTED: { style: { stroke: STROKE.tested, strokeWidth: 2.25 }, marker: 'url(#edge-arrow-tested)' },
+  OBSERVED: { style: { stroke: STROKE.base, strokeWidth: 1.5 }, marker: 'url(#edge-arrow)' },
+  FAILED: { style: { stroke: STROKE.failed, strokeWidth: 2, strokeDasharray: '6 5' }, marker: 'url(#edge-arrow-failed)' },
+  UNKNOWN: { style: { stroke: STROKE.unknown, strokeWidth: 1.25, strokeDasharray: '3 5' }, marker: 'url(#edge-arrow-unknown)' },
+};
+
+const FLOW_STROKE: Record<'pass' | 'fail' | 'pending', { stroke: string; marker: string }> = {
+  pass: { stroke: STROKE.tested, marker: 'url(#edge-arrow-tested)' },
+  fail: { stroke: STROKE.failed, marker: 'url(#edge-arrow-failed)' },
+  pending: { stroke: STROKE.path, marker: 'url(#edge-arrow-path)' },
+};
+
+/** 전환선 한 줄. 마우스를 올리면 굵어지고, 회색 계열 선은 진한 색으로 바뀐다. */
+function transitionStyle(state: CoverageEdgeState, hot: boolean): { style: CSSProperties; marker: string } {
+  const base = COVERAGE_STYLE[state];
+  if (!hot) return base;
+  if (state === 'TESTED' || state === 'FAILED') {
+    return { style: { ...base.style, strokeWidth: Number(base.style.strokeWidth) + 0.75 }, marker: base.marker };
+  }
+  return { style: EDGE_STYLE.hot, marker: 'url(#edge-arrow-hot)' };
+}
+
 function PathEdgeView({ sourceX, sourceY, targetX, targetY, data }: EdgeProps<PathFlowEdge>) {
   if (!data) return null;
   const [path, labelX, labelY] = edgePath(sourceX, sourceY, targetX, targetY);
   const active = data.steps.length > 0;
   const showLabel = data.hot && data.labels.length > 0 && data.kind === 'transition';
+  const coverage = data.coverage ?? 'OBSERVED';
+  const line = transitionStyle(coverage, data.hot);
+  // 막힌 전환에는 가운데에 끊김 표시를 단다. 경로 단계 표시가 있으면 그쪽을 먼저 보인다.
+  const showBreak = data.kind === 'transition' && coverage === 'FAILED' && !active && !data.dimmed;
+
+  if (data.kind === 'flow') {
+    const tone = FLOW_STROKE[data.flowTone ?? 'pass'];
+    // pathLength=1 이라 coverage-draw 가 선을 처음부터 끝까지 그려 나간다. 다시 그리려면 엣지를 새로 만든다.
+    return (
+      <path
+        d={path}
+        fill="none"
+        pathLength={1}
+        className="coverage-draw"
+        style={{ stroke: tone.stroke, strokeWidth: 3.5, strokeLinecap: 'round' }}
+        markerEnd={tone.marker}
+      />
+    );
+  }
   const tagTone =
     data.kind === 'virtual-broken'
       ? 'border-warning/50 text-warning'
@@ -81,9 +138,11 @@ function PathEdgeView({ sourceX, sourceY, targetX, targetY, data }: EdgeProps<Pa
         <path
           d={path}
           fill="none"
-          style={{ ...(data.hot ? EDGE_STYLE.hot : EDGE_STYLE.base), opacity: data.dimmed ? 0.2 : 1 }}
-          markerEnd={data.hot ? 'url(#edge-arrow-hot)' : 'url(#edge-arrow)'}
-        />
+          style={{ ...line.style, opacity: data.dimmed ? 0.2 : 1 }}
+          markerEnd={line.marker}
+        >
+          <title>{EDGE_STATE_META[coverage].label} — {EDGE_STATE_META[coverage].hint}</title>
+        </path>
       )}
       {data.kind === 'layout' && (
         <path
@@ -96,6 +155,20 @@ function PathEdgeView({ sourceX, sourceY, targetX, targetY, data }: EdgeProps<Pa
       {active && data.kind === 'transition' && <path d={path} fill="none" style={EDGE_STYLE.path} markerEnd="url(#edge-arrow-path)" />}
       {data.kind === 'virtual-broken' && <path d={path} fill="none" style={EDGE_STYLE.broken} markerEnd="url(#edge-arrow-warn)" />}
       {data.kind === 'virtual-menu' && <path d={path} fill="none" style={EDGE_STYLE.menu} markerEnd="url(#edge-arrow-menu)" />}
+
+      {showBreak && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan pointer-events-auto absolute flex h-6 w-6 items-center justify-center rounded-full border-2 border-destructive bg-card text-destructive shadow-sm"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            title={`${EDGE_STATE_META.FAILED.label} — ${EDGE_STATE_META.FAILED.hint}`}
+            aria-label={EDGE_STATE_META.FAILED.label}
+            role="img"
+          >
+            <Unlink className="h-3 w-3" strokeWidth={2.5} />
+          </div>
+        </EdgeLabelRenderer>
+      )}
 
       {(active || data.kind === 'virtual-broken' || data.kind === 'virtual-menu' || showLabel) && (
         <EdgeLabelRenderer>
@@ -142,6 +215,9 @@ export function PathEdgeDefs() {
         {marker('edge-arrow-path', STROKE.path)}
         {marker('edge-arrow-warn', STROKE.broken)}
         {marker('edge-arrow-menu', STROKE.menu)}
+        {marker('edge-arrow-tested', STROKE.tested)}
+        {marker('edge-arrow-failed', STROKE.failed)}
+        {marker('edge-arrow-unknown', STROKE.unknown)}
       </defs>
     </svg>
   );
