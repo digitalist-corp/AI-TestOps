@@ -107,7 +107,11 @@ class SiteAnalysisServiceTest {
         assertThat(detail.node().authRequired()).isTrue();
         assertThat(detail.node().passedCount()).isEqualTo(1);
         assertThat(detail.node().failedCount()).isEqualTo(1);
-        assertThat(detail.node().unverifiedCount()).isEqualTo(2);
+        // 사이트 탐색으로 본 요소(OBSERVED)는 "아직 안 봄"에 세지 않는다. 넷을 더하면 요소 수다.
+        assertThat(detail.node().observedCount()).isEqualTo(1);
+        assertThat(detail.node().unverifiedCount()).isEqualTo(1);
+        assertThat(detail.node().passedCount() + detail.node().failedCount() + detail.node().observedCount()
+                + detail.node().unverifiedCount()).isEqualTo(detail.node().elementCount());
         assertThat(detail.tests()).extracting(SiteAnalysisService.ScreenTestSummary::specPath)
                 .containsExactly("tests/login-flow.spec.ts", "tests/never.spec.ts");
         SiteAnalysisService.ScreenTestSummary latest = detail.tests().get(0);

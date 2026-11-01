@@ -58,6 +58,8 @@ public class SiteAnalysisService {
     public static final String ORIGIN_SITE = "SITE";
     public static final String ORIGIN_CODE = "CODE";
     public static final String ORIGIN_MANUAL = "MANUAL";
+    /** 녹화한 테스트가 지나갔지만 지도에 없던 화면. 실제 브라우저로 연 화면이다. */
+    public static final String ORIGIN_RECORDED = "RECORDED";
 
     /** 사이트 탐색 상한. 등록 직후 첫 테스트는 빠르게, 구조 탭에서 고른 전체 탐색은 넓게 돈다. */
     public record UrlLimits(int maxPages, int maxDepth, int timeoutMs) {}
@@ -140,12 +142,14 @@ public class SiteAnalysisService {
     public record Running(String projectId, int screenCount, int processedCount, Long etaSeconds) {}
 
     /**
-     * passedCount · failedCount 는 테스트 실행으로 확인된 요소 수, unverifiedCount 는 나머지(실측 OBSERVED 포함)다.
+     * passedCount · failedCount 는 테스트 실행으로 확인된 요소 수, observedCount 는 사이트 탐색 · 녹화로 실제 화면에서
+     * 본 요소 수, unverifiedCount 는 코드로만 아는 나머지다. 넷을 더하면 elementCount 다.
      * 구조 그래프가 화면 상자의 색과 배지를 정하는 데 쓴다.
      */
     public record Node(String routeKey, String title, String sourceFile, String origin, boolean stale,
                        int elementCount, boolean excluded, String note, String url, boolean hasScreenshot,
-                       boolean authRequired, int passedCount, int failedCount, int unverifiedCount) {}
+                       boolean authRequired, int passedCount, int failedCount, int observedCount,
+                       int unverifiedCount) {}
 
     public record Edge(String from, String to, String kind, String label, String selector) {}
 
@@ -229,19 +233,23 @@ public class SiteAnalysisService {
         List<Map<String, Object>> elements = readElements(node.getElements());
         int passed = 0;
         int failed = 0;
+        int observed = 0;
         for (Map<String, Object> element : elements) {
             Object verification = element.get("verification");
             if ("PASSED".equals(verification)) {
                 passed++;
             } else if ("FAILED".equals(verification)) {
                 failed++;
+            } else if ("OBSERVED".equals(verification)) {
+                observed++;
             }
         }
         return new Node(node.getRouteKey(), node.getTitle(), node.getSourceFile(), node.getOrigin(),
                 node.isStale(), elements.size(),
                 edit != null && edit.isExcluded(), edit != null ? edit.getNote() : null,
                 node.getUrl(), node.getScreenshot() != null,
-                Boolean.TRUE.equals(node.getAuthRequired()), passed, failed, elements.size() - passed - failed);
+                Boolean.TRUE.equals(node.getAuthRequired()), passed, failed, observed,
+                elements.size() - passed - failed - observed);
     }
 
     private List<Edge> edgesOf(String projectId, String routeKey) {
@@ -1045,8 +1053,9 @@ public class SiteAnalysisService {
             toSave.add(node);
         }
         for (SiteNode gone : existing.values()) {
-            if (ORIGIN_SITE.equals(gone.getOrigin()) || ORIGIN_MANUAL.equals(gone.getOrigin())) {
-                continue; // 사이트 탐색으로 찾거나 직접 추가한 화면은 코드에 없어도 실제로 쓰는 화면이다.
+            if (ORIGIN_SITE.equals(gone.getOrigin()) || ORIGIN_MANUAL.equals(gone.getOrigin())
+                    || ORIGIN_RECORDED.equals(gone.getOrigin())) {
+                continue; // 사이트 탐색 · 녹화로 찾거나 직접 추가한 화면은 코드에 없어도 실제로 쓰는 화면이다.
             }
             gone.setStale(true);
             toSave.add(gone);

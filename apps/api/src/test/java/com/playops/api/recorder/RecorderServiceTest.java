@@ -11,6 +11,7 @@ import com.playops.api.recorder.RecorderDtos.SaveRequest;
 import com.playops.api.service.FileStorageService;
 import com.playops.api.service.LoginSessionService;
 import com.playops.api.service.ProjectService;
+import com.playops.api.service.RecordedFlowService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,6 +45,7 @@ class RecorderServiceTest {
     private FakeRuntime runtime;
     private MutableClock clock;
     private RecorderService service;
+    private RecordedFlowService recordedFlowService;
 
     @BeforeEach
     void setUp() {
@@ -56,8 +58,9 @@ class RecorderServiceTest {
         PlayOpsProperties props = new PlayOpsProperties(tmp.resolve("projects").toString(), tmp.resolve("storage").toString(), true, null);
         runtime = new FakeRuntime();
         clock = new MutableClock(Instant.parse("2026-11-01T00:00:00Z"));
+        recordedFlowService = mock(RecordedFlowService.class);
         service = new RecorderService(projectService, new FileStorageService(projectService),
-                new LoginSessionService(props), runtime, props, clock, Runnable::run);
+                new LoginSessionService(props), runtime, recordedFlowService, props, clock, Runnable::run);
     }
 
     private static User user(long id) {
@@ -260,6 +263,32 @@ class RecorderServiceTest {
         Path file = tmp.resolve("projects/p1/tests/recorded/login.spec.ts");
         assertThat(saved).isEqualTo("tests/recorded/login.spec.ts");
         assertThat(Files.readString(file)).contains("test('로그인'").contains("await page.goto('/');");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void saveRecordsVisitedScreensToSiteMapWithOnlySafeSelectors() {
+        RecorderState s = start(1);
+        service.action("p1", s.sessionId(), user(1), Map.of("type", "click", "x", 1, "y", 1));
+
+        service.save("p1", s.sessionId(), user(1), new SaveRequest("tests/recorded/x.spec.ts", null));
+
+        org.mockito.ArgumentCaptor<List<RecordedFlowService.RecordedAction>> actions =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(recordedFlowService).record(eq("p1"), eq("tests/recorded/x.spec.ts"),
+                eq("https://shop.example.com"), actions.capture());
+        assertThat(actions.getValue()).extracting(RecordedFlowService.RecordedAction::selector)
+                .containsExactly(null, "getByText('x')");
+    }
+
+    @Test
+    void saveSucceedsEvenIfSiteMapUpdateFails() {
+        RecorderState s = start(1);
+        org.mockito.Mockito.doThrow(new IllegalStateException("db"))
+                .when(recordedFlowService).record(anyString(), anyString(), any(), any());
+
+        assertThat(service.save("p1", s.sessionId(), user(1), new SaveRequest("tests/recorded/y.spec.ts", null)).specPath())
+                .isEqualTo("tests/recorded/y.spec.ts");
     }
 
     @Test

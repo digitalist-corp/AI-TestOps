@@ -13,6 +13,7 @@ import com.playops.api.recorder.RecorderDtos.SaveResponse;
 import com.playops.api.service.FileStorageService;
 import com.playops.api.service.LoginSessionService;
 import com.playops.api.service.ProjectService;
+import com.playops.api.service.RecordedFlowService;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +71,7 @@ public class RecorderService {
     private final FileStorageService fileStorageService;
     private final LoginSessionService loginSessionService;
     private final RecorderRuntime runtime;
+    private final RecordedFlowService recordedFlowService;
     private final PlayOpsProperties properties;
     private final Clock clock;
     private final Executor executor;
@@ -79,8 +81,9 @@ public class RecorderService {
     @Autowired
     public RecorderService(ProjectService projectService, FileStorageService fileStorageService,
                            LoginSessionService loginSessionService, RecorderRuntime runtime,
-                           PlayOpsProperties properties) {
-        this(projectService, fileStorageService, loginSessionService, runtime, properties, Clock.systemDefaultZone(),
+                           RecordedFlowService recordedFlowService, PlayOpsProperties properties) {
+        this(projectService, fileStorageService, loginSessionService, runtime, recordedFlowService, properties,
+                Clock.systemDefaultZone(),
                 Executors.newCachedThreadPool(r -> {
                     Thread t = new Thread(r, "recorder");
                     t.setDaemon(true);
@@ -90,11 +93,13 @@ public class RecorderService {
 
     RecorderService(ProjectService projectService, FileStorageService fileStorageService,
                     LoginSessionService loginSessionService, RecorderRuntime runtime,
-                    PlayOpsProperties properties, Clock clock, Executor executor) {
+                    RecordedFlowService recordedFlowService, PlayOpsProperties properties, Clock clock,
+                    Executor executor) {
         this.projectService = projectService;
         this.fileStorageService = fileStorageService;
         this.loginSessionService = loginSessionService;
         this.runtime = runtime;
+        this.recordedFlowService = recordedFlowService;
         this.properties = properties;
         this.clock = clock;
         this.executor = executor;
@@ -366,7 +371,29 @@ public class RecorderService {
             fileStorageService.writeFile(projectId, specPath, code);
         }
         log.info("녹화 테스트 저장. project={}, path={}", projectId, specPath);
+        recordToSiteMap(projectId, specPath, s.baseUrl, steps);
         return new SaveResponse(specPath);
+    }
+
+    /**
+     * 녹화가 지나간 화면과 다룬 요소를 구조 지도에 적는다. 부가 작업이라 실패해도 저장은 그대로 성공한다.
+     * 코드에 들어가지 못한(검사를 통과하지 못한) 셀렉터는 지도에도 넣지 않는다.
+     */
+    private void recordToSiteMap(String projectId, String specPath, String baseUrl, List<RecordedStep> steps) {
+        if (recordedFlowService == null) {
+            return;
+        }
+        try {
+            List<RecordedFlowService.RecordedAction> actions = steps.stream()
+                    .map(step -> new RecordedFlowService.RecordedAction(step.url(),
+                            !"goto".equals(step.action()) && RecorderCodeGenerator.isSafeSelector(step.selector())
+                                    ? step.selector() : null,
+                            step.fragile()))
+                    .toList();
+            recordedFlowService.record(projectId, specPath, baseUrl, actions);
+        } catch (RuntimeException e) {
+            log.warn("녹화 테스트를 구조 지도에 반영하지 못했습니다. project={}, path={}: {}", projectId, specPath, e.getMessage());
+        }
     }
 
     static String validateSpecPath(String raw) {
