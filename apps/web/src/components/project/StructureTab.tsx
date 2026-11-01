@@ -27,20 +27,17 @@ function formatTime(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('ko-KR') : '-';
 }
 
-/** square: 그래프 콘솔 툴바 안에 넣을 때 콘솔의 각진 모양에 맞춘다 */
-function ViewSwitch({ view, onChange, square = false }: {
+function ViewSwitch({ view, onChange }: {
   view: StructureView;
   onChange: (view: StructureView) => void;
-  square?: boolean;
 }) {
-  const round = square ? 'rounded-[2px]' : 'rounded-full';
   const item = (value: StructureView, label: string, icon: ReactNode) => (
     <button
       type="button"
       role="tab"
       aria-selected={view === value}
       onClick={() => onChange(value)}
-      className={`inline-flex h-7 cursor-pointer items-center gap-1.5 ${round} px-3 text-xs font-semibold transition-colors ${
+      className={`inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors ${
         view === value ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
       }`}
     >
@@ -49,7 +46,7 @@ function ViewSwitch({ view, onChange, square = false }: {
     </button>
   );
   return (
-    <div role="tablist" aria-label="구조 보기" className={`inline-flex ${round} border border-border bg-card p-0.5`}>
+    <div role="tablist" aria-label="구조 보기" className="inline-flex rounded-full border border-border bg-card p-0.5">
       {item('graph', '그래프', <Waypoints className="h-3.5 w-3.5" />)}
       {item('list', '목록', <List className="h-3.5 w-3.5" />)}
     </div>
@@ -297,7 +294,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
       {view === 'graph' ? (
         <Suspense
           fallback={
-            <div className="flex h-[660px] items-center justify-center rounded-[4px] border border-[#2a3a4c] bg-[#090d12]">
+            <div className="flex h-[660px] items-center justify-center rounded-lg border border-border bg-background">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           }
@@ -306,7 +303,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
             projectId={projectId}
             siteMap={siteMap}
             onNodeUpdated={updateNode}
-            viewSwitch={<ViewSwitch view={view} onChange={setChosenView} square />}
+            viewSwitch={<ViewSwitch view={view} onChange={setChosenView} />}
           />
         </Suspense>
       ) : (
