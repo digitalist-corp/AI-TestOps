@@ -296,14 +296,16 @@ public class ChatAgentService {
         Optional<ChatTool> found = registry.find(call.name());
         ToolTier tier = found.map(ChatTool::tier).orElse(ToolTier.READ);
         Map<String, Object> input = call.arguments() == null ? Map.of() : call.arguments();
-        ChatBlock block = ChatBlock.tool(call.id(), call.name(), tier, input);
+        // 화면 · 이벤트 · 저장된 블록에는 가린 입력만 쓴다. 실제 실행(tool.execute)에는 원래 입력(call)이 간다.
+        Map<String, Object> shownInput = found.map(t -> redactedInput(t, call, input)).orElse(input);
+        ChatBlock block = ChatBlock.tool(call.id(), call.name(), tier, shownInput);
         blocks.add(block);
 
         Map<String, Object> toolStart = new LinkedHashMap<>();
         toolStart.put("callId", call.id());
         toolStart.put("name", call.name());
         toolStart.put("tier", tier.name());
-        toolStart.put("input", input);
+        toolStart.put("input", shownInput);
         run.sink.send("tool_start", toolStart);
 
         if (found.isEmpty()) {
@@ -313,7 +315,7 @@ public class ChatAgentService {
 
         if (tier == ToolTier.RUN && !run.allowedTools.contains(call.name())) {
             long askedAt = System.currentTimeMillis();
-            PermissionBroker.Decision decision = askPermission(run, tool, call, input, block);
+            PermissionBroker.Decision decision = askPermission(run, tool, call, context, shownInput, block);
             if (decision == null) {
                 block.status = "cancelled";
                 block.durationMs = System.currentTimeMillis() - askedAt;
@@ -344,12 +346,23 @@ public class ChatAgentService {
         return finishTool(run, call, block, output, startedAt);
     }
 
-    /** @return 사용자의 결정, 답변이 중단되면 null */
-    private PermissionBroker.Decision askPermission(Run run, ChatTool tool, LlmToolCall call,
+    /** 도구가 정한 대로 입력을 가린다. 가리다 실패하면 아무것도 보이지 않게 비운다 (비밀이 새는 것보다 낫다). */
+    private Map<String, Object> redactedInput(ChatTool tool, LlmToolCall call, Map<String, Object> input) {
+        try {
+            Map<String, Object> redacted = tool.redactInput(input);
+            return redacted == null ? Map.of() : redacted;
+        } catch (Exception e) {
+            log.warn("채팅 도구 입력 가리기 실패 [{}]: {}", call.name(), e.getMessage());
+            return Map.of();
+        }
+    }
+
+    /** @return 사용자의 결정, 답변이 중단되면 null. input 은 화면에 보낼 가린 입력이다. */
+    private PermissionBroker.Decision askPermission(Run run, ChatTool tool, LlmToolCall call, ChatToolContext context,
                                                     Map<String, Object> input, ChatBlock block) {
         String reason;
         try {
-            reason = tool.permissionReason(call);
+            reason = tool.permissionReason(call, context);
         } catch (Exception e) {
             reason = tool.spec().description();
         }
