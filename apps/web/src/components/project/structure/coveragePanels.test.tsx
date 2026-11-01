@@ -35,7 +35,7 @@ describe('확인 지도 패널', () => {
     const onAction = vi.fn();
     const { rerender } = render(<IssueList items={issues} aiActive onAction={onAction} busyKey={null} />);
     const cards = screen.getAllByTestId('structure-issue-card');
-    expect(cards.map((c) => c.getAttribute('data-route'))).toEqual(['/account', '/checkout']);
+    expect(cards.map((c) => c.getAttribute('data-issue-route'))).toEqual(['/account', '/checkout']);
     expect(screen.getByRole('button', { name: /AI로 고치기/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /로그인 정보 넣기/ }));
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ routeKey: '/account' }), 'SET_LOGIN');
