@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type CSSProperties } from 'react';
 import { EdgeLabelRenderer, Position, getBezierPath, type Edge, type EdgeProps } from '@xyflow/react';
 
 /**
@@ -43,20 +43,25 @@ export function edgePath(sx: number, sy: number, tx: number, ty: number): [strin
   return [`M ${sx},${sy} C ${sx + reach},${sy} ${sx + reach},${bottom} ${mid},${bottom} S ${tx - reach},${ty} ${tx},${ty}`, mid, bottom];
 }
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
+/** 선 색. 앱 테마의 색 변수를 그대로 써서 라이트 · 다크를 따른다. */
+const STROKE = {
+  base: 'var(--color-border-strong)',
+  hot: 'var(--color-secondary-foreground)',
+  path: 'var(--color-primary)',
+  menu: 'var(--color-info)',
+  broken: 'var(--color-warning)',
+};
 
-/** 선을 따라 흐르는 데이터 패킷 */
-function Packets({ path, color, count, dur }: { path: string; color: string; count: number; dur: number }) {
-  return (
-    <>
-      {Array.from({ length: count }, (_, i) => (
-        <rect key={i} x={-5} y={-1.25} width={10} height={2.5} rx={1} style={{ fill: color, filter: `drop-shadow(0 0 4px ${color})` }}>
-          <animateMotion dur={`${dur}s`} begin={`${(dur / count) * i}s`} repeatCount="indefinite" rotate="auto" path={path} />
-        </rect>
-      ))}
-    </>
-  );
-}
+/** 선 모양. 색만으로 구분하지 않도록 공용 메뉴는 점선, 끊긴 구간은 긴 점선으로 그린다. */
+const EDGE_STYLE: Record<'base' | 'hot' | 'path' | 'menu' | 'broken' | 'layout' | 'layoutHot', CSSProperties> = {
+  base: { stroke: STROKE.base, strokeWidth: 1.5 },
+  hot: { stroke: STROKE.hot, strokeWidth: 2 },
+  path: { stroke: STROKE.path, strokeWidth: 2.5 },
+  menu: { stroke: STROKE.menu, strokeWidth: 2, strokeDasharray: '2 5', strokeLinecap: 'round' },
+  broken: { stroke: STROKE.broken, strokeWidth: 2, strokeDasharray: '6 5' },
+  layout: { stroke: STROKE.menu, strokeWidth: 1.5, strokeDasharray: '2 5', strokeLinecap: 'round', strokeOpacity: 0.5 },
+  layoutHot: { stroke: STROKE.menu, strokeWidth: 1.5, strokeDasharray: '2 5', strokeLinecap: 'round' },
+};
 
 function PathEdgeView({ sourceX, sourceY, targetX, targetY, data }: EdgeProps<PathFlowEdge>) {
   if (!data) return null;
@@ -65,66 +70,51 @@ function PathEdgeView({ sourceX, sourceY, targetX, targetY, data }: EdgeProps<Pa
   const showLabel = data.hot && data.labels.length > 0 && data.kind === 'transition';
   const tagTone =
     data.kind === 'virtual-broken'
-      ? 'border-[var(--c-amber)] text-[var(--c-amber)]'
+      ? 'border-warning/50 text-warning'
       : data.kind === 'virtual-menu'
-        ? 'border-[var(--c-blue)] text-[var(--c-blue)]'
-        : 'border-[var(--c-cyan)] text-[var(--c-cyan)]';
+        ? 'border-info/50 text-info'
+        : 'border-primary/50 text-primary';
 
   return (
     <>
-      {(data.kind === 'transition' || data.kind === 'layout') && (
+      {data.kind === 'transition' && !active && (
         <path
           d={path}
-          className="sg-edge-base"
-          data-kind={data.kind}
-          data-hot={data.hot}
-          data-dimmed={data.dimmed && !active}
-          markerEnd={data.kind === 'transition' ? (data.hot ? 'url(#sg-arrow-hot)' : 'url(#sg-arrow)') : undefined}
+          fill="none"
+          style={{ ...(data.hot ? EDGE_STYLE.hot : EDGE_STYLE.base), opacity: data.dimmed ? 0.2 : 1 }}
+          markerEnd={data.hot ? 'url(#edge-arrow-hot)' : 'url(#edge-arrow)'}
+        />
+      )}
+      {data.kind === 'layout' && (
+        <path
+          d={path}
+          fill="none"
+          style={{ ...(data.hot ? EDGE_STYLE.layoutHot : EDGE_STYLE.layout), ...(data.dimmed ? { strokeOpacity: 0.15 } : {}) }}
         />
       )}
 
-      {data.hot && !active && data.kind === 'transition' && <Packets path={path} color="var(--c-cyan)" count={1} dur={1.6} />}
-
-      {active && data.kind === 'transition' && (
-        <>
-          <path d={path} className="sg-edge-glow" style={{ stroke: 'var(--c-cyan)' }} />
-          <path d={path} className="sg-edge-active" markerEnd="url(#sg-arrow-path)" />
-          <Packets path={path} color="#e8fbff" count={3} dur={2.4} />
-        </>
-      )}
-
-      {data.kind === 'virtual-broken' && (
-        <>
-          <path d={path} className="sg-edge-glow" style={{ stroke: 'var(--c-amber)' }} />
-          <path d={path} className="sg-edge-broken" markerEnd="url(#sg-arrow-warn)" />
-        </>
-      )}
-      {data.kind === 'virtual-menu' && (
-        <>
-          <path d={path} className="sg-edge-glow" style={{ stroke: 'var(--c-blue)' }} />
-          <path d={path} className="sg-edge-menu" markerEnd="url(#sg-arrow-menu)" />
-          <Packets path={path} color="var(--c-blue)" count={2} dur={2.8} />
-        </>
-      )}
+      {active && data.kind === 'transition' && <path d={path} fill="none" style={EDGE_STYLE.path} markerEnd="url(#edge-arrow-path)" />}
+      {data.kind === 'virtual-broken' && <path d={path} fill="none" style={EDGE_STYLE.broken} markerEnd="url(#edge-arrow-warn)" />}
+      {data.kind === 'virtual-menu' && <path d={path} fill="none" style={EDGE_STYLE.menu} markerEnd="url(#edge-arrow-menu)" />}
 
       {(active || data.kind === 'virtual-broken' || data.kind === 'virtual-menu' || showLabel) && (
         <EdgeLabelRenderer>
           <div
-            className="sg-edge-label nodrag nopan pointer-events-none absolute flex flex-col items-center gap-1"
+            className="nodrag nopan pointer-events-none absolute flex flex-col items-center gap-1"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
           >
             {data.steps.map((step) => (
               <span
                 key={step}
-                className={`flex items-center gap-1.5 rounded-[2px] border bg-[var(--c-bg)]/90 px-1.5 py-px text-[9px] font-bold tracking-wider shadow-[0_0_14px_-2px_currentColor] ${tagTone}`}
+                className={`flex items-center gap-1.5 rounded-md border bg-card px-1.5 py-0.5 text-[11px] font-semibold shadow-sm ${tagTone}`}
               >
-                {pad2(step)}→{pad2(step + 1)}
-                {data.kind === 'virtual-broken' && <span className="font-normal">// NO LINK</span>}
-                {data.kind === 'virtual-menu' && <span className="font-normal">// VIA MENU</span>}
+                {step}→{step + 1}
+                {data.kind === 'virtual-broken' && <span className="font-normal">직접 전환 없음</span>}
+                {data.kind === 'virtual-menu' && <span className="font-normal">공용 메뉴로 이동</span>}
               </span>
             ))}
             {showLabel && !active && (
-              <span className="max-w-48 truncate rounded-[2px] border border-[var(--c-line-2)] bg-[var(--c-panel)]/95 px-1.5 py-px text-[10px] text-[var(--c-text)]">
+              <span className="max-w-48 truncate rounded-md border border-border bg-card px-1.5 py-0.5 text-[11px] text-foreground shadow-sm">
                 “{data.labels.slice(0, 2).join('” · “')}”{data.count > 1 && ` ×${data.count}`}
               </span>
             )}
@@ -147,11 +137,11 @@ export function PathEdgeDefs() {
   return (
     <svg width="0" height="0" className="absolute" aria-hidden="true">
       <defs>
-        {marker('sg-arrow', '#3d5168')}
-        {marker('sg-arrow-hot', 'var(--c-cyan)')}
-        {marker('sg-arrow-path', 'var(--c-cyan)')}
-        {marker('sg-arrow-warn', 'var(--c-amber)')}
-        {marker('sg-arrow-menu', 'var(--c-blue)')}
+        {marker('edge-arrow', STROKE.base)}
+        {marker('edge-arrow-hot', STROKE.hot)}
+        {marker('edge-arrow-path', STROKE.path)}
+        {marker('edge-arrow-warn', STROKE.broken)}
+        {marker('edge-arrow-menu', STROKE.menu)}
       </defs>
     </svg>
   );

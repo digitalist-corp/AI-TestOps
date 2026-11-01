@@ -11,19 +11,20 @@ import {
   type NodeChange,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import './structure-graph.css';
 import { ArrowRight, CheckCircle2, Network } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMap, SiteMapNode } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
-import { CursorReadout, DecodeText, LiveClock, ViewportFrame, ZoomControls } from './ConsoleHud';
+import { useTheme } from '@/lib/theme';
+import { cn } from '@/lib/utils';
 import { GraphToolbar, type GraphFilters } from './GraphToolbar';
 import { LayoutGroupNode, type LayoutGroupFlowNode } from './LayoutGroupNode';
 import { PathBar, DEFAULT_PATH_INSTRUCTION } from './PathBar';
 import { PathEdge, PathEdgeDefs, type PathFlowEdge } from './PathEdge';
 import { ScreenDetailPanel, DETAIL_PANEL_WIDTH } from './ScreenDetailPanel';
 import { ScreenNode, type ScreenFlowNode } from './ScreenNode';
+import { ZoomControls } from './ZoomControls';
 import { SCREEN_H, SCREEN_W, groupBoxes, layoutGraph, nodeStatus, type Point, type ScreenStatus } from './layoutGraph';
 import { buildConnectivity, usePathSelection } from './usePathSelection';
 
@@ -32,20 +33,30 @@ type GraphNode = ScreenFlowNode | LayoutGroupFlowNode;
 const nodeTypes = { screen: ScreenNode, layoutGroup: LayoutGroupNode };
 const edgeTypes = { path: PathEdge };
 
+/** 미니맵 색. 앱 테마의 색 변수를 그대로 써서 라이트 · 다크를 따른다. */
 const MINIMAP_COLOR: Record<ScreenStatus, string> = {
-  failed: '#ff4f61',
-  passed: '#2ee59d',
-  neutral: '#3d5168',
+  failed: 'var(--color-destructive)',
+  passed: 'var(--color-success)',
+  neutral: 'var(--color-border-strong)',
 };
+const MINIMAP_GROUP_COLOR = 'color-mix(in oklab, var(--color-info) 20%, transparent)';
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-
+/** 범례 한 줄. 왼쪽에 색 표시, 오른쪽에 뜻. */
 function LegendItem({ children, label }: { children: ReactNode; label: string }) {
   return (
-    <span className="flex items-center gap-1.5">
+    <span className="flex items-center gap-2">
       {children}
       {label}
     </span>
+  );
+}
+
+/** 범례의 선 표시. 연결선과 같은 색 · 모양으로 그린다. */
+function LegendLine({ color, dash, width = 2 }: { color: string; dash?: string; width?: number }) {
+  return (
+    <svg width="20" height="4" aria-hidden="true">
+      <line x1="1" y1="2" x2="19" y2="2" strokeWidth={width} strokeDasharray={dash} strokeLinecap="round" style={{ stroke: color }} />
+    </svg>
   );
 }
 
@@ -72,6 +83,7 @@ function slugOf(route: string) {
 
 function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: StructureGraphProps) {
   const flow = useReactFlow<GraphNode, PathFlowEdge>();
+  const { theme } = useTheme();
   const canvasRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -87,7 +99,6 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
   const positions = useMemo(() => ({ ...laid.positions, ...moved }), [laid, moved]);
   const groups = useMemo(() => groupBoxes(shown.layouts, positions), [shown.layouts, positions]);
   const nodeByRoute = useMemo(() => new Map(shown.nodes.map((n) => [n.routeKey, n])), [shown.nodes]);
-  const codes = useMemo(() => new Map(shown.nodes.map((n, i) => [n.routeKey, `SCR-${pad2(i + 1)}`])), [shown.nodes]);
 
   const connectivity = useMemo(() => buildConnectivity(shown), [shown]);
   const path = usePathSelection(connectivity);
@@ -267,12 +278,12 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
         position: positions[node.routeKey],
         width: SCREEN_W,
         height: SCREEN_H,
+        // 키보드로 노드에 초점이 갈 때 나오는 테두리가 카드 모서리를 따라 둥글게 보이도록
+        className: 'rounded-lg',
         ariaLabel: `${node.routeKey} 화면`,
         data: {
           node,
-          code: codes.get(node.routeKey) ?? '',
           status: nodeStatus(node),
-          rank: laid.ranks[node.routeKey] ?? 0,
           entry: laid.entry === node.routeKey,
           orders: path.orders.get(node.routeKey) ?? [],
           dimmed: filtering && !passes(node),
@@ -285,7 +296,7 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
       });
     }
     return list;
-  }, [groups, shown.nodes, positions, laid, path.orders, filtering, passes, hotSet, hovered, focused, flash, nodeByRoute, codes, addToPath, openDetail]);
+  }, [groups, shown.nodes, positions, laid, path.orders, filtering, passes, hotSet, hovered, focused, flash, nodeByRoute, addToPath, openDetail]);
 
   const rfEdges = useMemo<PathFlowEdge[]>(() => {
     const transitionIds = new Set(laid.edges.map((e) => e.id));
@@ -400,9 +411,10 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
 
   return (
     <div
-      className={`@container sg-console sg-canvas flex flex-col overflow-hidden ${
-        fullscreen ? 'fixed inset-0 z-50 !rounded-none' : 'relative h-[calc(100dvh-12rem)] min-h-[660px]'
-      }`}
+      className={cn(
+        '@container flex flex-col overflow-hidden bg-background',
+        fullscreen ? 'fixed inset-0 z-50' : 'relative h-[calc(100dvh-12rem)] min-h-[660px] rounded-lg border border-border'
+      )}
       data-testid="structure-graph"
     >
       <PathEdgeDefs />
@@ -431,10 +443,7 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
       />
 
       {error && (
-        <p className="border-b border-[var(--c-red)]/40 bg-[var(--c-red)]/10 px-4 py-2 text-xs text-[var(--c-red)]">
-          <span className="sg-mono mr-2 font-bold tracking-wider">ERROR //</span>
-          {error}
-        </p>
+        <p className="border-b border-destructive/40 bg-destructive/5 px-4 py-2 text-xs text-destructive">{error}</p>
       )}
 
       <div ref={canvasRef} className="relative min-h-0 flex-1">
@@ -455,98 +464,61 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
           fitViewOptions={{ padding: 0.18, maxZoom: 1 }}
           minZoom={0.1}
           maxZoom={1.8}
-          colorMode="dark"
+          colorMode={theme}
+          // 바탕색은 바깥 상자(bg-background)가 맡는다.
+          style={{ background: 'transparent' }}
           aria-label="화면 구조 그래프"
         >
-          <Background id="minor" variant={BackgroundVariant.Lines} gap={24} lineWidth={0.5} color="rgb(120 160 200 / 0.06)" />
-          <Background id="major" variant={BackgroundVariant.Lines} gap={120} lineWidth={0.8} color="rgb(120 160 200 / 0.12)" />
-          <Background id="cross" variant={BackgroundVariant.Cross} gap={120} size={6} lineWidth={1} color="rgb(54 211 255 / 0.28)" />
+          <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="var(--color-border)" />
 
           {!empty && (
             /* 표시 전용 패널이라 클릭은 아래 캔버스로 흘려보낸다. 막으면 패널 뒤에 놓인 화면 카드를 누를 수 없다. */
-            <Panel position="top-left" className="sg-hud pointer-events-none !m-4 w-64 px-3 py-2.5 select-none">
-              <div className="flex items-center justify-between">
-                <span className="sg-mono flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] text-[var(--c-green)]">
-                  <span className="sg-live h-1.5 w-1.5 rounded-full bg-[var(--c-green)] shadow-[0_0_8px_var(--c-green)]" />
-                  {siteMap.analysis.status === 'RUNNING' ? 'INGESTING' : 'LIVE'}
-                </span>
-                <span className="text-[10px] text-[var(--c-dim)]">
-                  <LiveClock />
-                </span>
+            <Panel
+              position="top-left"
+              className="pointer-events-none !m-4 w-60 rounded-lg border border-border bg-card px-3 py-2.5 text-xs text-muted-foreground shadow-sm select-none"
+            >
+              <p className="mb-1.5 text-xs font-semibold text-foreground">범례</p>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                <LegendItem label="통과"><i className="h-2 w-4 rounded-sm bg-success" /></LegendItem>
+                <LegendItem label="실패"><i className="h-2 w-4 rounded-sm bg-destructive" /></LegendItem>
+                <LegendItem label="미확인"><i className="h-2 w-4 rounded-sm bg-border" /></LegendItem>
+                <LegendItem label="화면 전환"><LegendLine color="var(--color-border-strong)" width={1.5} /></LegendItem>
+                <LegendItem label="선택한 경로"><LegendLine color="var(--color-primary)" width={2.5} /></LegendItem>
+                <LegendItem label="공용 메뉴"><LegendLine color="var(--color-info)" dash="2 4" /></LegendItem>
+                <LegendItem label="전환 없음"><LegendLine color="var(--color-warning)" dash="5 4" /></LegendItem>
               </div>
-              <p className="mt-1.5 text-[13px] font-bold tracking-wide text-[var(--c-text)]">
-                <DecodeText text="SCREEN GRAPH // ONTOLOGY" className="sg-mono" />
-              </p>
-              <div className="mt-2 grid grid-cols-4 gap-px overflow-hidden rounded-[2px] border border-[var(--c-line-2)] bg-[var(--c-line-2)]">
-                {[
-                  { k: 'NODES', v: counts.screens, c: 'var(--c-text)' },
-                  { k: 'EDGES', v: counts.transitions, c: 'var(--c-text)' },
-                  { k: 'LAYOUT', v: groups.length, c: 'var(--c-blue)' },
-                  { k: 'ALERT', v: counts.failed, c: counts.failed > 0 ? 'var(--c-red)' : 'var(--c-muted)' },
-                ].map((m) => (
-                  <div key={m.k} className="bg-[var(--c-bg-2)] px-1.5 py-1">
-                    <p className="sg-label !text-[8px]">{m.k}</p>
-                    <p className="sg-mono text-[15px] font-bold tabular-nums" style={{ color: m.c }}>
-                      {pad2(m.v)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="sg-mono mt-2 grid grid-cols-3 gap-y-1 text-[9px] tracking-wider text-[var(--c-muted)]">
-                <LegendItem label="FAIL"><i className="h-2 w-[3px] bg-[var(--sg-fail)] shadow-[0_0_6px_var(--sg-fail)]" /></LegendItem>
-                <LegendItem label="PASS"><i className="h-2 w-[3px] bg-[var(--sg-pass)] shadow-[0_0_6px_var(--sg-pass)]" /></LegendItem>
-                <LegendItem label="UNV"><i className="h-2 w-[3px] bg-[var(--sg-neutral)]" /></LegendItem>
-                <LegendItem label="LINK"><svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke="var(--c-cyan)" strokeWidth="1.6" strokeDasharray="5 2" /></svg></LegendItem>
-                <LegendItem label="MENU"><svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke="var(--c-blue)" strokeWidth="1.8" strokeDasharray="1 3" strokeLinecap="round" /></svg></LegendItem>
-                <LegendItem label="NO LINK"><svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke="var(--c-amber)" strokeWidth="1.6" strokeDasharray="3 3" /></svg></LegendItem>
-              </div>
-              <p className="sg-label mt-2 border-t border-[var(--c-line)] pt-1.5 !text-[8px]">
-                / SEARCH · F FIT · ESC CLOSE · DRAG TO REARRANGE
+              <p className="mt-2.5 border-t border-border pt-2 text-[11px]">
+                / 검색 · F 전체 보기 · Esc 닫기 · 끌어서 위치 바꾸기
               </p>
             </Panel>
           )}
 
-          <Panel position="bottom-left" className="!m-4 flex items-end gap-2">
+          <Panel position="bottom-left" className="!m-4">
             <ZoomControls />
-            <CursorReadout containerRef={canvasRef} />
           </Panel>
 
           <MiniMap<GraphNode>
             position="bottom-right"
             pannable
             zoomable
-            nodeBorderRadius={2}
+            className="overflow-hidden rounded-lg border border-border shadow-sm"
+            bgColor="var(--color-card)"
+            nodeBorderRadius={3}
             nodeStrokeWidth={0}
-            nodeColor={(n) => (n.type === 'screen' ? MINIMAP_COLOR[(n as ScreenFlowNode).data.status] : 'rgba(77, 141, 255, 0.10)')}
-            maskColor="rgb(9 13 18 / 0.72)"
-            maskStrokeColor="#36d3ff"
+            nodeColor={(n) => (n.type === 'screen' ? MINIMAP_COLOR[(n as ScreenFlowNode).data.status] : MINIMAP_GROUP_COLOR)}
+            maskStrokeColor="var(--color-primary)"
             maskStrokeWidth={1.5}
             style={{ marginRight: focused ? DETAIL_PANEL_WIDTH + 4 : 16, marginBottom: 16, transition: 'margin 300ms ease' }}
           />
-          {!empty && (
-            <Panel
-              position="bottom-right"
-              className="sg-label pointer-events-none !mb-[172px] !text-[9px] !text-[var(--c-cyan)]"
-              style={{ marginRight: focused ? DETAIL_PANEL_WIDTH + 4 : 16, transition: 'margin 300ms ease' }}
-            >
-              ◢ OVERVIEW
-            </Panel>
-          )}
         </ReactFlow>
-
-        <ViewportFrame />
 
         {empty && (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-            <div className="sg-hint relative flex h-20 w-20 items-center justify-center rounded-[2px] border border-[var(--c-cyan)]/50 bg-[var(--c-cyan)]/5 text-[var(--c-cyan)] shadow-[0_0_40px_-8px_var(--c-cyan)]">
-              <span className="sg-brackets" data-kind="lock" />
-              <Network className="h-9 w-9" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+              <Network className="h-8 w-8" />
             </div>
-            <p className="sg-mono text-[11px] font-bold tracking-[0.2em] text-[var(--c-cyan)]">
-              {running ? 'INGEST IN PROGRESS' : 'NO OBJECTS'}
-            </p>
-            <p className="text-sm font-semibold text-[var(--c-text)]">{running ? '화면을 찾고 있습니다' : '아직 찾은 화면이 없습니다'}</p>
-            <p className="max-w-sm text-xs text-[var(--c-muted)]">
+            <p className="text-sm font-semibold text-foreground">{running ? '화면을 찾고 있습니다' : '아직 찾은 화면이 없습니다'}</p>
+            <p className="max-w-sm text-xs text-muted-foreground">
               {running
                 ? '분석이 끝나면 화면과 전환을 그래프로 한 번에 그립니다.'
                 : '소스 저장소를 연결해 코드를 분석하거나, 사이트 주소로 탐색하면 여기에 화면 지도가 그려집니다.'}
@@ -558,7 +530,6 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
           <ScreenDetailPanel
             projectId={projectId}
             routeKey={focused}
-            code={codes.get(focused) ?? ''}
             onClose={() => setFocused(null)}
             onAdd={addToPath}
             onJump={jumpTo}
@@ -587,26 +558,22 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
       />
 
       <Dialog open={created != null} onOpenChange={(open) => !open && setCreated(null)}>
-        <DialogContent className="sg-console sg-dialog">
+        <DialogContent>
           <DialogHeader>
-            <p className="sg-mono flex items-center gap-1.5 text-[10px] font-bold tracking-[0.16em] text-[var(--c-green)]">
-              <span className="sg-live h-1.5 w-1.5 rounded-full bg-[var(--c-green)] shadow-[0_0_8px_var(--c-green)]" />
-              JOB DISPATCHED · #{created?.id}
-            </p>
-            <DialogTitle className="text-[var(--c-text)]">테스트 생성을 시작했습니다</DialogTitle>
-            <DialogDescription className="text-[var(--c-muted)]">
-              <code className="sg-mono text-[var(--c-cyan)]">{created?.specPath}</code> 를 만듭니다. 생성이 끝나면 AI 검토에서
-              승인해야 프로젝트에 추가됩니다.
+            <DialogTitle>테스트 생성을 시작했습니다</DialogTitle>
+            <DialogDescription>
+              AI 작업 #{created?.id} 로 <code className="font-mono text-foreground">{created?.specPath}</code> 를 만듭니다. 생성이
+              끝나면 AI 검토에서 승인해야 프로젝트에 추가됩니다.
             </DialogDescription>
           </DialogHeader>
-          <ol className="space-y-1 rounded-[2px] border border-[var(--c-line-2)] bg-[var(--c-bg-2)] p-2">
+          <ol className="space-y-1.5 rounded-lg border border-border bg-muted/40 p-2">
             {created?.routeKeys.map((route, i) => (
               <li key={i} className="flex items-center gap-2">
-                <span className="sg-mono flex h-5 w-7 items-center justify-center bg-[var(--c-cyan)] text-[10px] font-bold text-[#021018]">
-                  {pad2(i + 1)}
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+                  {i + 1}
                 </span>
-                <span className="sg-mono text-xs text-[var(--c-text)]">{route}</span>
-                {i < (created?.routeKeys.length ?? 0) - 1 && <ArrowRight className="ml-auto h-3 w-3 text-[var(--c-dim)]" />}
+                <span className="font-mono text-sm text-foreground">{route}</span>
+                {i < (created?.routeKeys.length ?? 0) - 1 && <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" />}
               </li>
             ))}
           </ol>
@@ -614,7 +581,6 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
             <Button
               variant="outline"
               size="sm"
-              className="!rounded-[2px]"
               onClick={() => {
                 path.clear();
                 setInstruction('');
@@ -623,7 +589,7 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
             >
               경로 비우기
             </Button>
-            <Button size="sm" className="sg-execute !rounded-[2px]" asChild>
+            <Button size="sm" asChild>
               <Link to={`/projects/${projectId}/ai-review`}>
                 <CheckCircle2 className="h-4 w-4" />
                 AI 검토로 이동

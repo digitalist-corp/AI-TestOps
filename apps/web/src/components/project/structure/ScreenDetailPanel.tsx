@@ -3,33 +3,31 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CircleDashed, CheckCircle2, Loader2, Plus, Save, X, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMapNode, SiteMapNodeDetail } from '@/types';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { useAiEnabled } from '@/lib/aiEnabled';
-import { DecodeText } from './ConsoleHud';
+import { cn } from '@/lib/utils';
 import { ElementTable } from './ElementTable';
 import { nodeStatus } from './layoutGraph';
-import { verificationTicks } from './ScreenNode';
+import { TICK_CLASS, verificationTicks } from './ScreenNode';
 
 export const DETAIL_PANEL_WIDTH = 392;
 
 const STATUS = {
-  failed: { label: 'FAIL', text: '실패한 요소가 있습니다', color: 'var(--sg-fail)' },
-  passed: { label: 'PASS', text: '모든 요소가 확인됐습니다', color: 'var(--sg-pass)' },
-  neutral: { label: 'UNVERIFIED', text: '아직 확인되지 않은 요소가 있습니다', color: 'var(--c-muted)' },
-};
-
-const pad2 = (n: number) => String(n).padStart(2, '0');
+  failed: { label: '실패', text: '실패한 요소가 있습니다', variant: 'destructive', tone: 'text-destructive' },
+  passed: { label: '통과', text: '모든 요소가 확인됐습니다', variant: 'success', tone: 'text-success' },
+  neutral: { label: '미확인', text: '아직 확인되지 않은 요소가 있습니다', variant: 'neutral', tone: 'text-muted-foreground' },
+} as const;
 
 function formatTime(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('ko-KR') : '';
 }
 
-function Section({ code, title, children, right }: { code: string; title: string; children: ReactNode; right?: ReactNode }) {
+function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
-    <section className="border-t border-[var(--c-line)] px-4 py-3">
-      <div className="mb-2 flex items-center gap-2">
-        <span className="sg-mono text-[9px] text-[var(--c-cyan)]">{code}</span>
-        <h4 className="sg-label !text-[var(--c-muted)]">{title}</h4>
-        <span className="h-px flex-1 bg-[var(--c-line)]" />
+    <section className="border-t border-border px-4 py-4">
+      <div className="mb-2.5 flex items-center justify-between gap-2">
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
         {right}
       </div>
       {children}
@@ -37,23 +35,23 @@ function Section({ code, title, children, right }: { code: string; title: string
   );
 }
 
-function Prop({ k, v, mono = true }: { k: string; v: ReactNode; mono?: boolean }) {
+/** mono: 경로 · 파일 · 주소처럼 실제 코드 값일 때만 모노 글꼴로 보인다. */
+function Prop({ k, v, mono = false }: { k: string; v: ReactNode; mono?: boolean }) {
   return (
     <>
-      <dt className="sg-label !text-[9px]">{k}</dt>
-      <dd className={`min-w-0 truncate text-[11px] text-[var(--c-text)] ${mono ? 'sg-mono' : ''}`}>{v}</dd>
+      <dt className="text-xs text-muted-foreground">{k}</dt>
+      <dd className={cn('min-w-0 truncate text-[13px] text-foreground', mono && 'font-mono text-xs')}>{v}</dd>
     </>
   );
 }
 
 /**
- * 화면 상세(오브젝트 인스펙터). 속성, 확인 현황, 메모 · 제외(다시 분석해도 남는다), 이 화면으로 만든
+ * 화면 상세. 속성, 확인 현황, 메모 · 제외(다시 분석해도 남는다), 이 화면으로 만든
  * 테스트의 최근 결과, 들고 나는 전환, 요소 표를 보여 준다.
  */
-export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, onJump, onNodeUpdated }: {
+export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump, onNodeUpdated }: {
   projectId: string;
   routeKey: string;
-  code: string;
   onClose: () => void;
   onAdd: (routeKey: string) => void;
   onJump: (routeKey: string) => void;
@@ -128,71 +126,61 @@ export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, o
   return (
     <aside
       key={routeKey}
-      className="sg-panel sg-hud absolute bottom-3 right-3 top-3 z-20 flex flex-col overflow-hidden"
+      className="absolute bottom-3 right-3 top-3 z-20 flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-lg"
       style={{ width: DETAIL_PANEL_WIDTH - 12 }}
       aria-label={`${routeKey} 화면 상세`}
       data-testid="structure-detail-panel"
     >
-      <div className="sg-shimmer absolute inset-x-0 top-0 h-px" />
-      <header className="px-4 pb-3 pt-3">
-        <div className="flex items-center gap-2">
-          <span className="sg-mono rounded-[2px] border border-[var(--c-cyan)]/50 bg-[var(--c-cyan)]/10 px-1.5 py-px text-[9px] font-bold tracking-widest text-[var(--c-cyan)]">
-            INSPECTOR
-          </span>
-          <span className="sg-label !text-[9px]">OBJECT // SCREEN · {code}</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ml-auto cursor-pointer rounded-[2px] p-1 text-[var(--c-muted)] hover:bg-[var(--c-accent)] hover:text-[var(--c-text)]"
-            aria-label="상세 닫기"
-            title="닫기 (Esc)"
-          >
+      <header className="px-4 pb-4 pt-4">
+        <div className="flex items-start gap-2">
+          <div className="min-w-0 flex-1">
+            <h3 className="break-all font-mono text-base font-semibold text-foreground">{routeKey}</h3>
+            <p className="truncate text-sm text-muted-foreground">{node?.title ?? ' '}</p>
+          </div>
+          <Button variant="ghost" size="icon" className="-mr-2 -mt-1 h-8 w-8 shrink-0" onClick={onClose} aria-label="상세 닫기" title="닫기 (Esc)">
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
-        <h3 className="mt-2 break-all text-[15px] font-bold text-[var(--c-text)]">
-          <DecodeText text={routeKey} className="sg-mono" />
-        </h3>
-        <p className="truncate text-xs text-[var(--c-muted)]">{node?.title ?? ' '}</p>
-        <button
-          type="button"
-          onClick={() => onAdd(routeKey)}
-          className="mt-3 flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 rounded-[2px] border border-[var(--c-cyan)]/70 bg-[var(--c-cyan)]/10 text-xs font-bold text-[var(--c-cyan)] transition-colors hover:bg-[var(--c-cyan)] hover:text-[#021018]"
-        >
-          <Plus className="h-3.5 w-3.5" /> 경로에 추가
-        </button>
+        <Button variant="secondary" size="xs" className="mt-3 w-full" onClick={() => onAdd(routeKey)}>
+          <Plus className="h-4 w-4" /> 경로에 추가
+        </Button>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {error && <p className="mx-4 mb-3 rounded-[2px] border border-[var(--c-red)]/40 bg-[var(--c-red)]/10 px-3 py-2 text-xs text-[var(--c-red)]">{error}</p>}
+        {error && (
+          <p className="mx-4 mb-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">{error}</p>
+        )}
         {!detail || !node ? (
           !error && (
             <div className="flex justify-center py-10">
-              <Loader2 className="h-5 w-5 animate-spin text-[var(--c-cyan)]" />
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           )
         ) : (
           <>
             {screenshotUrl && (
-              <div className="relative mx-4 mb-3 overflow-hidden rounded-[2px] border border-[var(--c-line-2)]">
-                <img src={screenshotUrl} alt={`${routeKey} 화면 스크린샷`} className="max-h-44 w-full object-cover object-top opacity-90" />
-                <span className="sg-label absolute left-1.5 top-1.5 bg-[var(--c-bg)]/80 px-1 !text-[9px] !text-[var(--c-cyan)]">CAPTURE</span>
+              <div className="mx-4 mb-4 overflow-hidden rounded-lg border border-border">
+                <img src={screenshotUrl} alt={`${routeKey} 화면 스크린샷`} className="max-h-44 w-full object-cover object-top" />
               </div>
             )}
 
-            <Section code="01" title="Properties">
-              <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-1.5">
-                <Prop k="Route" v={node.routeKey} />
-                <Prop k="Title" v={node.title ?? '-'} mono={false} />
-                <Prop k={node.origin === 'SITE' ? 'URL' : 'Source'} v={<span title={node.sourceFile ?? node.url ?? ''}>{node.sourceFile ?? node.url ?? '-'}</span>} />
-                <Prop k="Origin" v={node.origin === 'SITE' ? 'SITE CRAWL' : 'CODE ANALYSIS'} />
-                <Prop k="Auth" v={node.authRequired ? <span className="text-[var(--c-amber)]">REQUIRED</span> : 'PUBLIC'} />
+            <Section title="속성">
+              <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-2">
+                <Prop k="경로" v={node.routeKey} mono />
+                <Prop k="제목" v={node.title ?? '-'} />
                 <Prop
-                  k="Flags"
+                  k={node.origin === 'SITE' ? '주소' : '소스 파일'}
+                  v={<span title={node.sourceFile ?? node.url ?? ''}>{node.sourceFile ?? node.url ?? '-'}</span>}
+                  mono
+                />
+                <Prop k="찾은 방법" v={node.origin === 'SITE' ? '사이트 탐색' : '코드 분석'} />
+                <Prop k="로그인" v={node.authRequired ? <span className="text-warning">필요</span> : '필요 없음'} />
+                <Prop
+                  k="표시"
                   v={
                     node.excluded || node.stale ? (
-                      <span className="text-[var(--c-amber)]">
-                        {[node.excluded && '[제외됨]', node.stale && (node.origin === 'SITE' ? '[탐색에서 사라짐]' : '[코드에 없음]')].filter(Boolean).join(' ')}
+                      <span className="text-warning">
+                        {[node.excluded && '제외됨', node.stale && (node.origin === 'SITE' ? '탐색에서 사라짐' : '코드에 없음')].filter(Boolean).join(' · ')}
                       </span>
                     ) : (
                       '-'
@@ -202,67 +190,45 @@ export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, o
               </dl>
             </Section>
 
-            <Section
-              code="02"
-              title="Verification"
-              right={
-                <span className="sg-mono flex items-center gap-1 text-[10px] font-bold" style={{ color: status.color }}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: status.color, boxShadow: `0 0 6px ${status.color}` }} />
-                  {status.label}
-                </span>
-              }
-            >
-              <div className="grid grid-cols-3 gap-px overflow-hidden rounded-[2px] border border-[var(--c-line-2)] bg-[var(--c-line-2)]">
+            <Section title="확인 현황" right={<Badge variant={status.variant}>{status.label}</Badge>}>
+              <div className="grid grid-cols-3 gap-2">
                 {[
-                  { k: 'PASS', v: node.passedCount, c: 'var(--sg-pass)' },
-                  { k: 'FAIL', v: node.failedCount, c: node.failedCount > 0 ? 'var(--sg-fail)' : 'var(--c-muted)' },
-                  { k: 'UNVERIFIED', v: node.unverifiedCount, c: 'var(--c-muted)' },
+                  { k: '통과', v: node.passedCount, c: 'text-success' },
+                  { k: '실패', v: node.failedCount, c: node.failedCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
+                  { k: '미확인', v: node.unverifiedCount, c: 'text-muted-foreground' },
                 ].map((m) => (
-                  <div key={m.k} className="bg-[var(--c-bg-2)] px-2.5 py-2">
-                    <p className="sg-label !text-[9px]">{m.k}</p>
-                    <p className="sg-mono text-xl font-bold tabular-nums" style={{ color: m.c }}>
-                      {pad2(m.v)}
-                    </p>
+                  <div key={m.k} className="rounded-lg border border-border bg-background px-3 py-2">
+                    <p className="text-xs text-muted-foreground">{m.k}</p>
+                    <p className={cn('text-xl font-semibold tabular-nums', m.c)}>{m.v}</p>
                   </div>
                 ))}
               </div>
               {ticks.length > 0 && (
-                <div className="sg-ticks mt-2 !h-3">
+                <div className="mt-3 flex h-2.5 gap-0.5">
                   {ticks.map((t, i) => (
-                    <i
-                      key={i}
-                      style={{
-                        background: t === 'passed' ? 'var(--sg-pass)' : t === 'failed' ? 'var(--sg-fail)' : '#2a3a4c',
-                        animationDelay: `${i * 20}ms`,
-                      }}
-                    />
+                    <i key={i} className={cn('flex-1 rounded-sm', TICK_CLASS[t])} />
                   ))}
                 </div>
               )}
-              <p className="mt-1.5 text-[11px]" style={{ color: status.color }}>{status.text}</p>
+              <p className={cn('mt-2 text-xs', status.tone)}>{status.text}</p>
             </Section>
 
-            <Section code="03" title="Annotation">
+            <Section title="메모">
               <textarea
                 value={note}
                 maxLength={500}
                 onChange={(e) => setNote(e.target.value)}
                 rows={3}
                 placeholder="이 화면에 대해 남길 메모 (다시 분석해도 남습니다)"
-                className="sg-input w-full resize-none px-2.5 py-2 text-[11px]"
+                className="w-full resize-none rounded-lg border border-border bg-card px-3 py-2 text-[13px] text-foreground transition-colors placeholder:text-muted-foreground hover:border-border-strong"
                 aria-label="화면 메모"
               />
               <div className="mt-2 flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={saving || note.trim() === (node.note ?? '')}
-                  onClick={() => save({ note })}
-                  className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-[2px] border border-[var(--c-line-2)] bg-[var(--c-bg-2)] px-2.5 text-[11px] font-semibold text-[var(--c-text)] hover:border-[var(--c-cyan)] hover:text-[var(--c-cyan)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-[var(--c-line-2)] disabled:hover:text-[var(--c-text)]"
-                >
-                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                <Button variant="outline" size="xs" disabled={saving || note.trim() === (node.note ?? '')} onClick={() => save({ note })}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   메모 저장
-                </button>
-                <label className="ml-auto flex cursor-pointer items-center gap-2 text-[11px] text-[var(--c-text)]">
+                </Button>
+                <label className="ml-auto flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
                   테스트 생성에서 제외
                   <input
                     type="checkbox"
@@ -272,40 +238,44 @@ export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, o
                     disabled={saving}
                     onChange={(e) => save({ excluded: e.target.checked })}
                   />
-                  <span className="relative h-4 w-8 rounded-[2px] border border-[var(--c-line-2)] bg-[var(--c-bg-2)] transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-2.5 after:w-2.5 after:rounded-[1px] after:bg-[var(--c-muted)] after:transition-transform peer-checked:border-[var(--c-amber)] peer-checked:bg-[var(--c-amber)]/15 peer-checked:after:translate-x-4 peer-checked:after:bg-[var(--c-amber)] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--c-cyan)]" />
+                  {/* 상단바 AI 스위치와 같은 모양: 켜면 파란 바탕에 흰 점이 오른쪽으로 간다 */}
+                  <span
+                    aria-hidden="true"
+                    className="relative h-4 w-7 shrink-0 rounded-full border border-border bg-muted transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-2.5 after:w-2.5 after:rounded-full after:bg-muted-foreground after:transition-transform peer-checked:border-primary peer-checked:bg-primary peer-checked:after:translate-x-3 peer-checked:after:bg-primary-foreground peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary peer-disabled:opacity-60"
+                  />
                 </label>
               </div>
             </Section>
 
-            <Section code="04" title="Linked tests" right={<span className="sg-mono text-[10px] text-[var(--c-dim)]">{pad2(detail.tests.length)}</span>}>
+            <Section title="연결된 테스트" right={<span className="text-xs tabular-nums text-muted-foreground">{detail.tests.length}개</span>}>
               {detail.tests.length === 0 ? (
-                <p className="text-[11px] text-[var(--c-muted)]">
+                <p className="text-xs text-muted-foreground">
                   {/* AI를 끄면 테스트를 만들 수 없으니 만들어 보라는 안내도 뺀다 */}
                   {aiActive ? '아직 없습니다. 경로에 추가해 테스트를 만들어 보세요.' : '아직 없습니다.'}
                 </p>
               ) : (
-                <ul className="space-y-1">
+                <ul className="space-y-1.5">
                   {detail.tests.map((test) => (
-                    <li key={test.specPath} className="flex items-center gap-2 rounded-[2px] border border-[var(--c-line)] bg-[var(--c-bg-2)] px-2.5 py-1.5">
+                    <li key={test.specPath} className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2">
                       {test.lastStatus === 'FAILED' ? (
-                        <XCircle className="h-3.5 w-3.5 shrink-0 text-[var(--sg-fail)]" />
+                        <XCircle className="h-4 w-4 shrink-0 text-destructive" />
                       ) : test.lastStatus === 'PASSED' ? (
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[var(--sg-pass)]" />
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
                       ) : (
-                        <CircleDashed className="h-3.5 w-3.5 shrink-0 text-[var(--c-dim)]" />
+                        <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="sg-mono truncate text-[11px] text-[var(--c-text)]" title={test.specPath}>
+                        <p className="truncate font-mono text-xs text-foreground" title={test.specPath}>
                           {test.specPath}
                         </p>
-                        <p className="sg-mono text-[9px] text-[var(--c-dim)]">
+                        <p className="text-[11px] text-muted-foreground">
                           {test.lastStatus
-                            ? `${formatTime(test.lastRunAt)} · PASS ${test.passedCases} · FAIL ${test.failedCases}`
-                            : 'NOT RUN'}
+                            ? `${formatTime(test.lastRunAt)} · 통과 ${test.passedCases} · 실패 ${test.failedCases}`
+                            : '아직 실행하지 않았습니다'}
                         </p>
                       </div>
                       {test.executionId && (
-                        <Link to={`/projects/${projectId}/results`} className="shrink-0 text-[11px] font-bold text-[var(--c-cyan)] hover:underline">
+                        <Link to={`/projects/${projectId}/results`} className="shrink-0 text-xs font-semibold text-primary hover:underline">
                           결과 →
                         </Link>
                       )}
@@ -316,21 +286,32 @@ export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, o
             </Section>
 
             {(outgoing.length > 0 || incoming.length > 0) && (
-              <Section code="05" title="Relations" right={<span className="sg-mono text-[10px] text-[var(--c-dim)]">OUT {pad2(outgoing.length)} · IN {pad2(incoming.length)}</span>}>
-                <ul className="space-y-px">
+              <Section
+                title="연결된 화면"
+                right={
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    나가는 {outgoing.length} · 들어오는 {incoming.length}
+                  </span>
+                }
+              >
+                <ul className="space-y-0.5">
                   {[...outgoing.map((e) => ({ dir: 'out' as const, route: e.to, label: e.label })), ...incoming.map((e) => ({ dir: 'in' as const, route: e.from, label: e.label }))].map((rel, i) => (
                     <li key={i}>
                       <button
                         type="button"
                         onClick={() => onJump(rel.route)}
-                        className="flex w-full cursor-pointer items-center gap-2 rounded-[2px] px-2 py-1 text-left text-[11px] hover:bg-[var(--c-accent)]"
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors hover:bg-accent"
                       >
-                        <span className={`sg-mono w-8 shrink-0 text-[9px] font-bold ${rel.dir === 'out' ? 'text-[var(--c-cyan)]' : 'text-[var(--c-dim)]'}`}>
-                          {rel.dir === 'out' ? 'OUT' : 'IN'}
+                        <span className={cn('w-14 shrink-0 text-xs font-medium', rel.dir === 'out' ? 'text-primary' : 'text-muted-foreground')}>
+                          {rel.dir === 'out' ? '나가는' : '들어오는'}
                         </span>
-                        {rel.dir === 'out' ? <ArrowRight className="h-3 w-3 shrink-0 text-[var(--c-cyan)]" /> : <ArrowLeft className="h-3 w-3 shrink-0 text-[var(--c-dim)]" />}
-                        <span className="sg-mono truncate text-[var(--c-text)]">{rel.route}</span>
-                        {rel.label && <span className="ml-auto truncate text-[var(--c-muted)]">“{rel.label}”</span>}
+                        {rel.dir === 'out' ? (
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-primary" />
+                        ) : (
+                          <ArrowLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        )}
+                        <span className="truncate font-mono text-xs text-foreground">{rel.route}</span>
+                        {rel.label && <span className="ml-auto truncate text-xs text-muted-foreground">“{rel.label}”</span>}
                       </button>
                     </li>
                   ))}
@@ -338,7 +319,7 @@ export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, o
               </Section>
             )}
 
-            <Section code="06" title="Elements" right={<span className="sg-mono text-[10px] text-[var(--c-dim)]">{pad2(detail.elements.length)}</span>}>
+            <Section title="요소" right={<span className="text-xs tabular-nums text-muted-foreground">{detail.elements.length}개</span>}>
               <ElementTable elements={detail.elements} origin={node.origin} stacked />
             </Section>
           </>
