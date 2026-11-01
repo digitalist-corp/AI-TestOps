@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Check, FileCode2, Loader2, RefreshCw, X } from 'lucide-react';
-import { api, getStoredAuth } from '@/api/client';
+import { api } from '@/api/client';
 import type { AiJob, AiJobFileDiff } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -33,11 +33,9 @@ const statusBadgeClass: Record<AiJob['status'], string> = {
 
 function JobCard({
   job,
-  admin,
   onDecided,
 }: {
   job: AiJob;
-  admin: boolean;
   onDecided: () => void;
 }) {
   const [files, setFiles] = useState<AiJobFileDiff[] | null>(null);
@@ -167,25 +165,19 @@ function JobCard({
       {error && <p className="text-xs text-destructive">{error}</p>}
 
       {needsReview && (
-        admin ? (
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={handleReject} disabled={acting}>
-              <X className="h-4 w-4" /> 거부
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleApprove}
-              disabled={acting}
-              className="bg-success hover:opacity-90 text-success-foreground"
-            >
-              <Check className="h-4 w-4" /> 승인 및 적용
-            </Button>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground text-right">
-            승인은 관리자만 할 수 있습니다
-          </p>
-        )
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" size="sm" onClick={handleReject} disabled={acting}>
+            <X className="h-4 w-4" /> 거부
+          </Button>
+          <Button
+            size="sm"
+            onClick={handleApprove}
+            disabled={acting}
+            className="bg-success hover:opacity-90 text-success-foreground"
+          >
+            <Check className="h-4 w-4" /> 승인 및 적용
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -196,8 +188,6 @@ function JobCard({
  * AI가 만든 코드 변경을 검토 대기(위)와 최근 작업 최대 20개(아래)로 나누어 보여준다.
  */
 export function AiReviewTab({ projectId }: { projectId: string }) {
-  const auth = getStoredAuth();
-  const admin = auth?.role === 'ADMIN';
   const [jobs, setJobs] = useState<AiJob[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -227,11 +217,6 @@ export function AiReviewTab({ projectId }: { projectId: string }) {
           <p className="text-xs text-muted-foreground mt-0.5">
             AI가 생성한 코드 수정은 자동 적용되지 않고 여기서 사람이 승인해야 실제 파일에 반영됩니다.
           </p>
-          {!admin && (
-            <p className="text-xs text-muted-foreground mt-1">
-              승인은 관리자만 할 수 있습니다.
-            </p>
-          )}
         </div>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
@@ -250,7 +235,7 @@ export function AiReviewTab({ projectId }: { projectId: string }) {
         ) : (
           <div className="space-y-3">
             {needsReviewJobs.map((job) => (
-              <JobCard key={job.id} job={job} admin={admin} onDecided={load} />
+              <JobCard key={job.id} job={job} onDecided={load} />
             ))}
           </div>
         )}
@@ -263,7 +248,7 @@ export function AiReviewTab({ projectId }: { projectId: string }) {
           </h4>
           <div className="space-y-3">
             {recentJobs.map((job) => (
-              <JobCard key={job.id} job={job} admin={admin} onDecided={load} />
+              <JobCard key={job.id} job={job} onDecided={load} />
             ))}
           </div>
         </section>

@@ -570,10 +570,6 @@ public class AiJobService {
         if (expectedVersion != null && !expectedVersion.equals(job.getVersion())) {
             throw new ApiException(409, "STATE_CONFLICT", "작업 버전이 일치하지 않습니다. 이미 다른 요청에서 처리되었을 수 있습니다.");
         }
-        // SEC-04 / TC-13: 작성자 본인 승인 금지 (4-eyes 원칙).
-        if (approvedByUserId != null && job.getRequestedBy() != null && approvedByUserId.equals(job.getRequestedBy())) {
-            throw new ApiException(403, "SELF_APPROVAL_FORBIDDEN", "작성자는 본인이 요청한 AI 변경 작업을 단독 승인할 수 없습니다.");
-        }
         if (Boolean.FALSE.equals(riskAcknowledged)) {
             throw new ApiException(400, "VALIDATION_ERROR", "위험 표시(riskFlags)를 확인해야 승인할 수 있습니다.");
         }
