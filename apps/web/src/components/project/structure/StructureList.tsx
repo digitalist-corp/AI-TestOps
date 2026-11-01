@@ -110,7 +110,7 @@ export function StructureList({ projectId, siteMap, onError }: {
       <section className="rounded-lg border border-border bg-card">
         <div className="border-b border-border px-4 py-3">
           <h3 className="text-sm font-semibold text-foreground">
-            화면 {nodes.length}개 · 전환 {siteMap.edges.length}개
+            화면 {nodes.length}개 · 연결 {siteMap.edges.length}개
           </h3>
         </div>
         {nodes.length === 0 ? (

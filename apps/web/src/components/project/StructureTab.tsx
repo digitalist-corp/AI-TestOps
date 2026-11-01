@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Globe, GitBranch, List, Loader2, Network, RefreshCw, TriangleAlert, Waypoints } from 'lucide-react';
+import { ChevronDown, Globe, List, Loader2, RefreshCw, Settings2, TriangleAlert, Waypoints } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMap, SiteMapNode } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { formatEta } from '@/components/project/AnalysisProgress';
+import { StructureEmptyState } from './structure/StructureEmptyState';
 import { StructureList } from './structure/StructureList';
 import { GRAPH_MEDIA_QUERY, useMediaQuery } from './structure/useMediaQuery';
 
@@ -23,8 +24,8 @@ const FRAMEWORK_LABEL: Record<string, string> = {
   URL: '사이트 탐색',
 };
 
-function formatTime(iso: string | null) {
-  return iso ? new Date(iso).toLocaleString('ko-KR') : '-';
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function ViewSwitch({ view, onChange }: {
@@ -54,10 +55,12 @@ function ViewSwitch({ view, onChange }: {
 }
 
 /**
- * 화면 구조. 소스 저장소를 연결해 코드에서 찾거나, 저장소 없이 대상 사이트 주소를 브라우저로 탐색해 찾는다.
+ * 구조 — 테스트할 앱에 어떤 화면 · 버튼이 있는지 찾아 두는 지도.
+ * 찾는 방법은 둘: 대상 사이트 주소를 브라우저로 탐색하거나, 소스 저장소의 코드를 분석한다.
  * 사이트 탐색 화면(origin=SITE)의 셀렉터는 실제 화면에서 그 요소 하나만 가리키는 것을 확인한 값이다.
  *
- * 넓은 화면(1024px 이상)은 그래프 보기, 좁은 화면은 목록 보기가 기본이다. 여러 화면을 이어 경로로
+ * 찾은 화면이 없으면 그래프 대신 시작 카드(StructureEmptyState)만 보인다.
+ * 있으면 넓은 화면(1024px 이상)은 그래프 보기, 좁은 화면은 목록 보기가 기본이다. 여러 화면을 이어 경로로
  * 테스트를 만드는 일은 그래프 보기에서만 한다.
  */
 export function StructureTab({ projectId }: { projectId: string }) {
@@ -67,6 +70,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
   const [url, setUrl] = useState('');
   const [branch, setBranch] = useState('');
   const [token, setToken] = useState('');
+  const [showSource, setShowSource] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wide = useMediaQuery(GRAPH_MEDIA_QUERY);
   const [chosenView, setChosenView] = useState<StructureView | null>(null);
@@ -129,6 +133,34 @@ export function StructureTab({ projectId }: { projectId: string }) {
   const hasSiteUrl = Boolean(source.siteUrl);
   const urlRun = analysis.framework === 'URL';
   const sourceChanged = url.trim() !== (source.url ?? '') || branch.trim() !== (source.branch ?? '') || token !== '';
+  const empty = siteMap.nodes.length === 0;
+
+  const findBySite = () => run(() => api.analyzeSiteMapByUrl(projectId));
+  const findByCode = () => run(() => api.analyzeSiteMap(projectId));
+  const siteTitle = hasSiteUrl
+    ? `${source.siteUrl} 를 브라우저로 열어 링크를 따라가며 화면을 찾습니다. 클릭이나 폼 제출은 하지 않으며 최대 3분 걸립니다.`
+    : '프로젝트 설정에서 대상 사이트 주소를 먼저 입력하세요';
+  // 코드로 찾을 수 없는 이유. 찾을 수 있으면 null.
+  const sourceHint = !hasSource
+    ? '저장소 설정에서 소스 저장소를 먼저 연결하세요'
+    : sourceChanged
+      ? '바꾼 저장소 설정을 먼저 저장하세요'
+      : null;
+
+  // 마우스를 올리면 보이는 부가 정보. 화면에서는 상태와 시각만 남기고 나머지는 여기로 접어 둔다.
+  const statusDetail = [
+    analysis.framework ? FRAMEWORK_LABEL[analysis.framework] : null,
+    analysis.commitSha ? `커밋 ${analysis.commitSha.slice(0, 8)}` : null,
+    analysis.status === 'COMPLETED'
+      ? urlRun
+        ? '브라우저로 확인 (AI 호출 0회)'
+        : analysis.llmCalls === 0
+          ? '바뀐 화면 없음 (AI 호출 0회)'
+          : `AI 호출 ${analysis.llmCalls}회`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="space-y-4">
@@ -138,71 +170,9 @@ export function StructureTab({ projectId }: { projectId: string }) {
         </p>
       )}
 
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <GitBranch className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">분석할 소스 저장소</h3>
-        </div>
-        <p className="mb-3 text-xs text-muted-foreground">
-          테스트할 앱의 소스 코드가 있는 GitHub 저장소입니다. React Router 와 Next.js 프로젝트를 읽을 수 있습니다.
-          소스 저장소가 없으면 아래 "사이트 주소로 탐색"으로 대상 사이트를 직접 열어 화면을 찾을 수 있습니다.
-          {source.usesProjectRepository && ' 지금은 따로 연결한 저장소가 없어 프로젝트 저장소를 읽습니다.'}
-        </p>
-        <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] @3xl:items-end">
-          <div className="space-y-1">
-            <Label htmlFor="structure-source-url">저장소 주소</Label>
-            <Input
-              id="structure-source-url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://github.com/owner/repo"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="structure-source-branch">브랜치</Label>
-            <Input
-              id="structure-source-branch"
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="기본 브랜치"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="structure-source-token">액세스 토큰</Label>
-            <Input
-              id="structure-source-token"
-              type="password"
-              autoComplete="off"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder={source.tokenSet ? '변경하려면 새 토큰 입력' : '비공개 저장소일 때만'}
-            />
-          </div>
-          <Button
-            variant="outline"
-            disabled={busy || !sourceChanged}
-            onClick={() =>
-              run(() =>
-                api.updateSiteMapSource(projectId, {
-                  url: url.trim(),
-                  branch: branch.trim(),
-                  token: token === '' ? undefined : token,
-                })
-              )
-            }
-          >
-            저장
-          </Button>
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <div className="flex items-center gap-2">
-              <Network className="h-4 w-4 text-muted-foreground" />
-              <h3 className="text-sm font-semibold text-foreground">구조 분석</h3>
-            </div>
+      <section className="rounded-lg border border-border bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span title={statusDetail || undefined}>
             {analysis.status === 'NONE' && <Badge>분석 전</Badge>}
             {analysis.status === 'RUNNING' && (
               <Badge variant="info">
@@ -221,61 +191,95 @@ export function StructureTab({ projectId }: { projectId: string }) {
               </Badge>
             )}
             {analysis.status === 'FAILED' && <Badge variant="destructive">실패</Badge>}
-            {analysis.framework && (
-              <span className="text-xs text-muted-foreground">{FRAMEWORK_LABEL[analysis.framework]}</span>
-            )}
-            {analysis.commitSha && (
-              <span className="font-mono text-xs text-muted-foreground" title={analysis.commitSha}>
-                커밋 {analysis.commitSha.slice(0, 8)}
-              </span>
-            )}
-            {analysis.finishedAt && (
-              <span className="text-xs text-muted-foreground">{formatTime(analysis.finishedAt)}</span>
-            )}
-            {analysis.status === 'COMPLETED' && (
-              <span className="text-xs text-muted-foreground">
-                {urlRun
-                  ? '브라우저로 확인 (AI 호출 0회)'
-                  : analysis.llmCalls === 0
-                    ? '바뀐 화면 없음 (AI 호출 0회)'
-                    : `AI 호출 ${analysis.llmCalls}회`}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2">
+          </span>
+          {analysis.finishedAt && (
+            <span className="text-xs text-muted-foreground">마지막 분석 {formatTime(analysis.finishedAt)}</span>
+          )}
+
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button
-              variant="outline"
-              disabled={busy || running || !hasSiteUrl}
-              title={hasSiteUrl ? `${source.siteUrl} 를 브라우저로 열어 화면을 찾습니다` : '프로젝트 설정에서 대상 사이트 주소를 먼저 입력하세요'}
-              onClick={() => run(() => api.analyzeSiteMapByUrl(projectId))}
+              variant="ghost"
+              size="sm"
+              aria-expanded={showSource}
+              aria-controls="structure-source-settings"
+              onClick={() => setShowSource((v) => !v)}
             >
+              <Settings2 className="h-4 w-4" />
+              저장소 설정
+              <ChevronDown className={`h-4 w-4 transition-transform ${showSource ? 'rotate-180' : ''}`} />
+            </Button>
+            <Button variant="outline" size="sm" disabled={busy || running || !hasSiteUrl} title={siteTitle} onClick={findBySite}>
               {running && urlRun ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
-              사이트 주소로 탐색
+              사이트 주소로 찾기
             </Button>
             <Button
-              disabled={busy || running || !hasSource || sourceChanged}
-              title={
-                !hasSource
-                  ? '소스 저장소를 먼저 연결하세요'
-                  : sourceChanged
-                    ? '바꾼 저장소 설정을 먼저 저장하세요'
-                    : undefined
-              }
-              onClick={() => run(() => api.analyzeSiteMap(projectId))}
+              variant="outline"
+              size="sm"
+              disabled={busy || running || sourceHint != null}
+              title={sourceHint ?? '저장소 코드를 읽어 화면을 찾습니다'}
+              onClick={findByCode}
             >
-              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              {analysis.status === 'NONE' ? '코드 분석 시작' : '코드 다시 분석'}
+              {running && !urlRun ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              코드로 찾기
             </Button>
           </div>
         </div>
 
-        {analysis.status === 'RUNNING' && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            {urlRun
-              ? '대상 사이트를 브라우저로 열어 같은 호스트의 링크를 따라가며 화면마다 버튼 · 링크 · 입력칸을 모으고, 셀렉터가 실제로 그 요소 하나만 가리키는지 확인합니다. 클릭이나 폼 제출은 하지 않으며 최대 3분 걸립니다.'
-              : '저장소를 받아 화면을 찾고, 화면마다 AI 가 코드를 읽어 요소를 뽑습니다. 화면 하나에 10초쯤 걸리고, 지난번과 코드가 같은 화면은 건너뜁니다.'}
-          </p>
+        {showSource && (
+          <div id="structure-source-settings" className="mt-3 space-y-3 border-t border-border pt-3">
+            <p className="text-xs text-muted-foreground">
+              테스트할 앱의 소스 코드가 있는 GitHub 저장소입니다. React Router 와 Next.js 프로젝트를 읽을 수 있습니다.
+              {source.usesProjectRepository && ' 따로 연결한 저장소가 없어 지금은 프로젝트 저장소를 읽습니다.'}
+            </p>
+            <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] @3xl:items-end">
+              <div className="space-y-1">
+                <Label htmlFor="structure-source-url">저장소 주소</Label>
+                <Input
+                  id="structure-source-url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://github.com/owner/repo"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="structure-source-branch">브랜치</Label>
+                <Input
+                  id="structure-source-branch"
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  placeholder="기본 브랜치"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="structure-source-token">액세스 토큰</Label>
+                <Input
+                  id="structure-source-token"
+                  type="password"
+                  autoComplete="off"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder={source.tokenSet ? '변경하려면 새 토큰 입력' : '비공개 저장소일 때만'}
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={busy || !sourceChanged}
+                onClick={() =>
+                  run(() =>
+                    api.updateSiteMapSource(projectId, {
+                      url: url.trim(),
+                      branch: branch.trim(),
+                      token: token === '' ? undefined : token,
+                    })
+                  )
+                }
+              >
+                저장
+              </Button>
+            </div>
+          </div>
         )}
+
         {analysis.status === 'FAILED' && analysis.errorMessage && (
           <p className="mt-3 rounded-md bg-destructive/5 px-3 py-2 text-sm text-destructive">{analysis.errorMessage}</p>
         )}
@@ -291,7 +295,18 @@ export function StructureTab({ projectId }: { projectId: string }) {
         )}
       </section>
 
-      {view === 'graph' ? (
+      {empty ? (
+        <StructureEmptyState
+          projectId={projectId}
+          running={Boolean(running)}
+          urlRun={urlRun}
+          busy={busy}
+          siteReady={hasSiteUrl}
+          sourceHint={sourceHint}
+          onFindBySite={findBySite}
+          onFindByCode={findByCode}
+        />
+      ) : view === 'graph' ? (
         <Suspense
           fallback={
             <div className="flex h-[660px] items-center justify-center rounded-lg border border-border bg-background">
