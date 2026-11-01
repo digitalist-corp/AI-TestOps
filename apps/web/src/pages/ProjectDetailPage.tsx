@@ -17,6 +17,7 @@ import { AiReviewTab } from '@/components/project/AiReviewTab';
 import { AiTestGenerator } from '@/components/project/AiTestGenerator';
 import { SchedulesTab } from '@/components/project/SchedulesTab';
 import { StructureTab } from '@/components/project/StructureTab';
+import { RecorderTab } from '@/components/project/RecorderTab';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { useRunningAnalyses } from '@/hooks/useRunningAnalyses';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
@@ -644,6 +645,20 @@ export function ProjectDetailPage() {
               onRunSuite={handleRunSuite}
               onOpenFile={handleOpenFile}
               onViewExecution={handleSelectExecution}
+            />
+          )}
+
+          {activeTab === 'recorder' && (
+            <RecorderTab
+              key={projectId}
+              project={project}
+              onSaved={() => {
+                // 새 테스트 파일이 파일 목록 · 케이스 목록에 보이도록 다시 읽는다.
+                loadFiles().catch(() => undefined);
+                loadScenarios().catch(() => undefined);
+              }}
+              onOpenTests={() => goTab('scenarios')}
+              onRun={(specPath, title) => handleRun({ specPath, caseTitle: title || specPath })}
             />
           )}
 

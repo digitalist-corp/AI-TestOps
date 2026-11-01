@@ -907,3 +907,80 @@ export type ChatStreamEvent =
   | { type: 'error'; data: { message: string } }
   | { type: 'message_end'; data: { messageId: number; stopReason: StopReason } };
 
+
+// ── 클릭으로 테스트 만들기(녹화). 계약: docs/design/recorder-contract.md ──
+
+export type RecorderStatus = 'STARTING' | 'READY' | 'BUSY' | 'CLOSED' | 'ERROR';
+
+export type RecordedStepAction =
+  | 'goto'
+  | 'click'
+  | 'fill'
+  | 'press'
+  | 'assertVisible'
+  | 'assertText';
+
+export interface RecordedStep {
+  id: string;
+  action: RecordedStepAction;
+  /** Playwright 로케이터 식. 예: getByRole('button', { name: '로그인' }) */
+  selector: string | null;
+  /** .nth() 순번에 기대는 셀렉터 */
+  fragile: boolean;
+  /** 사람이 읽는 설명. 예: "'로그인' 버튼 클릭" */
+  label: string;
+  /** fill · press · assertText 의 값, goto 의 경로 */
+  value?: string;
+  /** 비밀번호 입력이면 값을 저장하지 않고 이 환경변수 이름으로 코드에 넣는다 */
+  secretEnv?: string;
+  /** 동작 직후 주소 */
+  url: string;
+}
+
+/** inspect 응답에 붙는, 마우스 아래 요소 정보. box 는 viewport 좌표. */
+export interface RecorderInspected {
+  role: string | null;
+  name: string | null;
+  selector: string | null;
+  fragile: boolean;
+  tag: string;
+  box: { x: number; y: number; width: number; height: number };
+}
+
+export interface RecorderViewport {
+  width: number;
+  height: number;
+}
+
+export interface RecorderState {
+  sessionId: string;
+  status: RecorderStatus;
+  url: string | null;
+  title: string | null;
+  viewport: RecorderViewport;
+  steps: RecordedStep[];
+  /** 화면이 바뀔 때마다 1씩 증가. 화면은 이 값으로 다시 받는다 */
+  screenshotVersion: number;
+  error?: string | null;
+  inspected?: RecorderInspected | null;
+}
+
+export type RecorderAction =
+  | { type: 'click'; x: number; y: number }
+  | { type: 'fill'; x: number; y: number; value: string }
+  | { type: 'press'; key: string }
+  | { type: 'goto'; url: string }
+  | { type: 'assertVisible'; x: number; y: number }
+  | { type: 'assertText'; x: number; y: number }
+  | { type: 'scroll'; deltaY: number }
+  | { type: 'inspect'; x: number; y: number };
+
+export interface RecorderStartRequest {
+  url?: string;
+  useLogin?: boolean;
+}
+
+export interface RecorderCode {
+  specPath: string;
+  code: string;
+}
