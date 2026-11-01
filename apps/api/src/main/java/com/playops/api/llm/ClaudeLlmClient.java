@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Component
 public class ClaudeLlmClient extends AbstractHttpLlmClient {
@@ -29,29 +30,16 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
     @Override
     public LlmResult chat(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages,
                           List<LlmToolSpec> tools) {
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", claudeModel);
-        body.put("max_tokens", 4096);
-        body.put("system", systemPrompt);
-        body.put("messages", toPayloadMessages(messages));
-        if (tools != null && !tools.isEmpty()) {
-            body.put("tools", toPayloadTools(tools));
-        }
+        Map<String, Object> body = requestBody(systemPrompt, messages, tools, 4096);
 
         // 워크스페이스에 연결된(identity-linked) API 키는 x-api-key만으로는 인증이 거부되고
         // 어느 워크스페이스로 요청을 보낼지 별도 헤더로 명시해야 한다. 일반 키는 이 값이 없어도 그대로 동작한다.
-        String workspaceId = credentials.workspaceId();
+        Map<String, String> authHeaders = authHeaders(credentials);
 
         try {
             String responseJson = restClient().post()
                     .uri(MESSAGES_URL)
-                    .headers(headers -> {
-                        headers.set("x-api-key", credentials.apiKey());
-                        headers.set("anthropic-version", "2023-06-01");
-                        if (workspaceId != null && !workspaceId.isBlank()) {
-                            headers.set("anthropic-workspace-id", workspaceId);
-                        }
-                    })
+                    .headers(headers -> authHeaders.forEach(headers::set))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
@@ -63,6 +51,50 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
         } catch (Exception e) {
             throw new ApiException(502, "Claude API 호출 실패: " + e.getMessage());
         }
+    }
+
+    /** stream: true 로 호출해 text_delta 를 그대로 흘려 준다. 채팅 답변은 길어질 수 있어 max_tokens 를 넉넉히 둔다. */
+    @Override
+    public LlmResult chatStream(LlmCredentials credentials, String systemPrompt, List<LlmMessage> messages,
+                                List<LlmToolSpec> tools, Consumer<String> onTextDelta) {
+        Map<String, Object> body = requestBody(systemPrompt, messages, tools, 8192);
+        body.put("stream", true);
+        ClaudeStreamParser parser = new ClaudeStreamParser(objectMapper, claudeModel, onTextDelta);
+        try {
+            postStreaming(MESSAGES_URL, authHeaders(credentials), body, "Claude", parser::accept);
+            return parser.result();
+        } catch (ApiException e) {
+            throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(502, "Claude API 호출이 중단되었습니다.");
+        } catch (Exception e) {
+            throw new ApiException(502, "Claude API 호출 실패: " + e.getMessage());
+        }
+    }
+
+    private Map<String, Object> requestBody(String systemPrompt, List<LlmMessage> messages,
+                                            List<LlmToolSpec> tools, int maxTokens) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", claudeModel);
+        body.put("max_tokens", maxTokens);
+        body.put("system", systemPrompt);
+        body.put("messages", toPayloadMessages(messages));
+        if (tools != null && !tools.isEmpty()) {
+            body.put("tools", toPayloadTools(tools));
+        }
+        return body;
+    }
+
+    private Map<String, String> authHeaders(LlmCredentials credentials) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("x-api-key", credentials.apiKey());
+        headers.put("anthropic-version", "2023-06-01");
+        String workspaceId = credentials.workspaceId();
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            headers.put("anthropic-workspace-id", workspaceId);
+        }
+        return headers;
     }
 
     private LlmResult parseResponse(String responseJson) throws Exception {
@@ -80,7 +112,7 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
                     toolCalls.add(new LlmToolCall(
                             block.path("id").asText(),
                             block.path("name").asText(),
-                            toArgumentMap(block.path("input"))
+                            ToolArguments.fromNode(block.path("input"))
                     ));
                 }
             }
@@ -151,18 +183,6 @@ public class ClaudeLlmClient extends AbstractHttpLlmClient {
             ));
         }
         return payload;
-    }
-
-    private Map<String, Object> toArgumentMap(JsonNode input) {
-        if (input == null || !input.isObject()) {
-            return Map.of();
-        }
-        Map<String, Object> arguments = new LinkedHashMap<>();
-        input.fields().forEachRemaining(entry -> {
-            JsonNode value = entry.getValue();
-            arguments.put(entry.getKey(), value.isValueNode() ? value.asText() : value.toString());
-        });
-        return arguments;
     }
 
     private String roleOf(LlmMessage message) {
