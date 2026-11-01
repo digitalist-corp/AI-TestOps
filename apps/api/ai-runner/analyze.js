@@ -12,10 +12,11 @@
 //   · 상호작용 요소가 0개인 대상(예: Flutter Web CanvasKit)은 VISUAL_REQUIRED 로 표시하고 멈춘다.
 //     시각 기반 탐색은 이후 단계에서 붙인다.
 //
-// 입력  job.json  { jobType: 'SITE_ANALYSIS', jobId, baseUrl, seedUrls?, limits?, excludePatterns?, auth? }
+// 입력  job.json  { jobType: 'SITE_ANALYSIS', jobId, baseUrl, seedUrls?, limits?, excludePatterns?, auth?, login? }
 //        seedUrls — 링크로 닿지 않는 화면(버튼으로만 이동하는 SPA 화면 등)의 시작점.
 //                   저장소 코드 분석이 붙으면 코드에서 뽑은 라우트가 여기로 들어온다.
-// 출력  <resultDir>/result.json  +  <resultDir>/screens/*.jpg
+//        login    — { url?, idValue, passwordValue } 탐색 전 로그인 화면에서 계정을 입력해 세션을 만든다.
+// 출력  <resultDir>/result.json  +  <resultDir>/progress.jsonl  +  <resultDir>/screens/*.jpg
 'use strict';
 
 const fs = require('fs');
@@ -164,6 +165,7 @@ function collectInPage({ selector, idxAttr, maxElements }) {
       idx,
       tag: el.tagName.toLowerCase(),
       type: el.getAttribute('type') || null,
+      attrName: el.getAttribute('name') || null,
       role: implicitRole(el),
       name: nameOf(el),
       nameAlt: (() => {
@@ -337,6 +339,161 @@ async function waitSettled(page, requests) {
   }
 }
 
+/**
+ * 비밀번호 입력란(type=password)이 있는 화면이면 그 폼(또는 화면)의 입력 칸 목록을 추려 돌려준다.
+ * 비밀번호 입력란이 없으면 null 을 돌려준다.
+ */
+function extractLoginFields(elements) {
+  const pwEl = (elements || []).find(
+    (e) => e.tag === 'input' && (e.type || '').toLowerCase() === 'password'
+  );
+  if (!pwEl) return null;
+  const nonTextTypes = new Set(['hidden', 'submit', 'button', 'reset', 'image', 'checkbox', 'radio', 'file']);
+  const candidates = (elements || []).filter((e) => {
+    if (e.tag !== 'input') return false;
+    const t = (e.type || 'text').toLowerCase();
+    if (nonTextTypes.has(t)) return false;
+    if (pwEl.inForm !== null && pwEl.inForm !== undefined) {
+      return e.inForm === pwEl.inForm;
+    }
+    return true;
+  });
+  return candidates.map((e) => {
+    const type = (e.type || 'text').toLowerCase();
+    return {
+      name: e.attrName || e.id || e.name || type,
+      label: e.label || e.name || e.placeholder || e.attrName || type,
+      type,
+    };
+  });
+}
+
+/**
+ * 탐색 전에 로그인 화면에서 아이디 · 비밀번호 칸을 찾아 제출한다.
+ * 비밀번호는 로그 · progress · result 어디에도 남기지 않는다.
+ */
+async function performLogin(page, requests, login, entry, emitProgress, warnings) {
+  if (!login || !login.idValue || !login.passwordValue) return { ok: false };
+  const loginUrl = normalizeUrl(login.url || entry, entry) || entry;
+  const scrub = (msg) => {
+    let text = String(msg || '');
+    if (login.passwordValue) {
+      text = text.split(String(login.passwordValue)).join('***');
+    }
+    return text.split('\n')[0];
+  };
+
+  try {
+    await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+    await waitSettled(page, requests);
+
+    const found = await page.evaluate(() => {
+      const visible = (el) => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return false;
+        const cs = getComputedStyle(el);
+        return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0';
+      };
+      document.querySelectorAll('[data-ait-login]').forEach((el) => el.removeAttribute('data-ait-login'));
+      const inputs = Array.from(document.querySelectorAll('input')).filter(visible);
+      const pwIdx = inputs.findIndex((el) => (el.getAttribute('type') || '').toLowerCase() === 'password');
+      if (pwIdx < 0) {
+        return { ok: false, reason: '로그인 화면에서 비밀번호 입력란을 찾지 못했습니다.' };
+      }
+      const pwEl = inputs[pwIdx];
+      pwEl.setAttribute('data-ait-login', 'pw');
+
+      const isIdCandidate = (el) => {
+        const t = (el.getAttribute('type') || 'text').toLowerCase();
+        return ['text', 'email', 'tel', 'search', 'number', ''].includes(t);
+      };
+      const form = pwEl.closest('form');
+      let idEl = null;
+      for (let i = pwIdx - 1; i >= 0; i -= 1) {
+        if (isIdCandidate(inputs[i]) && (!form || inputs[i].closest('form') === form)) {
+          idEl = inputs[i];
+          break;
+        }
+      }
+      if (!idEl) {
+        for (let i = pwIdx - 1; i >= 0; i -= 1) {
+          if (isIdCandidate(inputs[i])) {
+            idEl = inputs[i];
+            break;
+          }
+        }
+      }
+      if (!idEl && form) {
+        idEl = inputs.find((el) => el !== pwEl && isIdCandidate(el) && el.closest('form') === form) || null;
+      }
+      if (!idEl) {
+        return { ok: false, reason: '로그인 화면에서 아이디 입력란을 찾지 못했습니다.' };
+      }
+      idEl.setAttribute('data-ait-login', 'id');
+
+      const scope = form || document;
+      const buttons = Array.from(
+        scope.querySelectorAll('button, input[type="submit"], input[type="button"], [role="button"]')
+      ).filter(visible);
+      const submitEl =
+        buttons.find((b) => (b.getAttribute('type') || '').toLowerCase() === 'submit')
+        || buttons.find((b) => {
+          const tag = b.tagName.toLowerCase();
+          const t = (b.getAttribute('type') || 'submit').toLowerCase();
+          return tag === 'button' && t !== 'button' && t !== 'reset';
+        })
+        || buttons.find((b) => /로그인|login|sign\s*in|확인|제출/i.test(b.innerText || b.value || b.getAttribute('aria-label') || ''))
+        || buttons[0]
+        || null;
+      if (submitEl) submitEl.setAttribute('data-ait-login', 'submit');
+      return { ok: true, hasSubmit: Boolean(submitEl) };
+    });
+
+    if (!found.ok) {
+      warnings.push(found.reason);
+      emitProgress({ type: 'login_failed', message: found.reason });
+      return { ok: false };
+    }
+
+    const beforeUrl = normalizeUrl(page.url());
+    await page.locator('[data-ait-login="id"]').fill(String(login.idValue));
+    await page.locator('[data-ait-login="pw"]').fill(String(login.passwordValue));
+    if (found.hasSubmit) {
+      await page.locator('[data-ait-login="submit"]').click();
+    } else {
+      await page.locator('[data-ait-login="pw"]').press('Enter');
+    }
+
+    await waitSettled(page, requests);
+    for (let i = 0; i < 8; i += 1) {
+      const cur = normalizeUrl(page.url());
+      const pwCount = await page.locator('input[type="password"]:visible').count().catch(() => 0);
+      if (cur !== beforeUrl || pwCount === 0) break;
+      await page.waitForTimeout(250);
+    }
+
+    const afterUrl = normalizeUrl(page.url());
+    const pwStillVisible = (await page.locator('input[type="password"]:visible').count().catch(() => 0)) > 0;
+    if (afterUrl !== beforeUrl || !pwStillVisible) {
+      return { ok: true, landedUrl: afterUrl };
+    }
+
+    const message = '로그인에 실패했습니다. 아이디 또는 비밀번호를 확인하세요.';
+    warnings.push(message);
+    emitProgress({ type: 'login_failed', message });
+    return { ok: false };
+  } catch (e) {
+    const message = `로그인 처리 중 오류: ${scrub(e.message || e)}`;
+    warnings.push(message);
+    emitProgress({ type: 'login_failed', message });
+    return { ok: false };
+  } finally {
+    await page.evaluate(() => {
+      document.querySelectorAll('[data-ait-login]').forEach((el) => el.removeAttribute('data-ait-login'));
+    }).catch(() => {});
+  }
+}
+
 async function runSiteAnalysis(job, resultDir) {
   const { chromium } = require('@playwright/test');
   const started = Date.now();
@@ -348,6 +505,16 @@ async function runSiteAnalysis(job, resultDir) {
 
   const screensDir = path.join(resultDir, 'screens');
   fs.mkdirSync(screensDir, { recursive: true });
+  const progressPath = path.join(resultDir, 'progress.jsonl');
+  fs.writeFileSync(progressPath, '', 'utf-8');
+  const emitProgress = (event) => {
+    const line = JSON.stringify({ ts: new Date().toISOString(), ...event }) + '\n';
+    try {
+      fs.appendFileSync(progressPath, line, 'utf-8');
+    } catch {
+      // 진행 파일 기록 실패가 탐색 자체를 멈추게 하지 않는다.
+    }
+  };
 
   const browser = await chromium.launch();
   const contextOptions = { viewport: { width: 1280, height: 800 }, locale: 'ko-KR' };
@@ -365,6 +532,10 @@ async function runSiteAnalysis(job, resultDir) {
   const redirects = [];
   const rawEdges = [];
   const warnings = [];
+  const warn = (message) => {
+    warnings.push(message);
+    emitProgress({ type: 'warning', message });
+  };
   const skipped = { external: 0, excluded: 0, depth: 0, pageLimit: 0 };
   const queue = [{ url: entry, depth: 0 }];
   const queued = new Set([entry]);
@@ -378,22 +549,35 @@ async function runSiteAnalysis(job, resultDir) {
   let mode = 'DOM';
 
   try {
+    if (job.login && job.login.idValue && job.login.passwordValue) {
+      const loginOutcome = await performLogin(page, requests, job.login, entry, emitProgress, warnings);
+      if (loginOutcome.ok && loginOutcome.landedUrl) {
+        try {
+          if (new URL(loginOutcome.landedUrl).host === host && !queued.has(loginOutcome.landedUrl)) {
+            queued.add(loginOutcome.landedUrl);
+            queue.unshift({ url: loginOutcome.landedUrl, depth: 0 });
+          }
+        } catch { /* 유효하지 않은 URL 무시 */ }
+      }
+    }
+
     while (queue.length > 0) {
       if (Date.now() - started > limits.timeoutMs) {
-        warnings.push(`시간 상한(${limits.timeoutMs}ms)에 도달해 탐색을 멈췄습니다. 남은 대기 ${queue.length}건`);
+        warn(`시간 상한(${limits.timeoutMs}ms)에 도달해 탐색을 멈췄습니다. 남은 대기 ${queue.length}건`);
         break;
       }
       if (nodes.length >= limits.maxPages) {
         skipped.pageLimit += queue.length;
-        warnings.push(`페이지 수 상한(${limits.maxPages})에 도달했습니다. 남은 대기 ${queue.length}건`);
+        warn(`페이지 수 상한(${limits.maxPages})에 도달했습니다. 남은 대기 ${queue.length}건`);
         break;
       }
       const { url, depth, seed } = queue.shift();
 
+      emitProgress({ type: 'visit', url, depth });
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded' });
       } catch (e) {
-        warnings.push(`열기 실패: ${url} — ${String(e.message || e).split('\n')[0]}`);
+        warn(`열기 실패: ${url} — ${String(e.message || e).split('\n')[0]}`);
         continue;
       }
       await waitSettled(page, requests);
@@ -415,10 +599,12 @@ async function runSiteAnalysis(job, resultDir) {
       // 첫 화면에 상호작용 요소가 하나도 없으면 DOM 경로로는 더 볼 것이 없다.
       if (nodes.length === 0 && collected.interactiveCount === 0) {
         mode = 'VISUAL_REQUIRED';
-        warnings.push('첫 화면에 상호작용 가능한 DOM 요소가 없습니다. 화면을 캔버스로 그리는 대상(예: Flutter Web)일 수 있어 시각 기반 탐색이 필요합니다.');
+        warn('첫 화면에 상호작용 가능한 DOM 요소가 없습니다. 화면을 캔버스로 그리는 대상(예: Flutter Web)일 수 있어 시각 기반 탐색이 필요합니다.');
       }
 
+      const loginFields = extractLoginFields(collected.elements);
       for (const el of collected.elements) {
+        delete el.attrName;
         Object.assign(el, await resolveSelector(page, el));
       }
 
@@ -443,6 +629,17 @@ async function runSiteAnalysis(job, resultDir) {
       nodes.push(node);
       byUrl.set(url, id);
       byUrl.set(finalUrl, id);
+
+      emitProgress({
+        type: 'screen',
+        url: finalUrl,
+        title: node.title,
+        elements: collected.elements.length,
+        screenshot: shot,
+      });
+      if (loginFields) {
+        emitProgress({ type: 'login_form', url: finalUrl, fields: loginFields });
+      }
 
       if (mode === 'VISUAL_REQUIRED') break;
 
@@ -505,10 +702,11 @@ async function runSiteAnalysis(job, resultDir) {
     edges,
   };
   fs.writeFileSync(path.join(resultDir, 'result.json'), JSON.stringify(result, null, 2));
+  emitProgress({ type: 'done' });
   console.log(`[analyze] ${mode} · 화면 ${nodes.length} · 전환 ${edges.length} · 요소 ${elementCount} · `
     + `검증된 셀렉터 ${uniqueCount} (${result.stats.selectorCoverage}%) · 불안정 ${fragileCount} · `
     + `없음 ${result.stats.noSelector} · ${result.durationMs}ms`);
   return result;
 }
 
-module.exports = { runSiteAnalysis, normalizeUrl };
+module.exports = { runSiteAnalysis, normalizeUrl, extractLoginFields };

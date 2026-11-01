@@ -38,4 +38,29 @@ public final class ProjectEnvVariables {
     public static void validate(String json) {
         parse(json);
     }
+
+    /** 기존 환경변수 JSON 에 새 키 · 값을 병합해 JSON 문자열로 돌려준다. 기존 키는 그대로 보존한다. */
+    public static String merge(String existingJson, Map<String, String> additions) {
+        Map<String, String> merged = new LinkedHashMap<>();
+        if (existingJson != null && !existingJson.isBlank()) {
+            try {
+                merged.putAll(parse(existingJson));
+            } catch (ApiException ignored) {
+                // 기존 값이 깨져 있으면 빈 맵에서 시작한다.
+            }
+        }
+        if (additions != null) {
+            for (Map.Entry<String, String> entry : additions.entrySet()) {
+                if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null) {
+                    continue;
+                }
+                merged.put(entry.getKey().trim(), entry.getValue());
+            }
+        }
+        try {
+            return MAPPER.writeValueAsString(merged);
+        } catch (Exception e) {
+            throw new ApiException(500, "환경변수 직렬화 실패: " + e.getMessage());
+        }
+    }
 }

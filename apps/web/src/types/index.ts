@@ -494,12 +494,37 @@ export interface AiTemplateResponse {
 
 export type AiBootstrapPhase =
   | 'ANALYZING_SITE'
+  | 'NEEDS_CREDENTIALS'
+  | 'LOGGING_IN'
   | 'GENERATING'
   | 'RUNNING'
   | 'HEALING'
   | 'PASSED'
   | 'FAILED'
   | 'ERROR';
+
+export interface AiBootstrapLoginField {
+  name: string | null;
+  label: string | null;
+  type: string | null;
+}
+
+export interface AiBootstrapProgressEvent {
+  ts?: string | null;
+  type: 'visit' | 'screen' | 'login_form' | 'login_failed' | 'warning' | 'done' | string;
+  url?: string | null;
+  depth?: number | null;
+  title?: string | null;
+  elements?: number | null;
+  screenshot?: string | null;
+  message?: string | null;
+  fields?: AiBootstrapLoginField[] | null;
+}
+
+export interface AiBootstrapCredentialRequest {
+  url: string;
+  fields: AiBootstrapLoginField[];
+}
 
 /** 첫 테스트 생성(사이트 탐색 → 코드 생성 → 실행 → 자율 교정)의 현재 상태. 시작 요청과 상태 조회가 같은 모양이다. */
 export interface AiBootstrapResponse {
@@ -520,6 +545,10 @@ export interface AiBootstrapResponse {
   failureLog: string | null;
   startedAt: string;
   finishedAt: string | null;
+  events?: AiBootstrapProgressEvent[];
+  currentUrl?: string | null;
+  visitedCount?: number;
+  credentialRequest?: AiBootstrapCredentialRequest | null;
 }
 
 export interface AiEditAssistVerifyResponse {

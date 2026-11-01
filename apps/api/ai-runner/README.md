@@ -29,19 +29,22 @@ API 키를 받지 않으며, LLM 이 필요하면 api 의 내부 프록시(`/int
   "seedUrls": ["/projects/example.com/dashboard"],
   "limits": { "maxPages": 20, "maxDepth": 3, "timeoutMs": 180000 },
   "excludePatterns": ["/admin/danger"],
-  "auth": { "storageStatePath": "/work/state.json" }
+  "auth": { "storageStatePath": "/work/state.json" },
+  "login": { "url": "/login", "idValue": "admin", "passwordValue": "secret" }
 }
 ```
 
 - `seedUrls` — 링크로 닿지 않는 화면(버튼으로만 이동하는 SPA 화면)의 시작점. 저장소 코드 분석이
   붙으면 코드에서 뽑은 라우트가 여기로 들어온다.
 - `auth.storageStatePath` — 로그인된 세션. 프로젝트의 "로그인 선행 시나리오"가 만든 파일을 쓴다.
+- `login` — 탐색 전에 로그인 화면에서 아이디 · 비밀번호 칸을 찾아 제출한 뒤 그 세션으로 탐색한다(비밀번호는 로그 · 결과에 남기지 않음).
 - 경로에 `logout · delete · remove` 등이 들어간 링크는 따라가지 않는다.
 
-### 출력 — `result.json` + `screens/*.jpg`
+### 출력 — `result.json` + `progress.jsonl` + `screens/*.jpg`
 
 | 필드 | 내용 |
 |---|---|
+| `progress.jsonl` | 탐색 중 한 줄씩 쌓이는 진행 이벤트(`visit`, `screen`, `login_form`, `login_failed`, `warning`, `done`) |
 | `mode` | `DOM` 또는 `VISUAL_REQUIRED`(첫 화면에 상호작용 요소가 없음 — 캔버스 렌더 대상) |
 | `stats` | 화면 · 전환 · 요소 수, 검증된 셀렉터 수와 비율, 불안정 · 없음 개수 |
 | `nodes[]` | 화면. URL · 제목 · 깊이 · 스크린샷 · 요소 목록 · 폼 · 접근성 트리(ariaSnapshot) |

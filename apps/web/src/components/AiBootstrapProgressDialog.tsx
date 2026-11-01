@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { CheckCircle2, Loader2, Sparkles, TriangleAlert, Wrench, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CheckCircle2, KeyRound, Loader2, Sparkles, TriangleAlert, Wrench, X, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AiBootstrapPhase, AiBootstrapResponse } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +12,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
+import {
+  formatDisplayPath,
+  resolveCredentialLabels,
+  toBootstrapTimelineItems,
+} from '@/lib/bootstrapTimeline';
 
 interface Props {
   open: boolean;
@@ -19,11 +26,13 @@ interface Props {
   onOpenProject: () => void;
 }
 
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 1000;
 const FINISHED: AiBootstrapPhase[] = ['PASSED', 'FAILED', 'ERROR'];
-/** 진행 단계의 순서. HEALING 뒤에는 다시 RUNNING 으로 돌아가므로 순서 비교에서 RUNNING 과 같은 자리로 본다. */
+/** 진행 단계의 순서. NEEDS_CREDENTIALS · LOGGING_IN 은 사이트 분석 단계에 속하고, HEALING 은 RUNNING 과 같은 자리로 본다. */
 const ORDER: Record<AiBootstrapPhase, number> = {
   ANALYZING_SITE: 0,
+  NEEDS_CREDENTIALS: 0,
+  LOGGING_IN: 0,
   GENERATING: 1,
   RUNNING: 2,
   HEALING: 2,
@@ -49,12 +58,64 @@ function StepRow({ state, children }: { state: StepState; children: ReactNode })
   );
 }
 
+function ScreenThumbnail({
+  projectId,
+  bootstrapId,
+  file,
+  alt,
+  onPreview,
+}: {
+  projectId: string;
+  bootstrapId: string;
+  file: string;
+  alt: string;
+  onPreview: (url: string, title: string) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    api
+      .fetchAiBootstrapScreenshot(projectId, bootstrapId, file)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [projectId, bootstrapId, file]);
+
+  if (!url) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onPreview(url, alt)}
+      title="크게 보기"
+      className="shrink-0 overflow-hidden rounded border border-border bg-card transition hover:border-primary"
+    >
+      <img src={url} alt={alt} className="h-8 w-12 object-cover" />
+    </button>
+  );
+}
+
 export function AiBootstrapProgressDialog({ open, projectId, instruction, onClose, onOpenProject }: Props) {
   const [status, setStatus] = useState<AiBootstrapResponse | null>(null);
   const [error, setError] = useState('');
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [loginId, setLoginId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [submittingCredentials, setSubmittingCredentials] = useState(false);
+  const [credentialError, setCredentialError] = useState('');
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
   const startedAt = useRef<number>(0);
   const startedRef = useRef(false);
+  const timelineRef = useRef<HTMLDivElement | null>(null);
 
   const runBootstrap = useCallback(async () => {
     startedAt.current = Date.now();
@@ -89,7 +150,17 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
     return () => clearInterval(timer);
   }, [inProgress]);
 
+  const timelineItems = useMemo(() => toBootstrapTimelineItems(status?.events), [status?.events]);
+
+  useEffect(() => {
+    if (!timelineRef.current) return;
+    timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+  }, [timelineItems.length]);
+
   const stepState = (step: AiBootstrapPhase): StepState => {
+    if (step === 'ANALYZING_SITE' && (phase === 'ANALYZING_SITE' || phase === 'NEEDS_CREDENTIALS' || phase === 'LOGGING_IN')) {
+      return 'active';
+    }
     if (phase === step) return 'active';
     if (phase === 'ERROR') return ORDER[step] < ORDER[status?.phase ?? 'ANALYZING_SITE'] ? 'done' : 'pending';
     return ORDER[phase] > ORDER[step] ? 'done' : 'pending';
@@ -100,20 +171,70 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
   const maxHeal = status?.maxHealAttempts ?? 2;
   const files = status?.generatedFiles ?? [];
   const warnings = status?.warnings ?? [];
+  const currentUrl = status?.currentUrl ?? null;
+  const visitedCount = status?.visitedCount ?? 0;
+  const credentialRequest = status?.credentialRequest ?? null;
+  const { idLabel, passwordLabel } = resolveCredentialLabels(credentialRequest?.fields);
+  const loginDisplayPath = formatDisplayPath(credentialRequest?.url || '/login');
   // 처음 실행은 테스트 실행 환경(도커 이미지)을 받느라 몇 분 걸릴 수 있다.
   const takingLong = inProgress && elapsedMs > 120_000;
 
   const analyzeLabel = (() => {
-    if (phase === 'ANALYZING_SITE') return '사이트에 접속해 화면 요소와 버튼을 파악하는 중';
+    if (phase === 'NEEDS_CREDENTIALS') return '로그인 화면을 발견해 계정 입력을 기다리는 중';
+    if (phase === 'LOGGING_IN') return '입력한 계정으로 로그인해 화면 요소를 다시 파악하는 중';
+    if (phase === 'ANALYZING_SITE') {
+      return visitedCount > 0
+        ? `사이트에 접속해 화면 요소와 버튼을 파악하는 중 (${visitedCount}개 주소 방문)`
+        : '사이트에 접속해 화면 요소와 버튼을 파악하는 중';
+    }
     if (!site) return '이미 분석된 화면 정보를 사용합니다';
     if (site.mode === 'ERROR') return '사이트 탐색 실패 — 화면 정보 없이 진행합니다';
     if (site.mode === 'VISUAL_REQUIRED') return '캔버스로 그리는 사이트라 화면 요소를 읽지 못했습니다';
     return `사이트 화면 ${site.pages}개 탐색 · 실측 셀렉터 ${site.verifiedSelectors}개 확인`;
   })();
 
+  const handleSaveCredentials = async () => {
+    if (!status?.bootstrapId || submittingCredentials) return;
+    if (!loginId.trim() || !loginPassword) {
+      setCredentialError('아이디와 비밀번호를 모두 입력하세요.');
+      return;
+    }
+    setSubmittingCredentials(true);
+    setCredentialError('');
+    try {
+      const next = await api.submitAiBootstrapCredentials(projectId, status.bootstrapId, {
+        loginId: loginId.trim(),
+        password: loginPassword,
+        loginPath: loginDisplayPath,
+      });
+      setLoginPassword('');
+      setStatus(next);
+    } catch (err) {
+      setCredentialError(err instanceof Error ? err.message : '로그인 정보 저장에 실패했습니다.');
+    } finally {
+      setSubmittingCredentials(false);
+    }
+  };
+
+  const handleSkipCredentials = async () => {
+    if (!status?.bootstrapId || submittingCredentials) return;
+    setSubmittingCredentials(true);
+    setCredentialError('');
+    try {
+      const next = await api.submitAiBootstrapCredentials(projectId, status.bootstrapId, {
+        skip: true,
+      });
+      setStatus(next);
+    } catch (err) {
+      setCredentialError(err instanceof Error ? err.message : '요청 처리에 실패했습니다.');
+    } finally {
+      setSubmittingCredentials(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <DialogContent>
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-1.5">
             <Sparkles className="h-4 w-4 text-ai-accent" />
@@ -147,6 +268,130 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
               </div>
             )}
           </div>
+
+          {(currentUrl || timelineItems.length > 0) && (
+            <div className="rounded-lg border border-border bg-card p-3 text-xs">
+              {currentUrl && (
+                <div className="mb-2 flex items-center justify-between gap-2 border-b border-border pb-2">
+                  <span className="truncate font-bold text-foreground" title={currentUrl}>
+                    현재 주소: {currentUrl}
+                  </span>
+                  {visitedCount > 0 && (
+                    <span className="shrink-0 text-[11px] text-muted-foreground">방문 {visitedCount}곳</span>
+                  )}
+                </div>
+              )}
+              {timelineItems.length > 0 && (
+                <div ref={timelineRef} className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                  {timelineItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center justify-between gap-2 rounded px-1.5 py-1 ${
+                        item.kind === 'warning'
+                          ? 'bg-warning/10 text-warning'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate">{item.text}</span>
+                      {item.screenshotFile && status?.bootstrapId && (
+                        <ScreenThumbnail
+                          projectId={projectId}
+                          bootstrapId={status.bootstrapId}
+                          file={item.screenshotFile}
+                          alt={item.title || item.path || '화면 스크린샷'}
+                          onPreview={(url, title) => setPreview({ url, title })}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {preview && (
+            <div className="rounded-lg border border-border bg-muted/40 p-2.5">
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <span className="truncate text-xs font-medium text-foreground">{preview.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setPreview(null)}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  aria-label="미리보기 닫기"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <img
+                src={preview.url}
+                alt={preview.title}
+                className="max-h-64 w-full rounded border border-border object-contain bg-background"
+              />
+            </div>
+          )}
+
+          {phase === 'NEEDS_CREDENTIALS' && (
+            <div className="space-y-3 rounded-lg border border-primary/40 bg-primary-subtle/40 p-4">
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <KeyRound className="h-4 w-4 text-primary" />
+                <span>이 사이트는 로그인이 필요합니다 ({loginDisplayPath})</span>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="bootstrap-login-id" className="text-xs">
+                    {idLabel}
+                  </Label>
+                  <Input
+                    id="bootstrap-login-id"
+                    value={loginId}
+                    onChange={(e) => setLoginId(e.target.value)}
+                    placeholder="아이디 또는 이메일"
+                    className="h-9 text-xs"
+                    disabled={submittingCredentials}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="bootstrap-login-pw" className="text-xs">
+                    {passwordLabel}
+                  </Label>
+                  <Input
+                    id="bootstrap-login-pw"
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="비밀번호"
+                    className="h-9 text-xs"
+                    autoComplete="off"
+                    disabled={submittingCredentials}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                입력한 값은 이 프로젝트의 환경변수(LOGIN_ID, LOGIN_PASSWORD)에 저장되어 테스트 실행 때도 쓰입니다
+              </p>
+              {credentialError && <p className="text-xs text-destructive">{credentialError}</p>}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSkipCredentials}
+                  disabled={submittingCredentials}
+                >
+                  로그인 없이 계속
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSaveCredentials}
+                  disabled={submittingCredentials}
+                >
+                  {submittingCredentials && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  저장하고 계속
+                </Button>
+              </div>
+            </div>
+          )}
 
           {inProgress && (
             <div className="space-y-2">

@@ -366,6 +366,40 @@ export const api = {
   getAiBootstrap: (projectId: string, bootstrapId: string) =>
     request<import('@/types').AiBootstrapResponse>(`/api/projects/${projectId}/ai/bootstrap/${bootstrapId}`),
 
+  submitAiBootstrapCredentials: (
+    projectId: string,
+    bootstrapId: string,
+    data: { loginId?: string; password?: string; loginPath?: string; skip?: boolean }
+  ) =>
+    request<import('@/types').AiBootstrapResponse>(
+      `/api/projects/${projectId}/ai/bootstrap/${bootstrapId}/credentials`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+
+  fetchAiBootstrapScreenshot: async (
+    projectId: string,
+    bootstrapId: string,
+    file: string
+  ): Promise<Blob> => {
+    const auth = getStoredAuth();
+    const headers = new Headers();
+    if (auth?.token) {
+      headers.set('Authorization', `Bearer ${auth.token}`);
+    }
+    const cleanFile = file.replace(/^screens\//, '');
+    const res = await fetch(
+      `/api/projects/${projectId}/ai/bootstrap/${bootstrapId}/screens/${encodeURIComponent(cleanFile)}`,
+      { headers }
+    );
+    if (!res.ok) {
+      throw new Error(`스크린샷 조회 실패 (${res.status})`);
+    }
+    return res.blob();
+  },
+
   getScenarios: (projectId: string) =>
     request<ScenarioTree>(`/api/projects/${projectId}/scenarios`),
 
