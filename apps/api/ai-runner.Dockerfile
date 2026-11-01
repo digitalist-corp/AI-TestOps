@@ -31,10 +31,10 @@ RUN set -eux; \
     node -v; \
     npm -v
 
-# run.js(코드 수정) · analyze.js(대상 분석)를 함께 싣는다.
-# analyze.js 는 Playwright 를 라이브러리로 쓰므로 전역 설치 경로를 모듈 검색 경로에 넣는다.
+# run.js(코드 수정) · analyze.js(대상 분석) · record.js(녹화, selectors.js 사용)를 함께 싣는다.
+# analyze.js · record.js 는 Playwright 를 라이브러리로 쓰므로 전역 설치 경로를 모듈 검색 경로에 넣는다.
 ENV NODE_PATH=/opt/node/lib/node_modules
-COPY ai-runner/run.js ai-runner/analyze.js /ai-runner/
+COPY ai-runner/run.js ai-runner/analyze.js ai-runner/record.js ai-runner/selectors.js /ai-runner/
 
 WORKDIR /workspace
 

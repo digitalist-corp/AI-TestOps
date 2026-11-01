@@ -64,7 +64,7 @@ public class AiJobController {
 
     @GetMapping("/api/ai-jobs/needs-review")
     public List<AiJobResponse> needsReview(HttpServletRequest request) {
-        requireAdmin(request);
+        requireAuthenticated(request);
         return aiJobService.listNeedsReview().stream().map(AiJobResponse::from).toList();
     }
 
@@ -82,7 +82,7 @@ public class AiJobController {
 
     @GetMapping("/api/ai-jobs/{id}/diff")
     public List<AiJobFileDiff> diff(@PathVariable Long id, HttpServletRequest request) {
-        requireAdmin(request);
+        requireAuthenticated(request);
         return aiJobService.readChangedFileContents(id);
     }
 

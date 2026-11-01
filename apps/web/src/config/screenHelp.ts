@@ -14,21 +14,33 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
     title: '대시보드',
     body: '이 프로젝트의 최근 실행 결과와 성공률 추이를 한눈에 보는 곳이에요. 숫자가 이상하면 실행 탭에서 해당 실행의 로그를 열어보세요.',
   },
+  'ai-generate': {
+    title: 'AI로 만들기',
+    body: '테스트하고 싶은 내용을 문장으로 적으면 AI가 테스트 코드를 생성합니다. 만들어진 코드는 AI 검토 탭에서 승인해야 실제 파일에 반영돼요.',
+  },
   'ai-analysis': {
     title: 'AI 분석',
-    body: '실행 결과를 AI가 수준별로 풀어서 설명해 줍니다. 짧은 질문은 오른쪽 아래 AI 채팅이 더 빠릅니다.',
+    body: 'AI 탭에서 실행 결과를 수준별로 풀어서 설명해 줍니다. AI를 켜면 오른쪽 아래 AI 채팅으로도 짧게 질문할 수 있어요.',
+  },
+  'ai-review': {
+    title: 'AI 검토',
+    body: 'AI가 제안한 코드 수정을 사람이 승인하거나 거부하는 곳입니다. 승인 전에는 아무것도 실제 파일에 반영되지 않아요.',
   },
   source: {
-    title: '소스 탐색기',
-    body: '테스트 코드를 직접 열고 고치는 편집기입니다. 고칠 내용을 말로 설명하고 싶다면 오른쪽 아래 AI 채팅에 파일 이름과 함께 요청하세요.',
+    title: '코드 편집기',
+    body: '설정 아래에서 테스트 코드를 직접 열고 고치는 편집기입니다. AI를 켜면 오른쪽 아래 AI 채팅으로 파일 이름과 함께 수정을 요청할 수 있어요.',
   },
   structure: {
     title: '구조',
-    body: '앱의 소스 저장소를 읽어 어떤 화면이 있는지 찾아 둔 곳이에요. AI가 테스트를 만들 때 이 정보를 근거로 삼습니다. 코드가 바뀌면 다시 분석하세요.',
+    body: '상단 구조 탭에서 앱의 소스 저장소나 대상 사이트를 읽어 어떤 화면이 있는지 살펴보는 곳이에요. 코드가 바뀌면 다시 분석하세요.',
   },
   scenarios: {
     title: '시나리오',
     body: 'spec 파일을 분석해 테스트 케이스 목록을 보여주는 곳이에요. 케이스를 골라 바로 실행할 수 있습니다.',
+  },
+  recorder: {
+    title: '클릭으로 만들기',
+    body: '테스트할 사이트를 화면에서 직접 클릭 · 입력하면 그 흐름이 Playwright 테스트 파일로 저장돼요. 확인할 곳을 눌러 "보이는지 · 글자" 확인도 넣을 수 있고, AI 없이 동작합니다. 비밀번호는 값을 저장하지 않고 환경변수로 넣어요.',
   },
   runs: {
     title: '실행 이력',
@@ -36,7 +48,7 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
   },
   results: {
     title: '결과',
-    body: '끝난 실행의 리포트와 스크린샷 · 동영상 같은 아티팩트를 보는 곳입니다. 실패 원인이 궁금하면 오른쪽 아래 AI 채팅에 물어보세요.',
+    body: '끝난 실행의 리포트와 스크린샷 · 동영상 같은 아티팩트를 보는 곳입니다. AI를 켜면 오른쪽 아래 AI 채팅으로 실패 원인을 물어볼 수 있어요.',
   },
   schedules: {
     title: '예약 실행',
@@ -71,13 +83,6 @@ const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
     },
   },
   {
-    prefix: '/ai-jobs',
-    help: {
-      title: 'AI 검토',
-      body: 'AI가 제안한 코드 수정을 사람이 승인하거나 거부하는 곳입니다. 승인 전에는 아무것도 반영되지 않아요.',
-    },
-  },
-  {
     prefix: '/ai-settings',
     help: {
       title: 'AI 설정 · 사용량',
@@ -95,7 +100,7 @@ const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
 
 const FALLBACK: ScreenHelp = {
   title: 'AI-TestOps',
-  body: '왼쪽 줄은 전체 메뉴, 위쪽 탭은 지금 프로젝트의 작업 화면입니다. 무엇을 해야 할지 모르겠으면 오른쪽 아래 AI 채팅에 먼저 물어보세요.',
+  body: '왼쪽 줄은 전체 메뉴, 위쪽 탭은 지금 프로젝트의 작업 화면입니다. AI를 켜면 오른쪽 아래 AI 채팅으로 무엇을 해야 할지 물어볼 수 있어요.',
 };
 
 export function screenHelpFor(pathname: string, projectTab?: ProjectTabId): ScreenHelp {

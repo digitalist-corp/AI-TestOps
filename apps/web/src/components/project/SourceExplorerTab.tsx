@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, RotateCcw, Save, Sparkles, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import type { AiEditAssistVerifyResponse, Project } from '@/types';
 import { FileTree } from '@/components/FileTree';
 import { MonacoEditor } from '@/components/MonacoEditor';
@@ -32,6 +33,7 @@ function isSpecFile(path: string) {
 }
 
 export function SourceExplorerTab({ projectId, project, files, onFilesChange, initialPath }: Props) {
+  const { active: aiActive } = useAiEnabled();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [content, setContent] = useState('');
   const [original, setOriginal] = useState('');
@@ -48,6 +50,11 @@ export function SourceExplorerTab({ projectId, project, files, onFilesChange, in
   const [aiVerifyResult, setAiVerifyResult] = useState<AiEditAssistVerifyResponse | null>(null);
 
   const specFiles = files.filter(isSpecFile);
+
+  // AI 를 끄면 열려 있던 수정 요청 창도 닫는다 (다시 켰을 때 저절로 뜨지 않게).
+  useEffect(() => {
+    if (!aiActive) setAiOpen(false);
+  }, [aiActive]);
 
   const loadFile = useCallback(async (path: string) => {
     if (isRestrictedFile(path)) return;
@@ -195,17 +202,19 @@ export function SourceExplorerTab({ projectId, project, files, onFilesChange, in
             {selectedPath ?? '파일을 선택하세요'}
           </span>
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              className="text-ai-accent border-ai-accent/30 hover:bg-ai-accent/10"
-              disabled={!selectedPath || loading}
-              onClick={() => setAiOpen(true)}
-              title="AI에게 이 파일 수정을 요청하고 실행 결과로 검증한 뒤 에디터에 적용"
-            >
-              <Sparkles className="h-3 w-3" />
-              AI 수정 도움
-            </Button>
+            {aiActive && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-ai-accent border-ai-accent/30 hover:bg-ai-accent/10"
+                disabled={!selectedPath || loading}
+                onClick={() => setAiOpen(true)}
+                title="AI에게 이 파일 수정을 요청하고 실행 결과로 검증한 뒤 에디터에 적용"
+              >
+                <Sparkles className="h-3 w-3" />
+                AI 수정 도움
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -231,7 +240,8 @@ export function SourceExplorerTab({ projectId, project, files, onFilesChange, in
         </div>
       </div>
 
-      <Dialog open={aiOpen} onOpenChange={(open) => { if (!open) resetAiDialog(); else setAiOpen(true); }}>
+      {/* AI 스위치가 꺼져 있으면(또는 키가 없으면) 수정 요청 창은 열리지 않는다 */}
+      <Dialog open={aiActive && aiOpen} onOpenChange={(open) => { if (!open) resetAiDialog(); else setAiOpen(true); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-1.5">

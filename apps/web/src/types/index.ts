@@ -494,12 +494,37 @@ export interface AiTemplateResponse {
 
 export type AiBootstrapPhase =
   | 'ANALYZING_SITE'
+  | 'NEEDS_CREDENTIALS'
+  | 'LOGGING_IN'
   | 'GENERATING'
   | 'RUNNING'
   | 'HEALING'
   | 'PASSED'
   | 'FAILED'
   | 'ERROR';
+
+export interface AiBootstrapLoginField {
+  name: string | null;
+  label: string | null;
+  type: string | null;
+}
+
+export interface AiBootstrapProgressEvent {
+  ts?: string | null;
+  type: 'visit' | 'screen' | 'login_form' | 'login_failed' | 'warning' | 'done' | string;
+  url?: string | null;
+  depth?: number | null;
+  title?: string | null;
+  elements?: number | null;
+  screenshot?: string | null;
+  message?: string | null;
+  fields?: AiBootstrapLoginField[] | null;
+}
+
+export interface AiBootstrapCredentialRequest {
+  url: string;
+  fields: AiBootstrapLoginField[];
+}
 
 /** 첫 테스트 생성(사이트 탐색 → 코드 생성 → 실행 → 자율 교정)의 현재 상태. 시작 요청과 상태 조회가 같은 모양이다. */
 export interface AiBootstrapResponse {
@@ -520,6 +545,10 @@ export interface AiBootstrapResponse {
   failureLog: string | null;
   startedAt: string;
   finishedAt: string | null;
+  events?: AiBootstrapProgressEvent[];
+  currentUrl?: string | null;
+  visitedCount?: number;
+  credentialRequest?: AiBootstrapCredentialRequest | null;
 }
 
 export interface AiEditAssistVerifyResponse {
@@ -698,11 +727,82 @@ export interface SiteMapNode {
   hasScreenshot: boolean;
   /** 로그인해야 열리는 화면 */
   authRequired: boolean;
-  /** 테스트 실행으로 확인된(PASSED) · 실패한(FAILED) 요소 수. 나머지는 unverifiedCount (실측 OBSERVED 포함) */
+  /** 테스트 실행으로 확인된(PASSED) · 실패한(FAILED) 요소 수 */
   passedCount: number;
   failedCount: number;
+  /** 실제 화면에서 본(OBSERVED) 요소 수. passed + failed + observed + unverified = elementCount */
+  observedCount: number;
+  /** 코드 분석으로만 찾은(UNVERIFIED) 요소 수. OBSERVED 는 빼고 센다 */
   unverifiedCount: number;
 }
+
+/** 구조 탭 "확인 지도" (docs/design/structure-coverage-contract.md) */
+export type CoverageNodeState = 'TESTED' | 'OBSERVED' | 'UNSEEN' | 'BLOCKED';
+export type CoverageEdgeState = 'TESTED' | 'OBSERVED' | 'FAILED' | 'UNKNOWN';
+export type CoverageIssueKind = 'SELECTOR_FAILED' | 'LOGIN_REQUIRED' | 'OPEN_FAILED' | 'NOT_REACHED' | 'EXPLORE_STOPPED';
+export type CoverageAction = 'SET_LOGIN' | 'RECORD_AGAIN' | 'FIX_WITH_AI' | 'RERUN' | 'NONE';
+export type CoverageFlowSource = 'RECORDED' | 'GENERATED' | 'PATH' | 'OTHER';
+export type CoverageFlowStatus = 'PASSED' | 'FAILED' | 'NEVER_RUN';
+export type CoverageStepState = 'PASSED' | 'FAILED' | 'NOT_REACHED' | 'PENDING';
+
+export type CoverageSummary = {
+  /** 지도에 있는 화면 수 (excluded 제외) */
+  screens: number;
+  tested: number;
+  observed: number;
+  unseen: number;
+  blocked: number;
+  flows: number;
+  /** 지도에 반영된 마지막 실행 시각 */
+  lastRunAt: string | null;
+};
+
+export type CoverageIssue = {
+  kind: CoverageIssueKind;
+  /** 비개발자용 한국어 한 줄 */
+  message: string;
+  selector?: string | null;
+  specPath?: string | null;
+  executionId?: number | null;
+  at?: string | null;
+  action: CoverageAction;
+};
+
+export type CoverageNode = {
+  routeKey: string;
+  state: CoverageNodeState;
+  counts: { passed: number; failed: number; observed: number; unseen: number; total: number };
+  issues: CoverageIssue[];
+};
+
+export type CoverageEdge = {
+  from: string;
+  to: string;
+  state: CoverageEdgeState;
+};
+
+export type CoverageFlowStep = {
+  routeKey: string;
+  state: CoverageStepState;
+  message?: string | null;
+};
+
+export type CoverageFlow = {
+  specPath: string;
+  title: string;
+  source: CoverageFlowSource;
+  lastStatus: CoverageFlowStatus;
+  lastRunAt: string | null;
+  executionId: number | null;
+  steps: CoverageFlowStep[];
+};
+
+export type Coverage = {
+  summary: CoverageSummary;
+  nodes: CoverageNode[];
+  edges: CoverageEdge[];
+  flows: CoverageFlow[];
+};
 
 export interface SiteMap {
   projectId: string;
@@ -779,4 +879,208 @@ export interface ScreenTestSummary {
   executionId: number | null;
   passedCases: number;
   failedCases: number;
+}
+
+/** AI 채팅 에이전트 세션 (docs/design/ai-chat-agent-contract.md) */
+export type ChatSession = {
+  id: number;
+  projectId: string | null;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StopReason = 'END' | 'CANCELLED' | 'MAX_TURNS' | 'ERROR';
+export type ToolTier = 'READ' | 'RUN' | 'CHANGE';
+export type ToolStatus = 'running' | 'ok' | 'error' | 'denied' | 'cancelled';
+export type PermissionDecision = 'ALLOW' | 'ALLOW_SESSION' | 'DENY';
+
+export type ToolDisplayTableData = {
+  columns: string[];
+  rows: (string | number | boolean | null)[][];
+  truncated: boolean;
+  sql?: string;
+};
+
+export type ToolDisplayCodeData = {
+  path?: string;
+  language?: string;
+  content: string;
+};
+
+export type ToolDisplayJobData = {
+  jobId: number;
+  jobType: string;
+  status: string;
+  specPath?: string;
+};
+
+export type ToolDisplayExecutionData = {
+  executionId: number;
+  status: string;
+  projectId: string;
+};
+
+export type ToolDisplayListData = {
+  items: { label: string; detail?: string }[];
+};
+
+export type ToolDisplay =
+  | { kind: 'table'; data: ToolDisplayTableData }
+  | { kind: 'code'; data: ToolDisplayCodeData }
+  | { kind: 'job'; data: ToolDisplayJobData }
+  | { kind: 'execution'; data: ToolDisplayExecutionData }
+  | { kind: 'list'; data: ToolDisplayListData };
+
+export type ChatTextBlock = {
+  type: 'text';
+  text: string;
+};
+
+export type ChatToolPermission = {
+  requestId: string;
+  reason: string;
+  decision?: PermissionDecision;
+};
+
+export type ChatToolBlock = {
+  type: 'tool';
+  callId: string;
+  name: string;
+  tier: ToolTier;
+  input: Record<string, unknown>;
+  status: ToolStatus;
+  summary?: string;
+  output?: string;
+  display?: ToolDisplay;
+  durationMs?: number;
+  permission?: ChatToolPermission;
+};
+
+export type ChatBlock = ChatTextBlock | ChatToolBlock;
+
+export type ChatUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
+export type ChatMessage = {
+  id: number;
+  role: 'user' | 'assistant';
+  createdAt: string;
+  blocks: ChatBlock[]; // user 는 text 블록 하나
+  stopReason?: StopReason; // assistant 만
+  usage?: ChatUsage;
+  errorMessage?: string;
+};
+
+export type ChatStreamEvent =
+  | { type: 'message_start'; data: { userMessageId: number; messageId: number } }
+  | { type: 'text_delta'; data: { delta: string } }
+  | {
+      type: 'tool_start';
+      data: { callId: string; name: string; tier: ToolTier; input: Record<string, unknown> };
+    }
+  | {
+      type: 'permission_request';
+      data: {
+        requestId: string;
+        callId: string;
+        name: string;
+        input: Record<string, unknown>;
+        reason: string;
+      };
+    }
+  | { type: 'permission_resolved'; data: { requestId: string; decision: PermissionDecision } }
+  | {
+      type: 'tool_end';
+      data: {
+        callId: string;
+        status: 'ok' | 'error' | 'denied' | 'cancelled';
+        summary?: string;
+        output?: string;
+        display?: ToolDisplay;
+        durationMs?: number;
+      };
+    }
+  | { type: 'usage'; data: { inputTokens: number; outputTokens: number } }
+  | { type: 'error'; data: { message: string } }
+  | { type: 'message_end'; data: { messageId: number; stopReason: StopReason } };
+
+
+// ── 클릭으로 테스트 만들기(녹화). 계약: docs/design/recorder-contract.md ──
+
+export type RecorderStatus = 'STARTING' | 'READY' | 'BUSY' | 'CLOSED' | 'ERROR';
+
+export type RecordedStepAction =
+  | 'goto'
+  | 'click'
+  | 'fill'
+  | 'press'
+  | 'assertVisible'
+  | 'assertText';
+
+export interface RecordedStep {
+  id: string;
+  action: RecordedStepAction;
+  /** Playwright 로케이터 식. 예: getByRole('button', { name: '로그인' }) */
+  selector: string | null;
+  /** .nth() 순번에 기대는 셀렉터 */
+  fragile: boolean;
+  /** 사람이 읽는 설명. 예: "'로그인' 버튼 클릭" */
+  label: string;
+  /** fill · press · assertText 의 값, goto 의 경로 */
+  value?: string;
+  /** 비밀번호 입력이면 값을 저장하지 않고 이 환경변수 이름으로 코드에 넣는다 */
+  secretEnv?: string;
+  /** 동작 직후 주소 */
+  url: string;
+}
+
+/** inspect 응답에 붙는, 마우스 아래 요소 정보. box 는 viewport 좌표. */
+export interface RecorderInspected {
+  role: string | null;
+  name: string | null;
+  selector: string | null;
+  fragile: boolean;
+  tag: string;
+  box: { x: number; y: number; width: number; height: number };
+}
+
+export interface RecorderViewport {
+  width: number;
+  height: number;
+}
+
+export interface RecorderState {
+  sessionId: string;
+  status: RecorderStatus;
+  url: string | null;
+  title: string | null;
+  viewport: RecorderViewport;
+  steps: RecordedStep[];
+  /** 화면이 바뀔 때마다 1씩 증가. 화면은 이 값으로 다시 받는다 */
+  screenshotVersion: number;
+  error?: string | null;
+  inspected?: RecorderInspected | null;
+}
+
+export type RecorderAction =
+  | { type: 'click'; x: number; y: number }
+  | { type: 'fill'; x: number; y: number; value: string }
+  | { type: 'press'; key: string }
+  | { type: 'goto'; url: string }
+  | { type: 'assertVisible'; x: number; y: number }
+  | { type: 'assertText'; x: number; y: number }
+  | { type: 'scroll'; deltaY: number }
+  | { type: 'inspect'; x: number; y: number };
+
+export interface RecorderStartRequest {
+  url?: string;
+  useLogin?: boolean;
+}
+
+export interface RecorderCode {
+  specPath: string;
+  code: string;
 }

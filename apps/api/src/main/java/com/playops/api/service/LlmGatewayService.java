@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Claude/GPT 호출을 한 곳으로 모은 게이트웨이. 관리자가 등록한 플랫폼 공용 키만 사용한다 —
@@ -102,6 +103,29 @@ public class LlmGatewayService {
         long startedAt = System.currentTimeMillis();
         try {
             LlmResult result = client.chat(resolveCredentials(resolved), systemPrompt, messages, tools);
+            record(resolved, feature, projectId, result, System.currentTimeMillis() - startedAt, true);
+            return result;
+        } catch (RuntimeException e) {
+            record(resolved, feature, projectId, null, System.currentTimeMillis() - startedAt, false);
+            throw e;
+        }
+    }
+
+    /**
+     * 글을 조각 단위로 흘려 받는 도구 호출. 채팅 에이전트가 쓴다.
+     * 사용량은 다른 호출과 같이 한 번의 호출당 한 줄로 남긴다 (중간에 끊겨도 실패로 남긴다).
+     */
+    public LlmResult chatStream(AiModelProvider provider, String systemPrompt, List<LlmMessage> messages,
+                                List<LlmToolSpec> tools, String feature, String projectId,
+                                Consumer<String> onTextDelta) {
+        AiModelProvider resolved = provider != null ? provider : aiProviderSettingsService.getDefaultProvider();
+        LlmClient client = clients.get(resolved);
+        if (client == null) {
+            throw new ApiException(400, "지원하지 않는 AI 공급자입니다: " + resolved);
+        }
+        long startedAt = System.currentTimeMillis();
+        try {
+            LlmResult result = client.chatStream(resolveCredentials(resolved), systemPrompt, messages, tools, onTextDelta);
             record(resolved, feature, projectId, result, System.currentTimeMillis() - startedAt, true);
             return result;
         } catch (RuntimeException e) {
