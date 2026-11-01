@@ -34,7 +34,7 @@ const DEFAULT_LIMITS = {
 const DEFAULT_EXCLUDE = ['logout', 'log-out', 'signout', 'sign-out', 'delete', 'remove', '로그아웃'];
 
 const INTERACTIVE_SELECTOR = [
-  'a[href]', 'button', 'input:not([type="hidden"])', 'select', 'textarea',
+  'a', 'button', 'input:not([type="hidden"])', 'select', 'textarea',
   '[role="button"]', '[role="link"]', '[role="tab"]', '[role="menuitem"]',
   '[role="checkbox"]', '[role="switch"]', '[role="radio"]', '[role="combobox"]',
   '[contenteditable="true"]',
@@ -200,7 +200,19 @@ function quote(s) {
 /** 요소 하나에 대한 셀렉터 후보를 우선순위 순으로 만든다. */
 function candidatesFor(el) {
   const c = [];
-  if (el.testId) c.push({ kind: 'testid', code: `getByTestId(${quote(el.testId)})`, make: (p) => p.getByTestId(el.testId) });
+  if (el.testId) {
+    c.push({ kind: 'testid', code: `getByTestId(${quote(el.testId)})`, make: (p) => p.getByTestId(el.testId) });
+    c.push({
+      kind: 'testid',
+      code: `locator(${quote(`[data-test="${el.testId}"]`)})`,
+      make: (p) => p.locator(`[data-test="${el.testId}"]`),
+    });
+    c.push({
+      kind: 'testid',
+      code: `locator(${quote(`[data-test-id="${el.testId}"]`)})`,
+      make: (p) => p.locator(`[data-test-id="${el.testId}"]`),
+    });
+  }
   if (el.role && el.name) {
     c.push({
       kind: 'role',
@@ -372,7 +384,7 @@ function extractLoginFields(elements) {
  * 탐색 전에 로그인 화면에서 아이디 · 비밀번호 칸을 찾아 제출한다.
  * 비밀번호는 로그 · progress · result 어디에도 남기지 않는다.
  */
-async function performLogin(page, requests, login, entry, emitProgress, warnings) {
+async function performLogin(page, requests, login, entry, emitProgress, warnings, knownElements) {
   if (!login || !login.idValue || !login.passwordValue) return { ok: false };
   const loginUrl = normalizeUrl(login.url || entry, entry) || entry;
   const scrub = (msg) => {
@@ -384,10 +396,12 @@ async function performLogin(page, requests, login, entry, emitProgress, warnings
   };
 
   try {
-    await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
-    await waitSettled(page, requests);
+    if (normalizeUrl(page.url()) !== loginUrl) {
+      await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+      await waitSettled(page, requests);
+    }
 
-    const found = await page.evaluate(() => {
+    const found = await page.evaluate((idxAttr) => {
       const visible = (el) => {
         const r = el.getBoundingClientRect();
         if (r.width === 0 || r.height === 0) return false;
@@ -446,13 +460,30 @@ async function performLogin(page, requests, login, entry, emitProgress, warnings
         || buttons[0]
         || null;
       if (submitEl) submitEl.setAttribute('data-ait-login', 'submit');
-      return { ok: true, hasSubmit: Boolean(submitEl) };
-    });
+      const submitIdx = submitEl ? submitEl.getAttribute(idxAttr) : null;
+      const submitTestId = submitEl
+        ? (submitEl.getAttribute('data-testid') || submitEl.getAttribute('data-test') || submitEl.getAttribute('data-test-id') || null)
+        : null;
+      const submitId = submitEl ? (submitEl.id || null) : null;
+      return { ok: true, hasSubmit: Boolean(submitEl), submitIdx, submitTestId, submitId };
+    }, IDX_ATTR);
 
     if (!found.ok) {
       warnings.push(found.reason);
       emitProgress({ type: 'login_failed', message: found.reason });
       return { ok: false };
+    }
+
+    let submitSelector = null;
+    if (Array.isArray(knownElements) && found.submitIdx !== null && found.submitIdx !== undefined) {
+      const matched = knownElements.find((e) => String(e.idx) === String(found.submitIdx));
+      if (matched && matched.selector) submitSelector = matched.selector;
+    }
+    if (!submitSelector && found.submitTestId) {
+      submitSelector = `locator(${quote(`[data-test="${found.submitTestId}"]`)})`;
+    }
+    if (!submitSelector && found.submitId) {
+      submitSelector = `locator(${quote('#' + found.submitId)})`;
     }
 
     const beforeUrl = normalizeUrl(page.url());
@@ -475,7 +506,7 @@ async function performLogin(page, requests, login, entry, emitProgress, warnings
     const afterUrl = normalizeUrl(page.url());
     const pwStillVisible = (await page.locator('input[type="password"]:visible').count().catch(() => 0)) > 0;
     if (afterUrl !== beforeUrl || !pwStillVisible) {
-      return { ok: true, landedUrl: afterUrl };
+      return { ok: true, landedUrl: afterUrl, submitSelector };
     }
 
     const message = '로그인에 실패했습니다. 아이디 또는 비밀번호를 확인하세요.';
@@ -550,12 +581,90 @@ async function runSiteAnalysis(job, resultDir) {
 
   try {
     if (job.login && job.login.idValue && job.login.passwordValue) {
-      const loginOutcome = await performLogin(page, requests, job.login, entry, emitProgress, warnings);
+      const loginUrl = normalizeUrl(job.login.url || entry, entry) || entry;
+      emitProgress({ type: 'visit', url: loginUrl, depth: 0 });
+      let loginPageOpened = false;
+      try {
+        await page.goto(loginUrl, { waitUntil: 'domcontentloaded' });
+        await waitSettled(page, requests);
+        loginPageOpened = true;
+      } catch (e) {
+        warn(`열기 실패: ${loginUrl} — ${String(e.message || e).split('\n')[0]}`);
+      }
+
+      let loginNode = null;
+      let finalLoginUrl = loginUrl;
+      if (loginPageOpened) {
+        finalLoginUrl = normalizeUrl(page.url()) || loginUrl;
+        if (finalLoginUrl !== loginUrl) {
+          redirects.push({ from: loginUrl, to: finalLoginUrl });
+        }
+        const collected = await page.evaluate(collectInPage, {
+          selector: INTERACTIVE_SELECTOR, idxAttr: IDX_ATTR, maxElements: limits.maxElementsPerPage,
+        });
+        const loginFields = extractLoginFields(collected.elements);
+        for (const el of collected.elements) {
+          delete el.attrName;
+          Object.assign(el, await resolveSelector(page, el));
+        }
+        const id = `n${nodes.length + 1}`;
+        const shot = `screens/${id}.jpg`;
+        await page.screenshot({ path: path.join(resultDir, shot), type: 'jpeg', quality: 60 }).catch(() => {});
+        const aria = await page.locator('body').ariaSnapshot({ timeout: 5000 }).catch(() => '');
+        loginNode = {
+          id,
+          url: finalLoginUrl,
+          path: new URL(finalLoginUrl).pathname + new URL(finalLoginUrl).search,
+          title: await page.title(),
+          depth: 0,
+          seed: false,
+          screenshot: shot,
+          interactiveCount: collected.interactiveCount,
+          elements: collected.elements,
+          forms: collected.forms,
+          ariaSnapshot: aria.length > 6000 ? `${aria.slice(0, 6000)}\n… (이하 생략)` : aria,
+        };
+        nodes.push(loginNode);
+        byUrl.set(loginUrl, id);
+        byUrl.set(finalLoginUrl, id);
+        emitProgress({
+          type: 'screen',
+          url: finalLoginUrl,
+          title: loginNode.title,
+          elements: collected.elements.length,
+          screenshot: shot,
+        });
+        if (loginFields) {
+          emitProgress({ type: 'login_form', url: finalLoginUrl, fields: loginFields });
+        }
+      }
+
+      for (let i = queue.length - 1; i >= 0; i -= 1) {
+        if (queue[i].url === loginUrl || queue[i].url === finalLoginUrl || queue[i].url === entry) {
+          queued.delete(queue[i].url);
+          queue.splice(i, 1);
+        }
+      }
+      queued.add(loginUrl);
+      queued.add(finalLoginUrl);
+
+      const loginOutcome = await performLogin(
+        page, requests, job.login, finalLoginUrl, emitProgress, warnings, loginNode ? loginNode.elements : null
+      );
       if (loginOutcome.ok && loginOutcome.landedUrl) {
+        const landedUrl = loginOutcome.landedUrl;
+        if (loginNode && landedUrl !== finalLoginUrl && landedUrl !== loginUrl) {
+          rawEdges.push({
+            from: loginNode.id,
+            toUrl: landedUrl,
+            label: 'Login',
+            selector: loginOutcome.submitSelector || null,
+          });
+        }
         try {
-          if (new URL(loginOutcome.landedUrl).host === host && !queued.has(loginOutcome.landedUrl)) {
-            queued.add(loginOutcome.landedUrl);
-            queue.unshift({ url: loginOutcome.landedUrl, depth: 0 });
+          if (new URL(landedUrl).host === host && !queued.has(landedUrl) && !byUrl.has(landedUrl)) {
+            queued.add(landedUrl);
+            queue.unshift({ url: landedUrl, depth: 1 });
           }
         } catch { /* 유효하지 않은 URL 무시 */ }
       }
@@ -643,10 +752,47 @@ async function runSiteAnalysis(job, resultDir) {
 
       if (mode === 'VISUAL_REQUIRED') break;
 
+      let autoLoggedIn = false;
+      if (!(job.login && job.login.idValue && job.login.passwordValue) && nodes.length === 1 && loginFields) {
+        const demoCreds = await page.evaluate(() => {
+          const text = document.body ? document.body.innerText || '' : '';
+          const idMatch = text.match(/Accepted usernames are:\s*([a-zA-Z0-9_.-]+)/i)
+            || text.match(/(?:demo\s*)?(?:username|user\s*id|아이디)\s*[:：]\s*([a-zA-Z0-9_.@-]+)/i);
+          const pwMatch = text.match(/Password for all users:\s*([^\s\n]+)/i)
+            || text.match(/Password[^:\n]*:\s*([^\s\n]+)/i);
+          if (idMatch && idMatch[1] && pwMatch && pwMatch[1]) {
+            return { idValue: idMatch[1].trim(), passwordValue: pwMatch[1].trim() };
+          }
+          return null;
+        }).catch(() => null);
+
+        if (demoCreds && demoCreds.idValue && demoCreds.passwordValue) {
+          const loginOutcome = await performLogin(
+            page, requests, { url: finalUrl, ...demoCreds }, finalUrl, emitProgress, warnings, collected.elements
+          );
+          if (loginOutcome.ok && loginOutcome.landedUrl && loginOutcome.landedUrl !== finalUrl) {
+            const landedUrl = loginOutcome.landedUrl;
+            autoLoggedIn = true;
+            rawEdges.push({
+              from: node.id,
+              toUrl: landedUrl,
+              label: 'Login',
+              selector: loginOutcome.submitSelector || null,
+            });
+            try {
+              if (new URL(landedUrl).host === host && !queued.has(landedUrl) && !byUrl.has(landedUrl)) {
+                queued.add(landedUrl);
+                queue.unshift({ url: landedUrl, depth: depth + 1 });
+              }
+            } catch { /* 유효하지 않은 URL 무시 */ }
+          }
+        }
+      }
+
       for (const el of collected.elements) {
         if (!el.href) continue;
         const target = normalizeUrl(el.href, finalUrl);
-        if (!target) continue;
+        if (!target || target === finalUrl) continue;
         if (new URL(target).host !== host) { skipped.external += 1; continue; }
         if (isExcluded(target, exclude)) { skipped.excluded += 1; continue; }
         rawEdges.push({ from: id, toUrl: target, label: el.name || el.text || target, selector: el.selector });
@@ -655,6 +801,93 @@ async function runSiteAnalysis(job, resultDir) {
         queued.add(target);
         queue.push({ url: target, depth: depth + 1 });
       }
+
+      if (!autoLoggedIn && depth + 1 <= limits.maxDepth && nodes.length < limits.maxPages) {
+        const spaCandidates = [];
+        let hasItemDetailLink = false;
+        const navIncludeRe = /cart|장바구니|checkout|결제|주문|continue-shopping|back-to-products|상세|이동/i;
+        const navExcludeRe = /add to cart|add-to-cart|담기|logout|로그아웃|remove|삭제|cancel|취소|reset|menu|메뉴|open menu|close menu/i;
+
+        for (const el of collected.elements) {
+          if (spaCandidates.length >= 5) break;
+          if (!el.selector || !el.unique) continue;
+
+          const labelBlob = `${el.name || ''} ${el.text || ''} ${el.testId || ''} ${el.id || ''}`.trim();
+          const isCandidateA = el.tag === 'a' && (!el.href || normalizeUrl(el.href, finalUrl) === finalUrl);
+          if (isCandidateA) {
+            if (navExcludeRe.test(labelBlob)) continue;
+            const isItemLink = /item[_-]?\d+[_-]?(img|title)?[_-]?link/i.test(`${el.id || ''} ${el.testId || ''}`);
+            if (isItemLink) {
+              if (hasItemDetailLink) continue;
+              hasItemDetailLink = true;
+            }
+            spaCandidates.push(el);
+            continue;
+          }
+
+          const isCandidateB = (el.tag === 'button' || el.role === 'button')
+            && navIncludeRe.test(labelBlob)
+            && !navExcludeRe.test(labelBlob);
+          if (isCandidateB) {
+            spaCandidates.push(el);
+          }
+        }
+
+        for (const el of spaCandidates) {
+          if (Date.now() - started > limits.timeoutMs || nodes.length >= limits.maxPages) break;
+          try {
+            if (normalizeUrl(page.url()) !== finalUrl) {
+              await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
+              await waitSettled(page, requests);
+            }
+            const matchedCand = candidatesFor(el).find((c) => c.code === el.selector);
+            const loc = matchedCand
+              ? matchedCand.make(page)
+              : el.testId
+                ? page.locator(`[data-testid="${el.testId}"], [data-test="${el.testId}"], [data-test-id="${el.testId}"]`).first()
+                : el.id
+                  ? page.locator(`#${el.id}`).first()
+                  : page.locator(`[${IDX_ATTR}="${el.idx}"]`).first();
+
+            await loc.click({ timeout: 2500 });
+            await waitSettled(page, requests);
+            await page.waitForTimeout(200);
+
+            const afterClickUrl = normalizeUrl(page.url());
+            if (
+              afterClickUrl
+              && afterClickUrl !== finalUrl
+              && new URL(afterClickUrl).host === host
+              && !isExcluded(afterClickUrl, exclude)
+            ) {
+              rawEdges.push({
+                from: id,
+                toUrl: afterClickUrl,
+                label: el.name || el.text || afterClickUrl,
+                selector: el.selector,
+              });
+              if (!queued.has(afterClickUrl) && !byUrl.has(afterClickUrl)) {
+                queued.add(afterClickUrl);
+                queue.push({ url: afterClickUrl, depth: depth + 1 });
+              }
+              await page.goto(finalUrl, { waitUntil: 'domcontentloaded' });
+              await waitSettled(page, requests);
+            }
+          } catch {
+            // 개별 SPA 클릭 실패는 무시하고 다음 후보로 진행한다.
+          }
+        }
+      }
+    }
+
+    if (
+      nodes.length === 1
+      && (
+        (nodes[0].elements || []).some((e) => (e.type || '').toLowerCase() === 'password')
+        || extractLoginFields(nodes[0].elements) !== null
+      )
+    ) {
+      warn('로그인 화면에서 탐색이 멈췄습니다. 로그인 계정(아이디·비밀번호)을 입력하고 다시 탐색하거나 화면을 직접 추가하세요.');
     }
   } finally {
     await browser.close();
