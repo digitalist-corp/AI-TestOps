@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, HelpCircle, Keyboard, X } from 'lucide-react';
+import { BookOpen, ExternalLink, HelpCircle, Keyboard, X } from 'lucide-react';
 import { SHORTCUTS, screenHelpFor } from '@/config/screenHelp';
 import type { ProjectTabId } from '@/config/projectWorkspace';
 import { cn } from '@/lib/utils';
@@ -91,6 +91,18 @@ export function HelpMenu({
                 ))}
               </ul>
             )}
+
+            <a
+              href="/guide/"
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setOpen(false)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground hover:bg-accent"
+            >
+              <BookOpen className="h-4 w-4 text-muted-foreground" />
+              <span>사용자 가이드</span>
+              <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
+            </a>
 
             <button
               type="button"
