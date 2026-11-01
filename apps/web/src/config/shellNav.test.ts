@@ -36,6 +36,20 @@ describe('shellNav', () => {
     ]);
   });
 
+  it("'클릭으로 만들기'(recorder)는 테스트 그룹의 두 번째 탭이고, AI 를 꺼도 보인다", () => {
+    const scenarios = WORKSPACE_GROUPS.find((g) => g.id === 'scenarios');
+    expect(scenarios?.tabs).toEqual(['scenarios', 'recorder']);
+    expect(scenarios?.aiOnly).toBeFalsy();
+    expect(groupOfTab('recorder').id).toBe('scenarios');
+    expect(tabLabel('recorder')).toBe('클릭으로 만들기');
+
+    const withoutAi = visibleWorkspaceGroups(false).find((g) => g.id === 'scenarios');
+    expect(withoutAi?.tabs).toContain('recorder');
+    expect(PROJECT_WORKSPACE_TABS.find((t) => t.id === 'recorder')?.description).toBe(
+      '사이트를 직접 눌러 테스트 녹화'
+    );
+  });
+
   it('모든 ProjectTabId 가 정확히 한 그룹에 속한다', () => {
     const groupedTabs = WORKSPACE_GROUPS.flatMap((group) => group.tabs);
     const allTabIds = PROJECT_WORKSPACE_TABS.map((tab) => tab.id);

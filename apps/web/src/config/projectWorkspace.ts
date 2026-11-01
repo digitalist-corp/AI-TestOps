@@ -7,6 +7,7 @@ import {
   Network,
   FolderTree,
   GitBranch,
+  MousePointerClick,
   Play,
   ShieldCheck,
   Sparkles,
@@ -17,6 +18,7 @@ export type ProjectTabId =
   | 'source'
   | 'structure'
   | 'scenarios'
+  | 'recorder'
   | 'runs'
   | 'results'
   | 'ai-generate'
@@ -54,6 +56,12 @@ export const PROJECT_WORKSPACE_TABS: {
     label: '테스트',
     description: '케이스 선택 · 묶음 · 실행',
     icon: GitBranch,
+  },
+  {
+    id: 'recorder',
+    label: '클릭으로 만들기',
+    description: '사이트를 직접 눌러 테스트 녹화',
+    icon: MousePointerClick,
   },
   {
     id: 'runs',
