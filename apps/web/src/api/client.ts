@@ -29,7 +29,13 @@ import type {
   RunningAnalysis,
   SiteMap,
   SiteMapNodeDetail,
+  ChatSession,
+  ChatMessage,
+  ChatStreamEvent,
+  PermissionDecision,
+  UserLevel,
 } from '@/types';
+import { parseChatStreamEvent, readSseStream } from '@/lib/sseParser';
 
 const TOKEN_KEY = 'playops_token';
 const USER_KEY = 'playops_user';
@@ -439,6 +445,82 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+  },
+
+  chat: {
+    createSession: (arg?: string | { projectId?: string }) => {
+      const projectId = typeof arg === 'string' ? arg : arg?.projectId;
+      return request<ChatSession>('/api/ai/chat/sessions', {
+        method: 'POST',
+        body: JSON.stringify(projectId ? { projectId } : {}),
+      });
+    },
+    listSessions: (projectId?: string) =>
+      request<ChatSession[]>(
+        projectId
+          ? `/api/ai/chat/sessions?projectId=${encodeURIComponent(projectId)}`
+          : '/api/ai/chat/sessions'
+      ),
+    getSession: (id: number) =>
+      request<{ session: ChatSession; messages: ChatMessage[] }>(`/api/ai/chat/sessions/${id}`),
+    deleteSession: (id: number) =>
+      request<void>(`/api/ai/chat/sessions/${id}`, { method: 'DELETE' }),
+    respondPermission: (sessionId: number, requestId: string, decision: PermissionDecision) =>
+      request<void>(
+        `/api/ai/chat/sessions/${sessionId}/permissions/${encodeURIComponent(requestId)}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ decision }),
+        }
+      ),
+    cancel: (sessionId: number) =>
+      request<void>(`/api/ai/chat/sessions/${sessionId}/cancel`, { method: 'POST' }),
+    streamMessage: async (
+      sessionId: number,
+      payload: { content: string; userLevel?: UserLevel },
+      onEvent: (event: ChatStreamEvent) => void,
+      signal?: AbortSignal
+    ): Promise<void> => {
+      const auth = getStoredAuth();
+      const headers = new Headers({
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      });
+      if (auth?.token) {
+        headers.set('Authorization', `Bearer ${auth.token}`);
+      }
+      const res = await fetch(`/api/ai/chat/sessions/${sessionId}/messages`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        credentials: 'omit',
+        signal,
+      });
+
+      if (res.status === 401) {
+        clearStoredAuth();
+        window.location.href = '/login';
+        throw new Error('Unauthorized');
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `서버 응답 오류 (HTTP ${res.status})`);
+      }
+
+      if (!res.body) {
+        throw new Error('스트림 응답 본문이 없습니다.');
+      }
+
+      await readSseStream(
+        res.body,
+        (raw) => {
+          const ev = parseChatStreamEvent(raw);
+          if (ev) onEvent(ev);
+        },
+        signal
+      );
+    },
   },
 
   admin: {
