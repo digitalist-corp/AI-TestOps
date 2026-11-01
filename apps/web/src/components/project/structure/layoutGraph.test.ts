@@ -17,6 +17,7 @@ function screen(routeKey: string, counts: Partial<SiteMapNode> = {}): SiteMapNod
     authRequired: false,
     passedCount: 0,
     failedCount: 0,
+    observedCount: 0,
     unverifiedCount: 0,
     ...counts,
   };

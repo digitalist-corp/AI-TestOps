@@ -18,16 +18,19 @@ const HOW_TO = [
  */
 export function RecorderStartPanel({
   project,
+  initialUrl,
   starting,
   error,
   onStart,
 }: {
   project: Project;
+  /** 시작 주소 칸에 미리 채울 값 (구조 탭의 "다시 녹화하기") */
+  initialUrl?: string;
   starting: boolean;
   error: string;
   onStart: (request: RecorderStartRequest) => void;
 }) {
-  const [url, setUrl] = useState(project.baseUrl ?? '');
+  const [url, setUrl] = useState(initialUrl ?? project.baseUrl ?? '');
   const [useLogin, setUseLogin] = useState(false);
 
   const hasLoginSetup = Boolean(project.loginSetupSpecPath);

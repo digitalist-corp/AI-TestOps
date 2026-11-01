@@ -727,11 +727,82 @@ export interface SiteMapNode {
   hasScreenshot: boolean;
   /** 로그인해야 열리는 화면 */
   authRequired: boolean;
-  /** 테스트 실행으로 확인된(PASSED) · 실패한(FAILED) 요소 수. 나머지는 unverifiedCount (실측 OBSERVED 포함) */
+  /** 테스트 실행으로 확인된(PASSED) · 실패한(FAILED) 요소 수 */
   passedCount: number;
   failedCount: number;
+  /** 실제 화면에서 본(OBSERVED) 요소 수. passed + failed + observed + unverified = elementCount */
+  observedCount: number;
+  /** 코드 분석으로만 찾은(UNVERIFIED) 요소 수. OBSERVED 는 빼고 센다 */
   unverifiedCount: number;
 }
+
+/** 구조 탭 "확인 지도" (docs/design/structure-coverage-contract.md) */
+export type CoverageNodeState = 'TESTED' | 'OBSERVED' | 'UNSEEN' | 'BLOCKED';
+export type CoverageEdgeState = 'TESTED' | 'OBSERVED' | 'FAILED' | 'UNKNOWN';
+export type CoverageIssueKind = 'SELECTOR_FAILED' | 'LOGIN_REQUIRED' | 'OPEN_FAILED' | 'NOT_REACHED' | 'EXPLORE_STOPPED';
+export type CoverageAction = 'SET_LOGIN' | 'RECORD_AGAIN' | 'FIX_WITH_AI' | 'RERUN' | 'NONE';
+export type CoverageFlowSource = 'RECORDED' | 'GENERATED' | 'PATH' | 'OTHER';
+export type CoverageFlowStatus = 'PASSED' | 'FAILED' | 'NEVER_RUN';
+export type CoverageStepState = 'PASSED' | 'FAILED' | 'NOT_REACHED' | 'PENDING';
+
+export type CoverageSummary = {
+  /** 지도에 있는 화면 수 (excluded 제외) */
+  screens: number;
+  tested: number;
+  observed: number;
+  unseen: number;
+  blocked: number;
+  flows: number;
+  /** 지도에 반영된 마지막 실행 시각 */
+  lastRunAt: string | null;
+};
+
+export type CoverageIssue = {
+  kind: CoverageIssueKind;
+  /** 비개발자용 한국어 한 줄 */
+  message: string;
+  selector?: string | null;
+  specPath?: string | null;
+  executionId?: number | null;
+  at?: string | null;
+  action: CoverageAction;
+};
+
+export type CoverageNode = {
+  routeKey: string;
+  state: CoverageNodeState;
+  counts: { passed: number; failed: number; observed: number; unseen: number; total: number };
+  issues: CoverageIssue[];
+};
+
+export type CoverageEdge = {
+  from: string;
+  to: string;
+  state: CoverageEdgeState;
+};
+
+export type CoverageFlowStep = {
+  routeKey: string;
+  state: CoverageStepState;
+  message?: string | null;
+};
+
+export type CoverageFlow = {
+  specPath: string;
+  title: string;
+  source: CoverageFlowSource;
+  lastStatus: CoverageFlowStatus;
+  lastRunAt: string | null;
+  executionId: number | null;
+  steps: CoverageFlowStep[];
+};
+
+export type Coverage = {
+  summary: CoverageSummary;
+  nodes: CoverageNode[];
+  edges: CoverageEdge[];
+  flows: CoverageFlow[];
+};
 
 export interface SiteMap {
   projectId: string;

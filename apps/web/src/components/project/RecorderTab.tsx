@@ -26,6 +26,11 @@ function wantsMock(): boolean {
   return import.meta.env.DEV && new URLSearchParams(window.location.search).get('recorderMock') === '1';
 }
 
+/** 구조 탭의 "다시 녹화하기"가 ?url=<시작 주소> 로 연다. 있으면 시작 주소 칸에 채운다. */
+function startUrlFromQuery(): string | undefined {
+  return new URLSearchParams(window.location.search).get('url')?.trim() || undefined;
+}
+
 type RecorderTabProps = {
   project: Project;
   /** 테스트 파일을 저장했을 때: 파일 · 케이스 목록을 새로 읽는 데 쓴다 */
@@ -65,6 +70,7 @@ function RecorderTabBody({
   onRun,
 }: RecorderTabProps & { rec: RecorderApi; mock: boolean }) {
   const session = useRecorderSession(project.projectId, rec);
+  const [initialUrl] = useState(startUrlFromQuery);
   const [mode, setMode] = useState<RecorderMode>('click');
   // 마지막으로 저장한 시점의 단계 지문. 저장 뒤에 바뀌었는지 · 아직 저장 안 했는지 판단하는 데 쓴다.
   const [saved, setSaved] = useState<{ sessionId: string; signature: string } | null>(null);
@@ -84,6 +90,7 @@ function RecorderTabBody({
         {mockBadge}
         <RecorderStartPanel
           project={project}
+          initialUrl={initialUrl}
           starting={session.starting}
           error={session.error}
           onStart={session.start}

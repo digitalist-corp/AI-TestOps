@@ -1,7 +1,19 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, Globe, KeyRound, List, Loader2, Plus, RefreshCw, Settings2, TriangleAlert, Waypoints } from 'lucide-react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ChevronDown, Globe, Info, KeyRound, List, Loader2, Plus, RefreshCw, Settings2, TriangleAlert, Waypoints, X } from 'lucide-react';
 import { api } from '@/api/client';
-import type { SiteMap, SiteMapNode } from '@/types';
+import type { Coverage, Execution, SiteMap, SiteMapNode } from '@/types';
+import { useAiEnabled } from '@/lib/aiEnabled';
+import {
+  LIVE_POLL_MS,
+  finishedExecutions,
+  isActiveExecution,
+  issueItems,
+  recorderLink,
+  resolveCoverage,
+  shouldPoll,
+  type StructureSource,
+} from '@/lib/coverage';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,6 +26,9 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog';
 import { formatEta } from '@/components/project/AnalysisProgress';
+import { CoverageSummaryCard } from './structure/CoverageSummaryCard';
+import type { SidePanelTab } from './structure/FlowPanel';
+import { IssueList, issueActionKey, type IssueActionHandler } from './structure/IssueList';
 import { StructureEmptyState } from './structure/StructureEmptyState';
 import { StructureList } from './structure/StructureList';
 import { GRAPH_MEDIA_QUERY, useMediaQuery } from './structure/useMediaQuery';
@@ -23,7 +38,21 @@ const StructureGraph = lazy(() => import('./structure/StructureGraph'));
 
 type StructureView = 'graph' | 'list';
 
-const POLL_INTERVAL_MS = 2000;
+/** 실제 서버에서 읽는 구조 데이터 */
+const SERVER_SOURCE: StructureSource = {
+  getSiteMap: api.getSiteMap,
+  getCoverage: api.getSiteMapCoverage,
+  getExecutions: api.getExecutions,
+  getSiteMapNode: api.getSiteMapNode,
+  runSpec: (projectId, specPath) => api.runTests(projectId, { specPath }),
+};
+
+/** 개발 서버에서만: 주소에 ?coverageMock=1 이 있으면 서버 없이 가짜 확인 지도로 화면을 본다. */
+function wantsCoverageMock(): boolean {
+  return import.meta.env.DEV && new URLSearchParams(window.location.search).get('coverageMock') === '1';
+}
+
+type Notice = { tone: 'info' | 'error'; text: string; link?: { to: string; label: string } };
 
 const FRAMEWORK_LABEL: Record<string, string> = {
   NEXT: 'Next.js',
@@ -70,15 +99,30 @@ function ViewSwitch({ view, onChange }: {
  * 있으면 넓은 화면(1024px 이상)은 그래프 보기, 좁은 화면은 목록 보기가 기본이다. 여러 화면을 이어 경로로
  * 테스트를 만드는 일은 그래프 보기에서만 한다.
  */
-export function StructureTab({ projectId }: { projectId: string }) {
+export function StructureTab({ projectId, onOpenEnv }: {
+  projectId: string;
+  /** 프로젝트 환경변수 창을 연다 (막힌 곳의 "로그인 정보 넣기") */
+  onOpenEnv?: () => void;
+}) {
+  const navigate = useNavigate();
+  const { active: aiActive } = useAiEnabled();
+  const [mockWanted] = useState(wantsCoverageMock);
+  const [data, setData] = useState<StructureSource | null>(() => (mockWanted ? null : SERVER_SOURCE));
   const [siteMap, setSiteMap] = useState<SiteMap | null>(null);
+  const [rawCoverage, setRawCoverage] = useState<Coverage | null>(null);
+  const [executions, setExecutions] = useState<Execution[]>([]);
+  const executionsRef = useRef<Execution[]>([]);
+  const [autoPlay, setAutoPlay] = useState<{ executionId: number; specPath: string | null; nonce: number } | null>(null);
+  const [panelRequest, setPanelRequest] = useState<{ tab: SidePanelTab; nonce: number } | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const viewRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState('');
   const [branch, setBranch] = useState('');
   const [token, setToken] = useState('');
   const [showSource, setShowSource] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wide = useMediaQuery(GRAPH_MEDIA_QUERY);
   const [chosenView, setChosenView] = useState<StructureView | null>(null);
   const view: StructureView = chosenView ?? (wide ? 'graph' : 'list');
@@ -104,21 +148,113 @@ export function StructureTab({ projectId }: { projectId: string }) {
     setBranch(next.source.branch ?? '');
   }, []);
 
+  // 가짜 확인 지도는 개발 서버에서만 불러온다. 이 분기는 운영 빌드에서 통째로 사라진다.
   useEffect(() => {
-    api.getSiteMap(projectId).then(apply).catch((e: Error) => setError(e.message));
-  }, [projectId, apply]);
+    if (import.meta.env.DEV && mockWanted) {
+      void import('@/lib/coverageMock').then((m) => setData(m.createCoverageMock()));
+    }
+  }, [mockWanted]);
 
-  // 분석 중에만 진행 상황을 다시 읽는다. 입력 중인 저장소 주소를 덮어쓰지 않도록 분석 결과만 갱신한다.
-  const running = siteMap?.analysis.status === 'RUNNING';
+  const setRuns = useCallback((list: Execution[]) => {
+    executionsRef.current = list;
+    setExecutions(list);
+  }, []);
+
   useEffect(() => {
-    if (!running) return;
-    pollRef.current = setInterval(() => {
-      api.getSiteMap(projectId).then(setSiteMap).catch(() => {});
-    }, POLL_INTERVAL_MS);
+    if (!data) return;
+    let cancelled = false;
+    data.getSiteMap(projectId).then((next) => !cancelled && apply(next)).catch((e: Error) => !cancelled && setError(e.message));
+    // 확인 지도 · 실행 목록은 없어도 화면은 그린다(지도 숫자로 상태를 정한다).
+    data.getCoverage(projectId).then((next) => !cancelled && setRawCoverage(next)).catch(() => {});
+    data.getExecutions(projectId).then((list) => !cancelled && setRuns(list)).catch(() => {});
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      cancelled = true;
     };
-  }, [running, projectId]);
+  }, [projectId, data, apply, setRuns]);
+
+  /** 지도와 확인 상태를 다시 읽는다. 입력 중인 저장소 주소를 덮어쓰지 않도록 apply 대신 지도만 바꾼다. */
+  const refresh = useCallback(async () => {
+    if (!data) return;
+    const [map, cov] = await Promise.all([
+      data.getSiteMap(projectId).catch(() => null),
+      data.getCoverage(projectId).catch(() => null),
+    ]);
+    if (map) setSiteMap(map);
+    if (cov) setRawCoverage(cov);
+  }, [data, projectId]);
+
+  // 테스트가 실행 중이거나 사이트 탐색(분석) 중이면 5초마다 지도 · 확인 상태 · 실행 목록을 다시 읽는다.
+  // 돌던 실행이 끝나면 한 번 더 읽고, 그 흐름을 지도에서 자동 재생한다.
+  const running = siteMap?.analysis.status === 'RUNNING';
+  const live = shouldPoll({ analysisRunning: Boolean(running), executions });
+  const executionRunning = executions.some(isActiveExecution);
+  useEffect(() => {
+    if (!data || !live) return;
+    let cancelled = false;
+    const tick = async () => {
+      const [list] = await Promise.all([data.getExecutions(projectId).catch(() => null), refresh()]);
+      if (cancelled || !list) return;
+      const done = finishedExecutions(executionsRef.current, list);
+      setRuns(list);
+      if (done.length === 0) return;
+      await refresh();
+      if (cancelled) return;
+      setAutoPlay({ executionId: done[0].id, specPath: done[0].specPath, nonce: Date.now() });
+    };
+    const timer = setInterval(() => void tick(), LIVE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [data, live, projectId, refresh, setRuns]);
+
+  const coverage = useMemo(() => (siteMap ? resolveCoverage(siteMap, rawCoverage) : null), [siteMap, rawCoverage]);
+  const nodeByRoute = useMemo(() => new Map((siteMap?.nodes ?? []).map((n) => [n.routeKey, n])), [siteMap]);
+  const issues = useMemo(() => (coverage ? issueItems(coverage, nodeByRoute) : []), [coverage, nodeByRoute]);
+
+  /** 막힌 곳 카드의 추천 행동 */
+  const handleIssueAction = useCallback<IssueActionHandler>(
+    async (item, action) => {
+      const { issue, routeKey } = item;
+      setNotice(null);
+      if (action === 'RECORD_AGAIN') {
+        navigate(recorderLink(projectId, routeKey, nodeByRoute.get(routeKey)));
+        return;
+      }
+      if (action === 'SET_LOGIN') {
+        if (onOpenEnv) onOpenEnv();
+        else setNotice({ tone: 'info', text: '프로젝트 환경변수에 LOGIN_ID 와 LOGIN_PASSWORD 를 넣어 주세요.' });
+        return;
+      }
+      if (!issue.specPath || !data) return;
+      const specPath = issue.specPath;
+      const title = coverage?.flows.find((f) => f.specPath === specPath)?.title ?? specPath.split('/').pop();
+      setBusyKey(issueActionKey(item, action));
+      try {
+        if (action === 'RERUN') {
+          const started = await data.runSpec(projectId, specPath);
+          setRuns([started, ...executionsRef.current.filter((e) => e.id !== started.id)]);
+          setNotice({ tone: 'info', text: `'${title}' 테스트를 다시 돌리는 중이에요. 끝나면 지도에 바로 반영돼요.` });
+        } else if (action === 'FIX_WITH_AI' && issue.executionId != null) {
+          const job = await api.aiJobs.create(projectId, {
+            failedExecutionId: issue.executionId,
+            targetSpecPath: specPath,
+            instruction: `'${item.name}' 화면에서 테스트가 막혔습니다: ${issue.message}. 지금 화면에 맞게 테스트를 고쳐 주세요.`,
+          });
+          setNotice({
+            tone: 'info',
+            text: `AI 가 '${title}' 테스트 수정안을 만들고 있어요 (작업 #${job.id}). 다 되면 AI 검토에서 승인해 주세요.`,
+            link: { to: `/projects/${projectId}/ai-review`, label: 'AI 검토로 이동' },
+          });
+        }
+      } catch (e) {
+        setNotice({ tone: 'error', text: e instanceof Error ? e.message : '요청에 실패했습니다.' });
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [coverage, navigate, nodeByRoute, onOpenEnv, projectId, setRuns, data]
+  );
 
   /** 상세 패널에서 메모 · 제외를 바꾸면 목록 보기와 같은 데이터를 쓰도록 여기에도 반영한다. */
   const updateNode = useCallback((node: SiteMapNode) => {
@@ -208,7 +344,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
     }
   };
 
-  if (!siteMap) {
+  if (!siteMap || !coverage) {
     return error ? (
       <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">{error}</p>
     ) : (
@@ -252,8 +388,49 @@ export function StructureTab({ projectId }: { projectId: string }) {
     .filter(Boolean)
     .join(' · ');
 
+  const liveText = executionRunning
+    ? '테스트 실행 중… 결과가 지도에 바로 반영됩니다'
+    : running
+      ? urlRun
+        ? '사이트 탐색 중… 찾은 화면이 지도에 하나씩 나타납니다'
+        : '화면 분석 중… 끝나면 지도가 새로 그려집니다'
+      : null;
+
+  const showBlocked = () => {
+    if (view === 'graph') setPanelRequest({ tab: 'issues', nonce: Date.now() });
+    viewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <div className="space-y-4">
+      {mockWanted && (
+        <Badge variant="warning">개발용 가짜 확인 지도 — 서버에 연결하지 않아요 (막힌 흐름을 "다시 실행"해 보세요)</Badge>
+      )}
+
+      {!empty && <CoverageSummaryCard summary={coverage.summary} live={liveText} onShowBlocked={showBlocked} />}
+
+      {notice && (
+        <div
+          role="status"
+          className={`flex items-start gap-2 rounded-lg border px-4 py-2.5 text-sm ${
+            notice.tone === 'error' ? 'border-destructive/40 bg-destructive/5 text-destructive' : 'border-primary/30 bg-primary-subtle text-foreground'
+          }`}
+        >
+          {notice.tone === 'error' ? <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> : <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
+          <span className="min-w-0 flex-1">
+            {notice.text}
+            {notice.link && (
+              <Link to={notice.link.to} className="ml-2 font-semibold text-primary hover:underline">
+                {notice.link.label} →
+              </Link>
+            )}
+          </span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="알림 닫기" className="cursor-pointer text-muted-foreground hover:text-foreground">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {error && (
         <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {error}
@@ -448,6 +625,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
           }}
         />
       ) : view === 'graph' ? (
+        <div ref={viewRef} className="scroll-mt-4">
         <Suspense
           fallback={
             <div className="flex h-[660px] items-center justify-center rounded-lg border border-border bg-background">
@@ -458,17 +636,38 @@ export function StructureTab({ projectId }: { projectId: string }) {
           <StructureGraph
             projectId={projectId}
             siteMap={siteMap}
+            coverage={coverage}
+            issues={issues}
+            onIssueAction={handleIssueAction}
+            busyKey={busyKey}
             onNodeUpdated={updateNode}
             onNodeDeleted={removeNodeFromState}
             viewSwitch={<ViewSwitch view={view} onChange={setChosenView} />}
+            autoPlay={autoPlay}
+            panelRequest={panelRequest}
+            live={live}
+            loadDetail={data?.getSiteMapNode}
           />
         </Suspense>
+        </div>
       ) : (
         <>
           <div className="flex justify-end">
             <ViewSwitch view={view} onChange={setChosenView} />
           </div>
-          <StructureList projectId={projectId} siteMap={siteMap} onError={setError} />
+          {issues.length > 0 && (
+            <section ref={viewRef} className="scroll-mt-4 rounded-lg border border-border bg-card p-4">
+              <h3 className="mb-3 text-sm font-semibold text-foreground">막힌 곳 {issues.length}곳</h3>
+              <IssueList items={issues} aiActive={aiActive} onAction={handleIssueAction} busyKey={busyKey} />
+            </section>
+          )}
+          <StructureList
+            projectId={projectId}
+            siteMap={siteMap}
+            onError={setError}
+            states={new Map(coverage.nodes.map((n) => [n.routeKey, n.state]))}
+            loadDetail={data?.getSiteMapNode}
+          />
         </>
       )}
 

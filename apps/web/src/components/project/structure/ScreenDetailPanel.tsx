@@ -2,22 +2,22 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CircleDashed, CheckCircle2, Loader2, Plus, Save, Trash2, X, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
-import type { SiteMapNode, SiteMapNodeDetail } from '@/types';
+import type { CoverageFlow, CoverageNode, SiteMapNode, SiteMapNodeDetail } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useAiEnabled } from '@/lib/aiEnabled';
+import { ELEMENT_STATE_META, NODE_STATE_META, fallbackCoverageNode, type IssueItem } from '@/lib/coverage';
 import { cn } from '@/lib/utils';
 import { ElementTable } from './ElementTable';
-import { nodeStatus } from './layoutGraph';
-import { TICK_CLASS, verificationTicks } from './ScreenNode';
+import { IssueList, type IssueActionHandler } from './IssueList';
+import { CoverageBar, STATE_ICON } from './ScreenNode';
 
 export const DETAIL_PANEL_WIDTH = 392;
 
-const STATUS = {
-  failed: { label: '실패', text: '실패한 요소가 있습니다', variant: 'destructive', tone: 'text-destructive' },
-  passed: { label: '통과', text: '모든 요소가 확인됐습니다', variant: 'success', tone: 'text-success' },
-  neutral: { label: '미확인', text: '아직 확인되지 않은 요소가 있습니다', variant: 'neutral', tone: 'text-muted-foreground' },
-} as const;
+/** 테스트 파일 이름을 사람이 읽을 이름으로: 흐름 제목 → 파일 이름(확장자 뺌) */
+function testName(specPath: string, flows: CoverageFlow[]) {
+  return flows.find((f) => f.specPath === specPath)?.title ?? specPath.split('/').pop()?.replace(/\.(spec|test)\.[jt]sx?$/, '') ?? specPath;
+}
 
 function formatTime(iso: string | null) {
   return iso ? new Date(iso).toLocaleString('ko-KR') : '';
@@ -49,7 +49,10 @@ function Prop({ k, v, mono = false }: { k: string; v: ReactNode; mono?: boolean 
  * 화면 상세. 속성, 확인 현황, 메모 · 제외(다시 분석해도 남는다), 이 화면으로 만든
  * 테스트의 최근 결과, 들고 나는 전환, 요소 표를 보여 준다.
  */
-export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump, onNodeUpdated, onDeleteNode }: {
+export function ScreenDetailPanel({
+  projectId, routeKey, onClose, onAdd, onJump, onNodeUpdated, onDeleteNode,
+  coverage, flows = [], issues = [], onIssueAction, busyKey = null, loadDetail = api.getSiteMapNode,
+}: {
   projectId: string;
   routeKey: string;
   onClose: () => void;
@@ -57,6 +60,15 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
   onJump: (routeKey: string) => void;
   onNodeUpdated: (node: SiteMapNode) => void;
   onDeleteNode?: (routeKey: string) => void;
+  /** 확인 지도에서 이 화면의 상태. 없으면 지도 숫자로 정한다 */
+  coverage?: CoverageNode;
+  flows?: CoverageFlow[];
+  /** 이 화면의 막힌 곳 */
+  issues?: IssueItem[];
+  onIssueAction?: IssueActionHandler;
+  busyKey?: string | null;
+  /** 화면 상세를 읽는 함수 (개발용 가짜 응답에서 바꿔 낀다) */
+  loadDetail?: (projectId: string, routeKey: string) => Promise<SiteMapNodeDetail>;
 }) {
   const { active: aiActive } = useAiEnabled();
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
@@ -70,8 +82,7 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
     setDetail(null);
     setError('');
     setScreenshotUrl(null);
-    api
-      .getSiteMapNode(projectId, routeKey)
+    loadDetail(projectId, routeKey)
       .then((next) => {
         if (cancelled) return;
         setDetail(next);
@@ -81,7 +92,7 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
     return () => {
       cancelled = true;
     };
-  }, [projectId, routeKey]);
+  }, [projectId, routeKey, loadDetail]);
 
   // 스크린샷은 인증 헤더가 필요해 img src 로 바로 걸지 않고 받아서 보여 준다.
   const screenshotRoute = detail?.node.hasScreenshot ? detail.node.routeKey : null;
@@ -134,10 +145,12 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
   };
 
   const node = detail?.node;
-  const status = STATUS[node ? nodeStatus(node) : 'neutral'];
+  const cov = coverage ?? (node ? fallbackCoverageNode(node) : null);
+  const meta = cov ? NODE_STATE_META[cov.state] : null;
+  const StateIcon = cov ? STATE_ICON[cov.state].icon : null;
   const outgoing = detail?.edges.filter((e) => e.from === routeKey) ?? [];
   const incoming = detail?.edges.filter((e) => e.to === routeKey) ?? [];
-  const ticks = node ? verificationTicks(node) : [];
+  const name = node?.title ?? node?.sourceFile?.split('/').pop() ?? routeKey;
 
   return (
     <aside
@@ -150,8 +163,18 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
       <header className="px-4 pb-4 pt-4">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
-            <h3 className="break-all font-mono text-base font-semibold text-foreground">{routeKey}</h3>
-            <p className="truncate text-sm text-muted-foreground">{node?.title ?? ' '}</p>
+            <h3 className="break-all text-base font-semibold text-foreground">{name}</h3>
+            {name !== routeKey && (
+              <p className="truncate font-mono text-xs text-muted-foreground" title={routeKey}>
+                {routeKey}
+              </p>
+            )}
+            {cov && meta && StateIcon && (
+              <p className={cn('mt-1.5 flex items-center gap-1.5 text-[13px] font-medium', STATE_ICON[cov.state].tone)} title={meta.hint}>
+                <StateIcon className="h-4 w-4" />
+                {meta.label}
+              </p>
+            )}
           </div>
           <Button variant="ghost" size="icon" className="-mr-2 -mt-1 h-8 w-8 shrink-0" onClick={onClose} aria-label="상세 닫기" title="닫기 (Esc)">
             <X className="h-4 w-4" />
@@ -194,7 +217,7 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
 
             <Section title="속성">
               <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-2">
-                <Prop k="경로" v={node.routeKey} mono />
+                <Prop k="주소" v={node.routeKey} mono />
                 <Prop k="제목" v={node.title ?? '-'} />
                 <Prop
                   k={node.origin === 'SITE' ? '주소' : '소스 파일'}
@@ -203,7 +226,15 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
                 />
                 <Prop
                   k="찾은 방법"
-                  v={node.origin === 'SITE' ? '사이트 탐색' : node.origin === 'MANUAL' ? '직접 추가' : '코드 분석'}
+                  v={
+                    node.origin === 'SITE'
+                      ? '사이트 탐색'
+                      : node.origin === 'MANUAL'
+                        ? '직접 추가'
+                        : node.origin === 'RECORDED'
+                          ? '녹화'
+                          : '코드 분석'
+                  }
                 />
                 <Prop k="로그인" v={node.authRequired ? <span className="text-warning">필요</span> : '필요 없음'} />
                 <Prop
@@ -221,28 +252,31 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
               </dl>
             </Section>
 
-            <Section title="확인 현황" right={<Badge variant={status.variant}>{status.label}</Badge>}>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { k: '통과', v: node.passedCount, c: 'text-success' },
-                  { k: '실패', v: node.failedCount, c: node.failedCount > 0 ? 'text-destructive' : 'text-muted-foreground' },
-                  { k: '미확인', v: node.unverifiedCount, c: 'text-muted-foreground' },
-                ].map((m) => (
-                  <div key={m.k} className="rounded-lg border border-border bg-background px-3 py-2">
-                    <p className="text-xs text-muted-foreground">{m.k}</p>
-                    <p className={cn('text-xl font-semibold tabular-nums', m.c)}>{m.v}</p>
-                  </div>
-                ))}
-              </div>
-              {ticks.length > 0 && (
-                <div className="mt-3 flex h-2.5 gap-0.5">
-                  {ticks.map((t, i) => (
-                    <i key={i} className={cn('flex-1 rounded-sm', TICK_CLASS[t])} />
+            {cov && meta && (
+              <Section title="확인 현황" right={<Badge variant={meta.tone} title={meta.hint}>{meta.label}</Badge>}>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { k: ELEMENT_STATE_META.PASSED, v: cov.counts.passed, c: 'text-success' },
+                    { k: ELEMENT_STATE_META.OBSERVED, v: cov.counts.observed, c: 'text-info' },
+                    { k: ELEMENT_STATE_META.UNVERIFIED, v: cov.counts.unseen, c: 'text-muted-foreground' },
+                    { k: ELEMENT_STATE_META.FAILED, v: cov.counts.failed, c: cov.counts.failed > 0 ? 'text-destructive' : 'text-muted-foreground' },
+                  ].map((m) => (
+                    <div key={m.k.label} className="rounded-lg border border-border bg-background px-3 py-2" title={m.k.hint}>
+                      <p className="text-xs text-muted-foreground">{m.k.label}</p>
+                      <p className={cn('text-xl font-semibold tabular-nums', m.c)}>{m.v}</p>
+                    </div>
                   ))}
                 </div>
-              )}
-              <p className={cn('mt-2 text-xs', status.tone)}>{status.text}</p>
-            </Section>
+                {cov.counts.total > 0 && <CoverageBar counts={cov.counts} className="mt-3 h-2.5" />}
+                <p className={cn('mt-2 text-xs', STATE_ICON[cov.state].tone)}>{meta.hint}</p>
+              </Section>
+            )}
+
+            {issues.length > 0 && onIssueAction && (
+              <Section title="막힌 곳" right={<span className="text-xs tabular-nums text-destructive">{issues.length}곳</span>}>
+                <IssueList items={issues} aiActive={aiActive} onAction={onIssueAction} busyKey={busyKey} />
+              </Section>
+            )}
 
             <Section title="메모">
               <textarea
@@ -296,8 +330,8 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
                         <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-mono text-xs text-foreground" title={test.specPath}>
-                          {test.specPath}
+                        <p className="truncate text-[13px] text-foreground" title={test.specPath}>
+                          {testName(test.specPath, flows)}
                         </p>
                         <p className="text-[11px] text-muted-foreground">
                           {test.lastStatus
@@ -341,7 +375,7 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
                         ) : (
                           <ArrowLeft className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         )}
-                        <span className="truncate font-mono text-xs text-foreground">{rel.route}</span>
+                        <span className="truncate font-mono text-xs text-foreground" title={rel.route}>{rel.route}</span>
                         {rel.label && <span className="ml-auto truncate text-xs text-muted-foreground">“{rel.label}”</span>}
                       </button>
                     </li>
