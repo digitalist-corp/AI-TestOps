@@ -17,6 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ChevronLeft, ChevronRight, GripVertical, Loader2, Play, Trash2, TriangleAlert, X } from 'lucide-react';
 import type { SiteMapNode } from '@/types';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import type { Connection, PathChip, PathSegment } from './usePathSelection';
 
 export const DEFAULT_PATH_INSTRUCTION = '선택한 화면 경로 순서대로 기본 탐색 및 동작 검증';
@@ -141,6 +142,8 @@ export function PathBar({ chips, segments, brokenCount, nodeByRoute, instruction
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
   const [focused, setFocused] = useState(false);
+  // AI를 끄면 경로 고르기 · 보기만 남기고, 테스트 생성 입력과 버튼은 숨긴다.
+  const { active: aiActive } = useAiEnabled();
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (over && active.id !== over.id) onReorder(String(active.id), String(over.id));
   };
@@ -160,7 +163,9 @@ export function PathBar({ chips, segments, brokenCount, nodeByRoute, instruction
           {chips.length === 0 ? (
             <p className="sg-hint flex items-center gap-2 text-[11px] text-[var(--c-muted)]">
               <span className="sg-add inline-flex h-[18px] w-[18px] items-center justify-center rounded-[2px] text-[11px] font-bold">+</span>
-              화면 카드의 + 를 순서대로 눌러 담으면 그 흐름을 따라가는 테스트를 만듭니다. 같은 화면을 다시 담아 되돌아가는 흐름도 만들 수 있습니다.
+              {aiActive
+                ? '화면 카드의 + 를 순서대로 눌러 담으면 그 흐름을 따라가는 테스트를 만듭니다. 같은 화면을 다시 담아 되돌아가는 흐름도 만들 수 있습니다.'
+                : '화면 카드의 + 를 순서대로 눌러 담으면 그 흐름이 그래프에 표시됩니다. 같은 화면을 다시 담아 되돌아가는 흐름도 볼 수 있습니다.'}
             </p>
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -208,30 +213,34 @@ export function PathBar({ chips, segments, brokenCount, nodeByRoute, instruction
               직접 전환이 없는 화면 간 연결 {brokenCount}곳
             </span>
           )}
-          <input
-            value={instruction}
-            onChange={(e) => onInstruction(e.target.value)}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.nativeEvent.isComposing && chips.length > 0 && !busy) onGenerate();
-            }}
-            placeholder={DEFAULT_PATH_INSTRUCTION}
-            aria-label="테스트로 확인할 내용"
-            className={`sg-input h-9 px-3 text-[11px] transition-[width] duration-300 ${focused || instruction ? 'w-80' : 'w-60'}`}
-          />
-          <button
-            type="button"
-            disabled={chips.length === 0 || busy}
-            onClick={onGenerate}
-            className="sg-execute inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-[2px] px-4 text-xs font-bold disabled:cursor-not-allowed"
-            data-testid="structure-path-generate"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />}
-            <span className="sg-mono tracking-wider">EXECUTE</span>
-            <span className="opacity-60">·</span>
-            이 경로로 테스트 만들기
-          </button>
+          {aiActive && (
+            <>
+              <input
+                value={instruction}
+                onChange={(e) => onInstruction(e.target.value)}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing && chips.length > 0 && !busy) onGenerate();
+                }}
+                placeholder={DEFAULT_PATH_INSTRUCTION}
+                aria-label="테스트로 확인할 내용"
+                className={`sg-input h-9 px-3 text-[11px] transition-[width] duration-300 ${focused || instruction ? 'w-80' : 'w-60'}`}
+              />
+              <button
+                type="button"
+                disabled={chips.length === 0 || busy}
+                onClick={onGenerate}
+                className="sg-execute inline-flex h-9 shrink-0 cursor-pointer items-center gap-2 rounded-[2px] px-4 text-xs font-bold disabled:cursor-not-allowed"
+                data-testid="structure-path-generate"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />}
+                <span className="sg-mono tracking-wider">EXECUTE</span>
+                <span className="opacity-60">·</span>
+                이 경로로 테스트 만들기
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

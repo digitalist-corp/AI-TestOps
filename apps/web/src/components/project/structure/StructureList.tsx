@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Loader2, Sparkles } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMap, SiteMapNodeDetail } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { ElementTable } from './ElementTable';
 
 /**
@@ -16,6 +18,7 @@ export function StructureList({ projectId, siteMap, onError }: {
   siteMap: SiteMap;
   onError: (message: string) => void;
 }) {
+  const { active: aiActive } = useAiEnabled();
   const [busy, setBusy] = useState(false);
   const [openRoute, setOpenRoute] = useState<string | null>(null);
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
@@ -168,14 +171,15 @@ export function StructureList({ projectId, siteMap, onError }: {
                     ) : (
                       <ElementTable elements={detail.elements} origin={node.origin} />
                     )}
-                    {detail && detail.elements.some((element) => element.selector) && (
+                    {/* AI를 끄면 테스트 생성 입력만 숨기고, 화면 · 요소 보기는 그대로 둔다 */}
+                    {aiActive && detail && detail.elements.some((element) => element.selector) && (
                       <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3 @3xl:flex-row @3xl:items-center">
                         {createdJob ? (
                           <p className="text-xs text-foreground">
                             AI 작업 #{createdJob.id} 을 만들었습니다 ({createdJob.specPath}). 생성이 끝나면{' '}
-                            <a className="font-semibold text-primary underline" href="/ai-jobs">
+                            <Link className="font-semibold text-primary underline" to={`/projects/${projectId}/ai-review`}>
                               AI 검토
-                            </a>
+                            </Link>
                             에서 승인해야 프로젝트에 추가됩니다.
                           </p>
                         ) : (

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CircleDashed, CheckCircle2, Loader2, Plus, Save, X, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMapNode, SiteMapNodeDetail } from '@/types';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { DecodeText } from './ConsoleHud';
 import { ElementTable } from './ElementTable';
 import { nodeStatus } from './layoutGraph';
@@ -58,6 +59,7 @@ export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, o
   onJump: (routeKey: string) => void;
   onNodeUpdated: (node: SiteMapNode) => void;
 }) {
+  const { active: aiActive } = useAiEnabled();
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -277,7 +279,10 @@ export function ScreenDetailPanel({ projectId, routeKey, code, onClose, onAdd, o
 
             <Section code="04" title="Linked tests" right={<span className="sg-mono text-[10px] text-[var(--c-dim)]">{pad2(detail.tests.length)}</span>}>
               {detail.tests.length === 0 ? (
-                <p className="text-[11px] text-[var(--c-muted)]">아직 없습니다. 경로에 추가해 테스트를 만들어 보세요.</p>
+                <p className="text-[11px] text-[var(--c-muted)]">
+                  {/* AI를 끄면 테스트를 만들 수 없으니 만들어 보라는 안내도 뺀다 */}
+                  {aiActive ? '아직 없습니다. 경로에 추가해 테스트를 만들어 보세요.' : '아직 없습니다.'}
+                </p>
               ) : (
                 <ul className="space-y-1">
                   {detail.tests.map((test) => (

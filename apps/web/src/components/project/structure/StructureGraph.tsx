@@ -624,7 +624,7 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
               경로 비우기
             </Button>
             <Button size="sm" className="sg-execute !rounded-[2px]" asChild>
-              <Link to="/ai-jobs">
+              <Link to={`/projects/${projectId}/ai-review`}>
                 <CheckCircle2 className="h-4 w-4" />
                 AI 검토로 이동
               </Link>
