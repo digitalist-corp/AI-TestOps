@@ -2,14 +2,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, ApiError } from '@/api/client';
 import type { Project, RecordedStep, RecorderState } from '@/types';
+import { SOFT_ERROR_MS } from '@/hooks/useRecorderSession';
 import { RecorderTab } from './RecorderTab';
 
 vi.mock('@/api/client', () => {
   class ApiError extends Error {
     status: number;
-    constructor(message: string, status: number) {
+    code?: string;
+    constructor(message: string, status: number, code?: string) {
       super(message);
       this.status = status;
+      this.code = code;
     }
   }
   return {
@@ -102,8 +105,12 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
+
+const GOTO = step('g', { action: 'goto', selector: null, label: "'/login' 페이지로 이동", value: '/login' });
+const CLOSED_REASON = '10분 동안 동작이 없어 녹화를 멈췄습니다. 기록한 단계는 아직 저장할 수 있습니다.';
 
 describe('RecorderTab', () => {
   it('시작 화면: 설명 세 줄과 프로젝트 baseUrl 기본값이 보이고, 로그인 선행이 없으면 체크박스가 없다', () => {
@@ -311,7 +318,7 @@ describe('RecorderTab', () => {
     const pathInput = (await screen.findByPlaceholderText('tests/recorded/login.spec.ts')) as HTMLInputElement;
     await waitFor(() => expect(pathInput.value).toBe('tests/recorded/demo.spec.ts'));
 
-    rec.save.mockRejectedValueOnce(new ApiError('exists', 409));
+    rec.save.mockRejectedValueOnce(new ApiError('exists', 409, 'FILE_EXISTS'));
     fireEvent.change(screen.getByPlaceholderText('예: 로그인하면 대시보드가 보인다'), {
       target: { value: '로그인 확인' },
     });
@@ -320,11 +327,11 @@ describe('RecorderTab', () => {
     expect(onSaved).not.toHaveBeenCalled();
 
     rec.save.mockResolvedValueOnce({ specPath: 'tests/recorded/login-2.spec.ts' });
-    fireEvent.change(pathInput, { target: { value: 'tests/recorded/login-2' } });
+    fireEvent.change(pathInput, { target: { value: 'tests/recorded/login-2.spec.ts' } });
     fireEvent.click(screen.getByRole('button', { name: /저장$/ }));
 
     await screen.findByText('테스트 파일로 저장했어요');
-    // .spec.ts 를 붙여 다듬은 경로와 이름을 보냈다
+    // 고른 경로와 이름을 그대로 보냈다
     expect(rec.save).toHaveBeenLastCalledWith('p1', 's1', {
       specPath: 'tests/recorded/login-2.spec.ts',
       title: '로그인 확인',
@@ -360,12 +367,17 @@ describe('RecorderTab', () => {
     await screen.findByRole('button', { name: /녹화 시작/ });
   });
 
-  it('서버에서 세션이 사라지면(404) 끝났다는 안내와 새로 시작 버튼을 보여 준다', async () => {
-    const screen_ = await startRecording();
-    rec.act.mockRejectedValue(new ApiError('not found', 404));
+  it('서버가 세션을 잊으면(404) 끝났다는 안내를 보이고, 더는 코드 보기 · 저장을 못 하게 한다', async () => {
+    const screen_ = await startRecording(state({ steps: [step('a')] }));
+    rec.act.mockRejectedValue(new ApiError('not found', 404, 'RECORDER_SESSION_NOT_FOUND'));
 
     fireEvent.click(screen_, { clientX: 420, clientY: 250 });
     await screen.findByRole('button', { name: /새로 시작/ });
+    expect(screen.getByText('녹화가 끝났습니다')).toBeTruthy();
+    expect(screen.getByText('녹화 기록을 찾을 수 없어요. 새로 시작해 주세요.')).toBeTruthy();
+    expect((screen.getByRole('button', { name: /코드 보기/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /저장$/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getAllByRole('button', { name: '삭제' })[0] as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('화면을 떠나면(언마운트) 세션을 끝낸다', async () => {
@@ -384,5 +396,274 @@ describe('RecorderTab', () => {
     expect(rec.closeOnLeave).toHaveBeenCalledTimes(1);
     unmount();
     expect(rec.closeOnLeave).toHaveBeenCalledTimes(1);
+  });
+
+  it('동작이 실패하면(HTTP 200 + state.error) 단계는 붙지 않고, 이유를 잠깐 보여 준 뒤 다음 동작이 성공하면 사라진다', async () => {
+    const screen_ = await startRecording(state({ steps: [GOTO] }));
+    rec.act.mockResolvedValueOnce(state({ steps: [GOTO], error: '그 위치는 입력란이 아닙니다' }));
+
+    fireEvent.click(screen_, { clientX: 420, clientY: 250 });
+    await screen.findByText('그 위치는 입력란이 아닙니다');
+    expect(screen.getByText('기록된 단계', { exact: false }).textContent).toContain('1개');
+    // 실패해도 녹화는 계속된다 (끝남 안내가 뜨지 않는다)
+    expect(screen.queryByText('녹화가 끝났습니다')).toBeNull();
+
+    rec.act.mockResolvedValueOnce(state({ steps: [GOTO, step('b')], error: null }));
+    fireEvent.click(screen_, { clientX: 430, clientY: 260 });
+    await waitFor(() => expect(screen.queryByText('그 위치는 입력란이 아닙니다')).toBeNull());
+    await screen.findByText('단계 b');
+  });
+
+  it('실패 안내는 몇 초 뒤 저절로 사라진다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const screen_ = await startRecording(state({ steps: [GOTO] }));
+    rec.act.mockResolvedValueOnce(state({ steps: [GOTO], error: '요소를 찾지 못했습니다' }));
+
+    fireEvent.click(screen_, { clientX: 420, clientY: 250 });
+    await screen.findByText('요소를 찾지 못했습니다');
+
+    act(() => {
+      vi.advanceTimersByTime(SOFT_ERROR_MS + 100);
+    });
+    expect(screen.queryByText('요소를 찾지 못했습니다')).toBeNull();
+  });
+
+  it('시작 오류: 409 RECORDER_LIMIT · 503 RECORDER_UNAVAILABLE 마다 다른 안내를 보여 준다', async () => {
+    renderTab();
+    rec.start.mockRejectedValueOnce(new ApiError('limit', 409, 'RECORDER_LIMIT'));
+    fireEvent.click(screen.getByRole('button', { name: /녹화 시작/ }));
+    await screen.findByText(/동시에 2개까지만 녹화할 수 있어요/);
+
+    rec.start.mockRejectedValueOnce(new ApiError('docker', 503, 'RECORDER_UNAVAILABLE'));
+    fireEvent.click(screen.getByRole('button', { name: /녹화 시작/ }));
+    await screen.findByText(/Docker 를 쓸 수 없어서 녹화를 시작할 수 없어요/);
+    expect(screen.queryByText(/동시에 2개까지만/)).toBeNull();
+  });
+
+  it('동작이 409 RECORDER_STARTING 이면 준비 중이라고 안내한다', async () => {
+    const screen_ = await startRecording();
+    rec.act.mockRejectedValueOnce(new ApiError('starting', 409, 'RECORDER_STARTING'));
+
+    fireEvent.click(screen_, { clientX: 420, clientY: 250 });
+    await screen.findByText(/브라우저를 아직 준비하고 있어요/);
+    // 끝난 것이 아니므로 끝남 안내는 없다
+    expect(screen.queryByText('녹화가 끝났습니다')).toBeNull();
+  });
+
+  it('동작이 409 RECORDER_CLOSED 이면 끝남 안내 + 새로 시작 버튼을 보이고, 코드 보기 · 저장 · 단계 편집은 계속 된다', async () => {
+    const screen_ = await startRecording(state({ steps: [GOTO, step('a')] }));
+    rec.act.mockRejectedValueOnce(new ApiError('closed', 409, 'RECORDER_CLOSED'));
+    rec.get.mockResolvedValue(
+      state({ status: 'CLOSED', error: CLOSED_REASON, steps: [GOTO, step('a'), step('b')] })
+    );
+
+    fireEvent.click(screen_, { clientX: 420, clientY: 250 });
+
+    await screen.findByText('녹화가 끝났습니다');
+    expect(screen.getByText(CLOSED_REASON)).toBeTruthy();
+    expect(screen.getByText(/유휴 10분/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /새로 시작/ })).toBeTruthy();
+    // 끝나기 전에 서버가 가진 마지막 단계를 받아 와서 보여 준다
+    await screen.findByText('단계 b');
+
+    // 동작 · 스크린샷은 막는다
+    expect((screen.getByRole('button', { name: /Enter 키/ }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen_, { clientX: 430, clientY: 260 });
+    expect(rec.act).toHaveBeenCalledTimes(1);
+    expect(rec.screenshot).toHaveBeenCalledTimes(1);
+
+    // 코드 보기
+    rec.code.mockResolvedValue({ specPath: 'tests/recorded/demo.spec.ts', code: "await page.goto('/login');" });
+    fireEvent.click(screen.getByRole('button', { name: /코드 보기/ }));
+    await screen.findByText("await page.goto('/login');");
+    fireEvent.click(screen.getByRole('button', { name: '닫기' }));
+
+    // 단계 편집(삭제)
+    rec.putSteps.mockResolvedValue(state({ status: 'CLOSED', error: CLOSED_REASON, steps: [GOTO, step('b')] }));
+    fireEvent.click(screen.getAllByRole('button', { name: '삭제' })[1]);
+    await waitFor(() => expect(rec.putSteps).toHaveBeenCalled());
+
+    // 저장
+    rec.save.mockResolvedValue({ specPath: 'tests/recorded/demo.spec.ts' });
+    const pathInput = screen.getByPlaceholderText('tests/recorded/login.spec.ts') as HTMLInputElement;
+    await waitFor(() => expect(pathInput.value).toBe('tests/recorded/demo.spec.ts'));
+    fireEvent.click(screen.getByRole('button', { name: /저장$/ }));
+    await screen.findByText('테스트 파일로 저장했어요');
+  });
+
+  it('평소에도 10초마다 상태를 확인해서, 유휴 종료(CLOSED)를 바로 알려 준다', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await startRecording(state({ steps: [GOTO, step('a')] }));
+    rec.get.mockResolvedValue(state({ status: 'CLOSED', error: CLOSED_REASON, steps: [GOTO, step('a')] }));
+
+    await act(async () => {
+      vi.advanceTimersByTime(10_000);
+    });
+    await screen.findByText('녹화가 끝났습니다');
+    expect(screen.getByText(CLOSED_REASON)).toBeTruthy();
+  });
+
+  it('끝난 뒤 새로 시작: 저장하지 않은 단계가 있으면 확인을 받는다', async () => {
+    const screen_ = await startRecording(state({ steps: [GOTO, step('a')] }));
+    rec.act.mockRejectedValueOnce(new ApiError('closed', 409, 'RECORDER_CLOSED'));
+    rec.get.mockResolvedValue(state({ status: 'CLOSED', error: CLOSED_REASON, steps: [GOTO, step('a')] }));
+    fireEvent.click(screen_, { clientX: 420, clientY: 250 });
+    const restart = await screen.findByRole('button', { name: /새로 시작/ });
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    fireEvent.click(restart);
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(rec.close).not.toHaveBeenCalled();
+
+    confirmSpy.mockReturnValue(true);
+    rec.start.mockResolvedValue(state({ sessionId: 's2' }));
+    fireEvent.click(restart);
+    await waitFor(() => expect(rec.close).toHaveBeenCalledWith('p1', 's1'));
+    await waitFor(() => expect(rec.start).toHaveBeenCalledTimes(2));
+  });
+
+  it('시작하면 서버가 붙여 준 첫 이동(goto) 단계가 보이고, 아무것도 안 했으면 끝내도 확인하지 않는다', async () => {
+    await startRecording(state({ steps: [GOTO] }));
+    expect(screen.getByText("'/login' 페이지로 이동")).toBeTruthy();
+    expect(screen.getByText(/첫 이동은 자동으로 기록됐어요/)).toBeTruthy();
+
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    fireEvent.click(screen.getByRole('button', { name: /녹화 끝내기/ }));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(rec.close).toHaveBeenCalledWith('p1', 's1'));
+  });
+
+  it('press 단계는 셀렉터 없이도 정상으로 보인다', async () => {
+    await startRecording(
+      state({ steps: [GOTO, step('k', { action: 'press', selector: null, label: 'Enter 키 누르기', value: 'Enter' })] })
+    );
+    expect(screen.getByText('Enter 키 누르기')).toBeTruthy();
+    expect(screen.getByText('키: Enter')).toBeTruthy();
+  });
+
+  it('단계의 값(입력한 글자)을 고치면 label 은 그대로 두고 value 를 PUT steps 로 보낸다', async () => {
+    await startRecording(
+      state({
+        steps: [
+          step('f', { action: 'fill', value: 'old@example.com', selector: "getByLabel('이메일')" }),
+          step('c'),
+        ],
+      })
+    );
+    rec.putSteps.mockResolvedValue(state({ steps: [step('f', { action: 'fill', value: 'new@example.com' }), step('c')] }));
+
+    fireEvent.click(screen.getAllByRole('button', { name: '설명 · 값 수정' })[0]);
+    const valueInput = screen.getByLabelText('입력할 값 수정') as HTMLInputElement;
+    expect(valueInput.value).toBe('old@example.com');
+    fireEvent.change(valueInput, { target: { value: 'new@example.com' } });
+    fireEvent.keyDown(valueInput, { key: 'Enter' });
+
+    await waitFor(() =>
+      expect(rec.putSteps).toHaveBeenCalledWith('p1', 's1', [
+        expect.objectContaining({ id: 'f', value: 'new@example.com', label: '단계 f' }),
+        expect.objectContaining({ id: 'c' }),
+      ])
+    );
+  });
+
+  it('수정 칸 사이를 옮겨 다닐 때는 저장하지 않고, 줄 밖으로 나가면 저장한다. Esc 는 취소다', async () => {
+    await startRecording(state({ steps: [step('f', { action: 'fill', value: 'old' })] }));
+    rec.putSteps.mockResolvedValue(state({ steps: [step('f', { action: 'fill', value: 'old', label: '새 설명' })] }));
+
+    fireEvent.click(screen.getByRole('button', { name: '설명 · 값 수정' }));
+    const labelInput = screen.getByLabelText('단계 설명 수정') as HTMLInputElement;
+    const valueInput = screen.getByLabelText('입력할 값 수정') as HTMLInputElement;
+
+    // 같은 줄 안에서 포커스 이동: 저장하지 않는다
+    fireEvent.change(labelInput, { target: { value: '새 설명' } });
+    labelInput.focus();
+    valueInput.focus();
+    expect(rec.putSteps).not.toHaveBeenCalled();
+
+    // 줄 밖으로 나가면 저장한다
+    fireEvent.blur(valueInput, { relatedTarget: document.body });
+    await waitFor(() =>
+      expect(rec.putSteps).toHaveBeenCalledWith('p1', 's1', [expect.objectContaining({ label: '새 설명' })])
+    );
+  });
+
+  it('Esc 로 수정을 취소하면 아무것도 보내지 않는다', async () => {
+    await startRecording(state({ steps: [step('f', { action: 'fill', value: 'old' })] }));
+
+    fireEvent.click(screen.getByRole('button', { name: '설명 · 값 수정' }));
+    const valueInput = screen.getByLabelText('입력할 값 수정') as HTMLInputElement;
+    fireEvent.change(valueInput, { target: { value: 'changed' } });
+    fireEvent.keyDown(valueInput, { key: 'Escape' });
+
+    expect(screen.queryByLabelText('입력할 값 수정')).toBeNull();
+    expect(rec.putSteps).not.toHaveBeenCalled();
+  });
+
+  it('비밀번호 단계는 값 입력칸이 없고 환경변수 안내만 보인다 (설명은 고칠 수 있다)', async () => {
+    await startRecording(
+      state({
+        steps: [step('p', { action: 'fill', label: "'비밀번호' 칸에 입력", secretEnv: 'LOGIN_PASSWORD' })],
+      })
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: '설명 · 값 수정' }));
+    expect(screen.queryByLabelText(/입력할 값 수정/)).toBeNull();
+    expect(screen.getByLabelText('단계 설명 수정')).toBeTruthy();
+    expect(screen.getByText(/비밀번호는 값을 저장하지 않아요/)).toBeTruthy();
+  });
+
+  it('클릭 · 확인 단계는 값 입력칸 없이 설명만 고칠 수 있다', async () => {
+    await startRecording(state({ steps: [step('c')] }));
+    fireEvent.click(screen.getByRole('button', { name: '설명 · 값 수정' }));
+    expect(screen.getByLabelText('단계 설명 수정')).toBeTruthy();
+    expect(screen.queryByLabelText(/값 수정|글자 수정|키 수정|주소 수정/)).toBeNull();
+  });
+
+  it('저장 경로가 .spec.ts · .spec.js · .test.ts · .test.js 로 끝나지 않으면 미리 알려 주고 저장을 막는다', async () => {
+    await startRecording(state({ steps: [step('a')] }));
+    const pathInput = (await screen.findByPlaceholderText('tests/recorded/login.spec.ts')) as HTMLInputElement;
+    await waitFor(() => expect(pathInput.value).toBe('tests/recorded/demo.spec.ts'));
+    const saveButton = screen.getByRole('button', { name: /저장$/ }) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(false);
+
+    fireEvent.change(pathInput, { target: { value: 'tests/recorded/login.txt' } });
+    expect(screen.getByText(/\.spec\.ts · \.spec\.js · \.test\.ts · \.test\.js 로 끝나야 해요/)).toBeTruthy();
+    expect(saveButton.disabled).toBe(true);
+    expect(rec.save).not.toHaveBeenCalled();
+
+    fireEvent.change(pathInput, { target: { value: '/etc/login.spec.ts' } });
+    expect(screen.getByText(/상대 경로로 적어 주세요/)).toBeTruthy();
+    expect(saveButton.disabled).toBe(true);
+
+    for (const ok of ['tests/a.spec.js', 'tests/a.test.ts', 'tests/a.test.js']) {
+      fireEvent.change(pathInput, { target: { value: ok } });
+      expect(saveButton.disabled).toBe(false);
+    }
+    expect(screen.queryByText(/로 끝나야 해요/)).toBeNull();
+  });
+
+  it('입력 모드: 선택 상자(select)를 누르면 입력할 수 없다고 알리고 보내지 않는다', async () => {
+    const screen_ = await startRecording();
+    fireEvent.click(screen.getByRole('radio', { name: /입력/ }));
+    rec.act.mockResolvedValueOnce(
+      state({
+        inspected: {
+          role: 'combobox',
+          name: '언어',
+          selector: "getByLabel('언어')",
+          fragile: false,
+          tag: 'select',
+          box: { x: 600, y: 380, width: 200, height: 40 },
+        },
+      })
+    );
+    fireEvent.mouseMove(screen_, { clientX: 420, clientY: 250 });
+    await screen.findByText("getByLabel('언어')");
+
+    fireEvent.click(screen_, { clientX: 420, clientY: 250 });
+    await screen.findByText(/선택 상자\(select\)에는 값을 넣을 수 없어요/);
+    expect((screen.getByRole('button', { name: '입력' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('입력할 값') as HTMLInputElement).disabled).toBe(true);
+    expect(rec.act).toHaveBeenCalledTimes(1); // inspect 한 번뿐, fill 은 보내지 않았다
   });
 });

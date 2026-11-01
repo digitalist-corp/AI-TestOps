@@ -53,14 +53,26 @@ function serializeProjectForm(data: ProjectFormData | Partial<ProjectFormData>):
   );
 }
 
-/** 서버가 돌려준 오류. 409 처럼 상태 코드로 갈라 안내해야 할 때 status 를 본다. */
+/**
+ * 서버가 돌려준 오류. 상태 코드(status)와 서버가 붙인 오류 코드(code, 예: RECORDER_CLOSED)로
+ * 갈라 안내해야 할 때 쓴다.
+ */
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
+}
+
+/** 오류 응답 본문 `{ message, error: { code } }` 에서 ApiError 를 만든다. 본문이 JSON 이 아니어도 status 는 남긴다. */
+async function toApiError(res: Response, fallback?: string): Promise<ApiError> {
+  const body = await res.json().catch(() => ({}));
+  const code = typeof body?.error?.code === 'string' ? body.error.code : undefined;
+  return new ApiError(body?.message || fallback || `서버 응답 오류 (HTTP ${res.status})`, res.status, code);
 }
 
 type ApiRequestInit = RequestInit & {
@@ -119,8 +131,7 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
   if (!res.ok) {
     // 터널(Cloudflare)이 502·504 를 자기 HTML 페이지로 바꾸면 서버가 보낸 메시지가 사라진다.
     // 그때도 빈 오류가 되지 않게 상태 코드를 남긴다.
-    const err = await res.json().catch(() => ({}));
-    throw new ApiError(err.message || `서버 응답 오류 (HTTP ${res.status})`, res.status);
+    throw await toApiError(res);
   }
 
   if (res.status === 204) return undefined as T;
@@ -618,7 +629,7 @@ export const api = {
         headers,
         credentials: 'omit',
       });
-      if (!res.ok) throw new ApiError(`화면 조회 실패 (${res.status})`, res.status);
+      if (!res.ok) throw await toApiError(res, `화면 조회 실패 (${res.status})`);
       return res.blob();
     },
     act: (projectId: string, sid: string, action: RecorderAction) =>

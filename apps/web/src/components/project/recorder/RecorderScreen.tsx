@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   boxContains,
   boxToPercent,
+  isSelectField,
   looksLikePasswordField,
   normalizeGotoInput,
   normalizeWheelDelta,
@@ -21,6 +22,9 @@ const HOVER_DEBOUNCE_MS = 300;
 /** 휠을 모아서 한 번에 보내는 간격 */
 const WHEEL_FLUSH_MS = 150;
 
+/** 서버가 받는 입력 값의 최대 길이 */
+const MAX_FILL_LENGTH = 10_000;
+
 const SECRET_ENV_NOTE = '환경변수 LOGIN_PASSWORD 로 저장됩니다. 값은 테스트 코드에 남지 않아요.';
 
 /**
@@ -34,6 +38,7 @@ export function RecorderScreen({
   locked,
   mode,
   inspected,
+  lost,
   onSend,
   onInspect,
   onClearInspected,
@@ -46,6 +51,8 @@ export function RecorderScreen({
   locked: boolean;
   mode: RecorderMode;
   inspected: RecorderInspected | null;
+  /** 서버가 세션을 잊은 상태(끝난 지 오래됨 · 서버 재시작). 코드 보기 · 저장도 더는 안 된다. */
+  lost: boolean;
   onSend: (action: RecorderAction) => Promise<boolean>;
   onInspect: (x: number, y: number) => void;
   onClearInspected: () => void;
@@ -76,9 +83,11 @@ export function RecorderScreen({
   // 입력창이 열려 있는 동안 마우스 아래 요소 정보(inspected)가 그 칸에 대한 것일 때만 쓴다.
   const fillTarget = fillAt && inspected && boxContains(inspected.box, fillAt) ? inspected : null;
   const passwordLike = looksLikePasswordField(fillTarget);
+  // 서버가 선택 상자(select)에는 fill 을 지원하지 않는다. 알고 있으면 미리 막고 이유를 알려 준다.
+  const selectTarget = isSelectField(fillTarget);
 
   const submitFill = () => {
-    if (!fillAt || !interactive) return;
+    if (!fillAt || !interactive || selectTarget) return;
     const { x, y } = fillAt;
     const value = fillValue;
     setFillAt(null);
@@ -311,16 +320,24 @@ export function RecorderScreen({
               }}
               aria-label="입력할 값"
               autoComplete={passwordLike ? 'new-password' : 'off'}
-              className="h-9 w-full rounded-sm border border-border bg-card px-2.5 text-sm text-foreground hover:border-border-strong"
+              maxLength={MAX_FILL_LENGTH}
+              disabled={selectTarget}
+              className="h-9 w-full rounded-sm border border-border bg-card px-2.5 text-sm text-foreground hover:border-border-strong disabled:bg-muted"
             />
-            <p className={cn('text-[11px]', passwordLike ? 'font-medium text-primary' : 'text-muted-foreground')}>
-              {passwordLike ? SECRET_ENV_NOTE : `비밀번호 칸이면 ${SECRET_ENV_NOTE}`}
-            </p>
+            {selectTarget ? (
+              <p role="status" className="text-[11px] font-medium text-warning">
+                선택 상자(select)에는 값을 넣을 수 없어요. 아직 지원하지 않아요.
+              </p>
+            ) : (
+              <p className={cn('text-[11px]', passwordLike ? 'font-medium text-primary' : 'text-muted-foreground')}>
+                {passwordLike ? SECRET_ENV_NOTE : `비밀번호 칸이면 ${SECRET_ENV_NOTE}`}
+              </p>
+            )}
             <div className="flex justify-end gap-1.5">
               <Button type="button" variant="outline" size="xs" onClick={() => setFillAt(null)}>
                 취소
               </Button>
-              <Button type="button" size="xs" onClick={submitFill}>
+              <Button type="button" size="xs" onClick={submitFill} disabled={selectTarget}>
                 입력
               </Button>
             </div>
@@ -340,9 +357,19 @@ export function RecorderScreen({
         )}
 
         {closed && (
-          <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-card/85 p-6 text-center">
-            <p className="text-sm text-foreground">{state.error || '녹화가 끝났어요.'}</p>
-            <Button type="button" size="sm" onClick={onRestart}>
+          <div
+            role="status"
+            className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-card/85 p-6 text-center"
+          >
+            <p className="text-base font-bold text-foreground">녹화가 끝났습니다</p>
+            {state.error && <p className="text-sm text-foreground">{state.error}</p>}
+            <p className="text-xs text-muted-foreground">10분 동안 쓰지 않으면(유휴 10분) 자동으로 끝나요.</p>
+            {!lost && state.steps.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                기록한 단계는 아래에서 코드 보기 · 저장을 할 수 있어요.
+              </p>
+            )}
+            <Button type="button" size="sm" className="mt-1" onClick={onRestart}>
               <RotateCcw className="h-3.5 w-3.5" /> 새로 시작
             </Button>
           </div>

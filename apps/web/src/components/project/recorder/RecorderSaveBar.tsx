@@ -5,7 +5,7 @@ import type { RecordedStep } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
-import { normalizeSpecPath, stepsSignature } from '@/lib/recorder';
+import { checkSpecPath, recorderErrorMessage, stepsSignature } from '@/lib/recorder';
 
 type Saved = { specPath: string; title: string; signature: string };
 
@@ -32,6 +32,7 @@ async function copyText(text: string): Promise<boolean> {
 /**
  * 녹화 화면 아래줄: 코드 보기 · 테스트 이름 · 저장 경로 · 저장 · 녹화 끝내기.
  * 저장하면 프로젝트 파일로 바로 들어가고(AI 승인 없음), 이어서 보기 · 실행으로 갈 수 있다.
+ * 녹화가 끝난(CLOSED) 뒤에도 서버가 기록한 단계를 들고 있어서 코드 보기 · 저장이 된다.
  */
 export function RecorderSaveBar({
   rec,
@@ -48,12 +49,13 @@ export function RecorderSaveBar({
   projectId: string;
   sessionId: string;
   steps: RecordedStep[];
-  /** 동작 중이거나 세션이 끝나서 서버를 부를 수 없는 상태 */
+  /** 동작 · 단계 저장이 진행 중이거나 서버가 세션을 잊어서(lost) 코드 · 저장을 부를 수 없는 상태 */
   disabled: boolean;
-  onSaved: () => void;
+  /** 저장에 성공했을 때. 그 순간의 단계 지문을 함께 알려 준다(저장 뒤에 바뀌었는지 비교용) */
+  onSaved: (signature: string) => void;
   onOpenTests: () => void;
   onRun: (specPath: string, title: string) => void;
-  onEnd: (hasUnsaved: boolean) => void;
+  onEnd: () => void;
 }) {
   const [title, setTitle] = useState('');
   const [specPath, setSpecPath] = useState('');
@@ -71,7 +73,10 @@ export function RecorderSaveBar({
   const signature = stepsSignature(steps);
   const hasSteps = steps.length > 0;
   const changedSinceSave = saved != null && saved.signature !== signature;
-  const hasUnsaved = hasSteps && (saved == null || changedSinceSave);
+
+  // 저장 경로는 서버 규칙(.spec.ts · .spec.js · .test.ts · .test.js 로 끝남)대로 미리 검사한다.
+  const pathCheck = specPath.trim() ? checkSpecPath(specPath) : null;
+  const pathError = pathCheck && !pathCheck.ok ? pathCheck.error : '';
 
   /** 서버가 제안하는 저장 경로를 받아 채운다. 사람이 경로를 고친 뒤에는 건드리지 않는다. */
   const suggestPath = async (forTitle: string) => {
@@ -117,26 +122,26 @@ export function RecorderSaveBar({
   };
 
   const save = async () => {
-    const path = normalizeSpecPath(specPath);
-    if (!path) {
-      setSaveError('저장 경로를 확인해 주세요. 예: tests/recorded/login.spec.ts');
+    const check = checkSpecPath(specPath);
+    if (!check.ok) {
+      setSaveError(check.error);
       return;
     }
+    const path = check.path;
     setSpecPath(path);
     setSaving(true);
     setSaveError('');
     try {
       const res = await rec.save(projectId, sessionId, { specPath: path, title: title.trim() || undefined });
       setSaved({ specPath: res.specPath, title: title.trim(), signature });
-      onSaved();
+      onSaved(signature);
     } catch (err) {
-      setSaveError(
-        err instanceof ApiError && err.status === 409
-          ? '같은 경로에 이미 파일이 있어요. 경로를 바꿔서 다시 저장해 주세요.'
-          : err instanceof Error
-            ? err.message
-            : '저장하지 못했어요.'
-      );
+      // 저장 충돌은 코드(FILE_EXISTS)로 알려 주지만, 코드 없이 409 만 오면 같은 경로 충돌로 본다.
+      const info =
+        err instanceof ApiError
+          ? { status: err.status, code: err.code ?? (err.status === 409 ? 'FILE_EXISTS' : undefined), message: err.message }
+          : err;
+      setSaveError(recorderErrorMessage(info, '저장하지 못했어요.'));
     } finally {
       setSaving(false);
     }
@@ -165,10 +170,17 @@ export function RecorderSaveBar({
               setSpecPath(e.target.value);
             }}
             placeholder="tests/recorded/login.spec.ts"
-            className="h-10 font-mono text-[13px]"
+            className={`h-10 font-mono text-[13px]${pathError ? ' border-destructive hover:border-destructive' : ''}`}
             autoComplete="off"
             spellCheck={false}
+            aria-invalid={Boolean(pathError)}
+            aria-describedby={pathError ? 'recorder-path-error' : undefined}
           />
+          {pathError && (
+            <span id="recorder-path-error" className="block text-xs text-destructive">
+              {pathError}
+            </span>
+          )}
         </label>
       </div>
 
@@ -209,10 +221,10 @@ export function RecorderSaveBar({
           <Code2 className="h-3.5 w-3.5" /> 코드 보기
         </Button>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => onEnd(hasUnsaved)}>
+          <Button type="button" variant="outline" size="sm" onClick={onEnd}>
             <SquareX className="h-3.5 w-3.5" /> 녹화 끝내기
           </Button>
-          <Button type="button" size="sm" onClick={save} disabled={disabled || saving || !hasSteps || !specPath.trim()}>
+          <Button type="button" size="sm" onClick={save} disabled={disabled || saving || !hasSteps || !pathCheck?.ok}>
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             저장
           </Button>

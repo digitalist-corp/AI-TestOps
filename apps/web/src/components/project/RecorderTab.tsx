@@ -6,7 +6,15 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useRecorderSession } from '@/hooks/useRecorderSession';
-import { moveStep, removeStep, renameStep, type RecorderMode } from '@/lib/recorder';
+import {
+  editStep,
+  hasRecordedWork,
+  moveStep,
+  removeStep,
+  stepsSignature,
+  type RecorderMode,
+  type StepEdit,
+} from '@/lib/recorder';
 import { RecorderSaveBar } from '@/components/project/recorder/RecorderSaveBar';
 import { RecorderScreen } from '@/components/project/recorder/RecorderScreen';
 import { RecorderStartPanel } from '@/components/project/recorder/RecorderStartPanel';
@@ -58,6 +66,8 @@ function RecorderTabBody({
 }: RecorderTabProps & { rec: RecorderApi; mock: boolean }) {
   const session = useRecorderSession(project.projectId, rec);
   const [mode, setMode] = useState<RecorderMode>('click');
+  // 마지막으로 저장한 시점의 단계 지문. 저장 뒤에 바뀌었는지 · 아직 저장 안 했는지 판단하는 데 쓴다.
+  const [saved, setSaved] = useState<{ sessionId: string; signature: string } | null>(null);
 
   const { state } = session;
 
@@ -123,17 +133,31 @@ function RecorderTabBody({
     );
   }
 
-  const closed = state.status === 'CLOSED';
-  const editDisabled = session.isLocked || closed || state.status !== 'READY';
+  // 동작(클릭 · 입력 · 이동 · 키)은 녹화가 살아 있을 때(READY)만 보낸다.
+  const actionDisabled = state.status !== 'READY' || session.isLocked;
+  // 단계 편집 · 코드 보기 · 저장은 녹화가 끝난(CLOSED) 뒤에도 서버가 단계를 들고 있어서 된다.
+  // 서버가 세션을 잊었거나(lost) 다른 요청이 진행 중이면 막는다.
+  const stepsEditable = (state.status === 'READY' || state.status === 'CLOSED') && !session.lost && !session.isLocked;
+  const saveDisabled = session.lost || session.isLocked;
+
+  const savedSignature = saved?.sessionId === state.sessionId ? saved.signature : null;
+  // 서버가 자동으로 붙인 첫 이동만 있으면 사람이 한 일이 없으므로 "저장 안 한 단계"로 보지 않는다.
+  const hasUnsaved = hasRecordedWork(state.steps) && savedSignature !== stepsSignature(state.steps);
 
   const edit = (next: RecordedStep[]) => {
     // 바뀐 게 없으면(맨 끝에서 더 옮기기 · 같은 설명) 서버를 부르지 않는다.
     if (next !== state.steps) void session.saveSteps(next);
   };
 
-  const endRecording = (hasUnsaved: boolean) => {
-    if (hasUnsaved && !confirm('저장하지 않은 단계가 있어요. 그래도 녹화를 끝낼까요?')) return;
-    void session.close();
+  /** 기록이 사라질 수 있는 동작 앞에서 확인을 받는다. 저장하지 않은 단계가 없으면 바로 통과. */
+  const confirmDiscard = (message: string) => !hasUnsaved || confirm(message);
+
+  const endRecording = () => {
+    if (confirmDiscard('저장하지 않은 단계가 있어요. 그래도 녹화를 끝낼까요?')) void session.close();
+  };
+
+  const restartRecording = () => {
+    if (confirmDiscard('저장하지 않은 단계가 있어요. 새로 시작하면 사라져요. 계속할까요?')) void session.retry();
   };
 
   return (
@@ -163,7 +187,7 @@ function RecorderTabBody({
             mode={mode}
             onModeChange={setMode}
             onPressEnter={() => void session.send({ type: 'press', key: 'Enter' })}
-            disabled={editDisabled}
+            disabled={actionDisabled}
           />
           <RecorderScreen
             state={state}
@@ -172,20 +196,21 @@ function RecorderTabBody({
             locked={session.isLocked}
             mode={mode}
             inspected={session.inspected}
+            lost={session.lost}
             onSend={session.send}
             onInspect={session.inspect}
             onClearInspected={session.clearInspected}
-            onRestart={() => void session.retry()}
+            onRestart={restartRecording}
           />
         </div>
 
         <RecorderStepList
           steps={state.steps}
-          disabled={editDisabled}
+          disabled={!stepsEditable}
           saving={session.savingSteps}
           onMove={(id, direction) => edit(moveStep(state.steps, id, direction))}
           onRemove={(id) => edit(removeStep(state.steps, id))}
-          onRename={(id, label) => edit(renameStep(state.steps, id, label))}
+          onEdit={(id, patch: StepEdit) => edit(editStep(state.steps, id, patch))}
         />
       </div>
 
@@ -195,8 +220,11 @@ function RecorderTabBody({
         projectId={project.projectId}
         sessionId={state.sessionId}
         steps={state.steps}
-        disabled={editDisabled}
-        onSaved={onSaved}
+        disabled={saveDisabled}
+        onSaved={(signature) => {
+          setSaved({ sessionId: state.sessionId, signature });
+          onSaved();
+        }}
         onOpenTests={onOpenTests}
         onRun={onRun}
         onEnd={endRecording}

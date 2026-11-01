@@ -2,17 +2,23 @@ import { describe, expect, it } from 'vitest';
 import type { RecordedStep, RecorderInspected } from '@/types';
 import {
   RECORDER_MODES,
+  RECORDER_TOTAL_LIMIT,
   boxContains,
   boxToPercent,
+  canEditValue,
+  checkSpecPath,
   describeStepValue,
+  editStep,
+  hasRecordedWork,
   hasScreen,
+  isSelectField,
   looksLikePasswordField,
   moveStep,
-  needsPolling,
   normalizeGotoInput,
-  normalizeSpecPath,
   normalizeWheelDelta,
   pointToPercent,
+  pollIntervalMs,
+  recorderErrorMessage,
   removeStep,
   renameStep,
   resolveStartUrl,
@@ -20,6 +26,7 @@ import {
   stepKindLabel,
   stepsSignature,
   toViewportPoint,
+  valueFieldLabel,
 } from './recorder';
 
 const VIEWPORT = { width: 1280, height: 800 };
@@ -156,11 +163,90 @@ describe('단계 이동 · 삭제 · 이름 수정', () => {
     expect(renameStep(steps, 'zzz', '새 이름')).toBe(steps);
   });
 
+  it('editStep: 값(value)도 함께 고친다 — 입력 · 키 · 글자 확인 · 이동', () => {
+    const list = [
+      step('f', { action: 'fill', value: 'old' }),
+      step('k', { action: 'press', value: 'Enter' }),
+      step('t', { action: 'assertText', value: '환영합니다' }),
+      step('g', { action: 'goto', value: '/login' }),
+    ];
+    expect(editStep(list, 'f', { value: 'new' })[0].value).toBe('new');
+    expect(editStep(list, 'k', { value: 'Tab' })[1].value).toBe('Tab');
+    expect(editStep(list, 't', { value: '안녕하세요' })[2].value).toBe('안녕하세요');
+    expect(editStep(list, 'g', { value: ' /signup ' })[3].value).toBe('/signup');
+  });
+
+  it('editStep: label 과 value 를 한 번에 고치고, 고치지 않은 필드(셀렉터 등)는 그대로 둔다', () => {
+    const list = [step('f', { action: 'fill', value: 'old', selector: "getByLabel('이메일')" })];
+    const [next] = editStep(list, 'f', { label: ' 이메일 입력 ', value: 'a@b.com' });
+    expect(next).toMatchObject({ label: '이메일 입력', value: 'a@b.com', selector: "getByLabel('이메일')" });
+  });
+
+  it('editStep: 입력(fill)은 빈 값도 되지만, 키 · 글자 확인 · 이동은 빈 값을 무시한다', () => {
+    const list = [
+      step('f', { action: 'fill', value: 'x' }),
+      step('k', { action: 'press', value: 'Enter' }),
+      step('t', { action: 'assertText', value: '글자' }),
+      step('g', { action: 'goto', value: '/a' }),
+    ];
+    expect(editStep(list, 'f', { value: '' })[0].value).toBe('');
+    expect(editStep(list, 'k', { value: '  ' })).toBe(list);
+    expect(editStep(list, 't', { value: '' })).toBe(list);
+    expect(editStep(list, 'g', { value: '' })).toBe(list);
+  });
+
+  it('editStep: 비밀번호(secretEnv) 단계와 값이 없는 동작은 value 를 고치지 않는다', () => {
+    const list = [
+      step('p', { action: 'fill', secretEnv: 'LOGIN_PASSWORD' }),
+      step('c', { action: 'click' }),
+    ];
+    expect(editStep(list, 'p', { value: 'hunter2' })).toBe(list);
+    expect(editStep(list, 'c', { value: 'x' })).toBe(list);
+    // label 은 비밀번호 단계도 고칠 수 있다
+    expect(editStep(list, 'p', { label: '비밀번호 입력' })[0].label).toBe('비밀번호 입력');
+    expect(editStep(list, 'p', { value: 'hunter2' })[0].value).toBeUndefined();
+  });
+
+  it('editStep: 바뀐 게 없으면 같은 배열을 돌려준다', () => {
+    const list = [step('f', { action: 'fill', value: 'same' })];
+    expect(editStep(list, 'f', { label: '단계 f', value: 'same' })).toBe(list);
+    expect(editStep(list, 'zzz', { label: 'x' })).toBe(list);
+    expect(editStep(list, 'f', {})).toBe(list);
+  });
+
+  it('canEditValue · valueFieldLabel: 값이 있는 동작만, 비밀번호 단계는 제외', () => {
+    expect(canEditValue(step('1', { action: 'fill', value: 'x' }))).toBe(true);
+    expect(canEditValue(step('2', { action: 'press', value: 'Enter' }))).toBe(true);
+    expect(canEditValue(step('3', { action: 'assertText', value: 'x' }))).toBe(true);
+    expect(canEditValue(step('4', { action: 'goto', value: '/' }))).toBe(true);
+    expect(canEditValue(step('5', { action: 'click' }))).toBe(false);
+    expect(canEditValue(step('6', { action: 'assertVisible' }))).toBe(false);
+    expect(canEditValue(step('7', { action: 'fill', secretEnv: 'LOGIN_PASSWORD' }))).toBe(false);
+
+    expect(valueFieldLabel(step('1', { action: 'fill' }))).toBe('입력할 값');
+    expect(valueFieldLabel(step('2', { action: 'press' }))).toBe('누를 키');
+    expect(valueFieldLabel(step('3', { action: 'assertText' }))).toBe('기대하는 글자');
+    expect(valueFieldLabel(step('4', { action: 'goto' }))).toBe('이동할 주소');
+    expect(valueFieldLabel(step('5', { action: 'click' }))).toBeNull();
+    expect(valueFieldLabel(step('6', { action: 'fill', secretEnv: 'LOGIN_PASSWORD' }))).toBeNull();
+  });
+
+  it('hasRecordedWork: 서버가 자동으로 붙인 첫 goto 만 있으면 사람이 한 일이 없다', () => {
+    expect(hasRecordedWork([])).toBe(false);
+    expect(hasRecordedWork([step('g', { action: 'goto', value: '/' })])).toBe(false);
+    expect(hasRecordedWork([step('g', { action: 'goto', value: '/' }), step('c')])).toBe(true);
+  });
+
   it('stepsSignature: 순서나 설명이 바뀌면 달라지고, 같으면 같다', () => {
     expect(stepsSignature(steps)).toBe(stepsSignature([step('a'), step('b'), step('c')]));
     expect(stepsSignature(steps)).not.toBe(stepsSignature(moveStep(steps, 'a', 1)));
     expect(stepsSignature(steps)).not.toBe(stepsSignature(renameStep(steps, 'a', '다른 이름')));
     expect(stepsSignature(steps)).not.toBe(stepsSignature(removeStep(steps, 'c')));
+  });
+
+  it('stepsSignature: 값만 고쳐도 달라진다', () => {
+    const list = [step('f', { action: 'fill', value: 'old' })];
+    expect(stepsSignature(list)).not.toBe(stepsSignature(editStep(list, 'f', { value: 'new' })));
   });
 });
 
@@ -205,12 +291,12 @@ describe('단계 → 아이콘 · 설명', () => {
 });
 
 describe('상태', () => {
-  it('준비 중 · 동작 중에만 다시 묻는다', () => {
-    expect(needsPolling('STARTING')).toBe(true);
-    expect(needsPolling('BUSY')).toBe(true);
-    expect(needsPolling('READY')).toBe(false);
-    expect(needsPolling('CLOSED')).toBe(false);
-    expect(needsPolling('ERROR')).toBe(false);
+  it('준비 중 · 동작 중은 자주, 평소(READY)는 가끔, 끝난 뒤에는 묻지 않는다', () => {
+    expect(pollIntervalMs('STARTING')).toBe(1000);
+    expect(pollIntervalMs('BUSY')).toBe(1000);
+    expect(pollIntervalMs('READY')).toBe(10_000);
+    expect(pollIntervalMs('CLOSED')).toBe(0);
+    expect(pollIntervalMs('ERROR')).toBe(0);
   });
 
   it('READY · BUSY 에서만 화면을 보여줄 수 있다', () => {
@@ -238,6 +324,25 @@ describe('looksLikePasswordField', () => {
     expect(looksLikePasswordField(inspected({ tag: 'button', name: '비밀번호 찾기' }))).toBe(false);
     expect(looksLikePasswordField(null)).toBe(false);
     expect(looksLikePasswordField(undefined)).toBe(false);
+  });
+});
+
+describe('isSelectField', () => {
+  const box = { x: 0, y: 0, width: 10, height: 10 };
+  const inspected = (tag: string): RecorderInspected => ({
+    role: 'combobox',
+    name: '언어',
+    selector: "getByLabel('언어')",
+    fragile: false,
+    tag,
+    box,
+  });
+
+  it('select 요소만 true (대소문자 무관)', () => {
+    expect(isSelectField(inspected('select'))).toBe(true);
+    expect(isSelectField(inspected('SELECT'))).toBe(true);
+    expect(isSelectField(inspected('input'))).toBe(false);
+    expect(isSelectField(null)).toBe(false);
   });
 });
 
@@ -275,25 +380,78 @@ describe('resolveStartUrl', () => {
   });
 });
 
-describe('normalizeSpecPath', () => {
-  it('이미 알맞은 경로는 그대로', () => {
-    expect(normalizeSpecPath('tests/recorded/login.spec.ts')).toBe('tests/recorded/login.spec.ts');
+describe('checkSpecPath', () => {
+  const ok = (path: string) => ({ ok: true, path });
+
+  it('.spec.ts · .spec.js · .test.ts · .test.js 로 끝나는 경로는 통과한다', () => {
+    expect(checkSpecPath('tests/recorded/login.spec.ts')).toEqual(ok('tests/recorded/login.spec.ts'));
+    expect(checkSpecPath('tests/a.spec.js')).toEqual(ok('tests/a.spec.js'));
+    expect(checkSpecPath('tests/a.test.ts')).toEqual(ok('tests/a.test.ts'));
+    expect(checkSpecPath('tests/a.test.js')).toEqual(ok('tests/a.test.js'));
   });
 
-  it('역슬래시 · 앞의 ./ · / 를 정리한다', () => {
-    expect(normalizeSpecPath('.\\tests\\recorded\\a.spec.ts')).toBe('tests/recorded/a.spec.ts');
-    expect(normalizeSpecPath('/tests//a.spec.ts')).toBe('tests/a.spec.ts');
+  it('역슬래시 · 앞뒤 공백 · 앞의 ./ 는 다듬는다', () => {
+    expect(checkSpecPath('  .\\tests\\recorded\\a.spec.ts ')).toEqual(ok('tests/recorded/a.spec.ts'));
+    expect(checkSpecPath('./tests/a.spec.ts')).toEqual(ok('tests/a.spec.ts'));
   });
 
-  it('.spec.ts 가 없으면 붙인다', () => {
-    expect(normalizeSpecPath('tests/recorded/login')).toBe('tests/recorded/login.spec.ts');
-    expect(normalizeSpecPath('tests/recorded/login.ts')).toBe('tests/recorded/login.spec.ts');
+  it('확장자가 맞지 않으면 이유를 알려 준다 (자동으로 붙이지 않는다)', () => {
+    for (const bad of ['tests/login', 'tests/login.ts', 'tests/login.txt', 'tests/login.spec', 'tests/.spec.ts.bak']) {
+      const result = checkSpecPath(bad);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error).toContain('.spec.ts');
+    }
   });
 
-  it('비었거나 바깥(..)을 가리키거나 폴더만이면 null', () => {
-    expect(normalizeSpecPath('   ')).toBeNull();
-    expect(normalizeSpecPath('../x.spec.ts')).toBeNull();
-    expect(normalizeSpecPath('tests/../x.spec.ts')).toBeNull();
-    expect(normalizeSpecPath('tests/')).toBeNull();
+  it('파일 이름 없이 확장자만 있는 경로는 막는다 (서버 규칙: 앞에 한 글자 이상)', () => {
+    expect(checkSpecPath('tests/.spec.ts').ok).toBe(true); // 'tests/' 가 앞 글자라 서버도 통과시킨다
+    expect(checkSpecPath('.spec.ts').ok).toBe(false);
+  });
+
+  it('비었거나 /, 드라이브, .., // 가 들어 있으면 막는다', () => {
+    expect(checkSpecPath('   ')).toMatchObject({ ok: false, error: '저장 경로를 적어 주세요.' });
+    expect(checkSpecPath('/tests/a.spec.ts').ok).toBe(false);
+    expect(checkSpecPath('C:\\tests\\a.spec.ts').ok).toBe(false);
+    expect(checkSpecPath('../a.spec.ts').ok).toBe(false);
+    expect(checkSpecPath('tests/../a.spec.ts').ok).toBe(false);
+    expect(checkSpecPath('tests//a.spec.ts').ok).toBe(false);
+  });
+
+  it('300자를 넘으면 막는다', () => {
+    expect(checkSpecPath(`${'a'.repeat(300)}.spec.ts`).ok).toBe(false);
+  });
+});
+
+describe('recorderErrorMessage', () => {
+  it('서버 코드별로 정해 둔 안내 문구를 쓴다', () => {
+    expect(recorderErrorMessage({ status: 409, code: 'RECORDER_LIMIT', message: 'x' }, 'f')).toContain(
+      `${RECORDER_TOTAL_LIMIT}개`
+    );
+    expect(recorderErrorMessage({ status: 409, code: 'RECORDER_CLOSED' }, 'f')).toContain('녹화가 끝났어요');
+    expect(recorderErrorMessage({ status: 409, code: 'RECORDER_STARTING' }, 'f')).toContain('준비하고 있어요');
+    expect(recorderErrorMessage({ status: 503, code: 'RECORDER_UNAVAILABLE' }, 'f')).toContain('Docker');
+    expect(recorderErrorMessage({ status: 404, code: 'RECORDER_SESSION_NOT_FOUND' }, 'f')).toContain('찾을 수 없어요');
+    expect(recorderErrorMessage({ status: 409, code: 'FILE_EXISTS' }, 'f')).toContain('같은 경로');
+  });
+
+  it('코드마다 문구가 서로 다르다', () => {
+    const codes = ['RECORDER_LIMIT', 'RECORDER_CLOSED', 'RECORDER_STARTING', 'RECORDER_UNAVAILABLE'];
+    const messages = codes.map((code) => recorderErrorMessage({ code }, 'f'));
+    expect(new Set(messages).size).toBe(codes.length);
+  });
+
+  it('502 는 통신 문제로 안내하고 서버 메시지를 덧붙인다', () => {
+    const text = recorderErrorMessage({ status: 502, code: 'UPSTREAM_ERROR', message: '연결 거부' }, 'f');
+    expect(text).toContain('통신하지 못했어요');
+    expect(text).toContain('연결 거부');
+  });
+
+  it('모르는 코드는 서버 메시지를, 메시지도 없으면 fallback 을 쓴다', () => {
+    expect(recorderErrorMessage({ status: 400, code: 'PATH_NOT_ALLOWED', message: '저장할 수 없는 경로' }, 'f')).toBe(
+      '저장할 수 없는 경로'
+    );
+    expect(recorderErrorMessage(new Error('네트워크 오류'), 'f')).toBe('네트워크 오류');
+    expect(recorderErrorMessage({}, '기본 문구')).toBe('기본 문구');
+    expect(recorderErrorMessage(null, '기본 문구')).toBe('기본 문구');
   });
 });

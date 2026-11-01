@@ -93,7 +93,7 @@ export type RecorderMode = 'click' | 'fill' | 'assertVisible' | 'assertText';
 
 export const RECORDER_MODES: { id: RecorderMode; label: string; hint: string }[] = [
   { id: 'click', label: '클릭', hint: '누를 곳을 클릭하세요. 그 동작이 단계로 기록돼요.' },
-  { id: 'fill', label: '입력', hint: '값을 넣을 입력칸을 클릭하세요. 작은 창에서 값을 받아요.' },
+  { id: 'fill', label: '입력', hint: '값을 넣을 입력칸을 클릭하세요. 작은 창에서 값을 받아요. (선택 상자는 아직 지원하지 않아요)' },
   { id: 'assertVisible', label: '확인: 보이는지', hint: '화면에 보여야 하는 곳을 클릭하세요. 보이는지 확인 단계가 돼요.' },
   { id: 'assertText', label: '확인: 글자', hint: '글자를 확인할 곳을 클릭하세요. 지금 보이는 글자가 기대값이 돼요.' },
 ];
@@ -116,17 +116,62 @@ export function removeStep(steps: RecordedStep[], id: string): RecordedStep[] {
   return steps.filter((step) => step.id !== id);
 }
 
-/** 단계 설명(label)을 바꾼다. 비었거나 그대로면 같은 배열을 돌려줘서 서버 호출을 건너뛸 수 있다. */
-export function renameStep(steps: RecordedStep[], id: string, label: string): RecordedStep[] {
-  const trimmed = label.trim();
-  const target = steps.find((step) => step.id === id);
-  if (!target || !trimmed || target.label === trimmed) return steps;
-  return steps.map((step) => (step.id === id ? { ...step, label: trimmed } : step));
+/** 값(value)을 고칠 수 있는 동작. 서버(mergeSteps)와 같다 — 비밀번호(secretEnv) 단계는 값이 없으므로 제외. */
+const VALUE_EDITABLE: RecordedStepAction[] = ['goto', 'fill', 'press', 'assertText'];
+
+export function canEditValue(step: RecordedStep): boolean {
+  return !step.secretEnv && VALUE_EDITABLE.includes(step.action);
 }
 
-/** 저장 뒤에 단계가 바뀌었는지 비교하려고 쓰는 짧은 지문. 순서 · 설명이 바뀌어도 달라진다. */
+/** 값 입력칸 위에 붙일 이름. 값을 고칠 수 없는 단계는 null. */
+export function valueFieldLabel(step: RecordedStep): string | null {
+  if (!canEditValue(step)) return null;
+  switch (step.action) {
+    case 'goto':
+      return '이동할 주소';
+    case 'fill':
+      return '입력할 값';
+    case 'press':
+      return '누를 키';
+    default:
+      return '기대하는 글자';
+  }
+}
+
+export type StepEdit = { label?: string; value?: string };
+
+/**
+ * 단계의 설명(label)과 값(value)을 고친다. 바뀐 게 없으면 같은 배열을 돌려줘서 서버 호출을 건너뛸 수 있다.
+ *  - label 은 다듬어서 쓰고, 비면 그대로 둔다.
+ *  - value 는 고칠 수 있는 단계(canEditValue)만 바꾼다. 입력(fill)은 빈 값도 되고, 나머지는 비면 그대로 둔다.
+ */
+export function editStep(steps: RecordedStep[], id: string, patch: StepEdit): RecordedStep[] {
+  const target = steps.find((step) => step.id === id);
+  if (!target) return steps;
+
+  let label = target.label;
+  if (patch.label !== undefined && patch.label.trim()) label = patch.label.trim();
+
+  let value = target.value;
+  if (patch.value !== undefined && canEditValue(target)) {
+    const next = target.action === 'fill' ? patch.value : patch.value.trim();
+    if (target.action === 'fill' || next) value = next;
+  }
+
+  if (label === target.label && value === target.value) return steps;
+  return steps.map((step) =>
+    step.id === id ? { ...step, label, ...(value !== undefined ? { value } : {}) } : step
+  );
+}
+
+/** 단계 설명(label)만 바꾼다. */
+export function renameStep(steps: RecordedStep[], id: string, label: string): RecordedStep[] {
+  return editStep(steps, id, { label });
+}
+
+/** 저장 뒤에 단계가 바뀌었는지 비교하려고 쓰는 짧은 지문. 순서 · 설명 · 값이 바뀌어도 달라진다. */
 export function stepsSignature(steps: RecordedStep[]): string {
-  return steps.map((step) => `${step.id}\u0001${step.label}`).join('\u0002');
+  return steps.map((step) => `${step.id}\u0001${step.label}\u0001${step.value ?? ''}`).join('\u0002');
 }
 
 // ── 단계 → 아이콘 · 설명 ──────────────────────────────
@@ -179,9 +224,20 @@ export function describeStepValue(step: RecordedStep): string | null {
 
 // ── 상태 ──────────────────────────────────────────────
 
-/** 서버가 아직 준비 중이거나 동작 중이라 조금 뒤에 다시 물어봐야 하는 상태 */
-export function needsPolling(status: RecorderStatus): boolean {
-  return status === 'STARTING' || status === 'BUSY';
+/**
+ * 서버에 상태를 다시 물어보는 간격(ms). 0 이면 묻지 않는다.
+ * 준비 중 · 동작 중은 자주, 평소(READY)는 유휴 종료를 알아채려고 가끔만 묻는다.
+ * (화면의 상태 조회는 서버가 유휴 시간으로 세지 않는다)
+ */
+export function pollIntervalMs(status: RecorderStatus): number {
+  if (status === 'STARTING' || status === 'BUSY') return 1000;
+  if (status === 'READY') return 10_000;
+  return 0;
+}
+
+/** 시작할 때 서버가 자동으로 붙이는 첫 goto 말고, 사람이 한 일이 있는지 */
+export function hasRecordedWork(steps: RecordedStep[]): boolean {
+  return steps.some((step) => step.action !== 'goto');
 }
 
 /** 스크린샷을 받아 보여줄 수 있는 상태 */
@@ -235,17 +291,69 @@ export function resolveStartUrl(raw: string, baseUrl: string | null | undefined)
   }
 }
 
+/** 선택 상자(select)인지. 서버가 select 에 fill 을 지원하지 않는다. */
+export function isSelectField(inspected: RecorderInspected | null | undefined): boolean {
+  return inspected?.tag.toLowerCase() === 'select';
+}
+
+export type SpecPathCheck = { ok: true; path: string } | { ok: false; error: string };
+
+const SPEC_FILE = /^.+\.(spec|test)\.(ts|js)$/;
+const SPEC_PATH_EXAMPLE = 'tests/recorded/login.spec.ts';
+
 /**
- * 저장 경로를 다듬는다: 역슬래시 → 슬래시, 앞의 `./` · `/` 제거, `.spec.ts` 가 없으면 붙인다.
- * 비었거나 `..` 로 바깥을 가리키면 null.
+ * 저장 경로를 서버가 받는 규칙대로 미리 검사한다. 고칠 수 있는 것(역슬래시 · 앞의 ./)만 다듬고,
+ * 나머지는 임의로 바꾸지 않고 이유를 알려 준다. 서버 규칙:
+ *  - 프로젝트 안의 상대 경로 (/ 로 시작 금지, `..` · `//` 금지, 300자 이하)
+ *  - .spec.ts · .spec.js · .test.ts · .test.js 로 끝나야 함
  */
-export function normalizeSpecPath(raw: string): string | null {
-  let path = raw.trim().replaceAll('\\', '/');
-  path = path.replace(/^(\.\/)+/, '').replace(/^\/+/, '').replace(/\/{2,}/g, '/');
-  if (!path || path.endsWith('/')) return null;
-  if (path.split('/').some((segment) => segment === '..' || segment === '.')) return null;
-  if (!/\.(spec|test)\.(ts|js)$/.test(path)) {
-    path = `${path.replace(/\.(ts|js)$/, '')}.spec.ts`;
+export function checkSpecPath(raw: string): SpecPathCheck {
+  const path = raw.replaceAll('\\', '/').trim().replace(/^(\.\/)+/, '');
+  if (!path) return { ok: false, error: '저장 경로를 적어 주세요.' };
+  if (path.startsWith('/') || /^[a-zA-Z]:\//.test(path)) {
+    return { ok: false, error: `프로젝트 안의 상대 경로로 적어 주세요. 예: ${SPEC_PATH_EXAMPLE}` };
   }
-  return path;
+  if (path.includes('..') || path.includes('//')) {
+    return { ok: false, error: '경로에는 ".." 나 "//" 를 쓸 수 없어요.' };
+  }
+  if (path.length > 300) return { ok: false, error: '경로가 너무 길어요 (300자까지).' };
+  if (!SPEC_FILE.test(path)) {
+    return { ok: false, error: '파일 이름은 .spec.ts · .spec.js · .test.ts · .test.js 로 끝나야 해요.' };
+  }
+  return { ok: true, path };
+}
+
+// ── 서버 오류 → 안내 문구 ─────────────────────────────
+
+/** 서버가 동시에 열어 줄 수 있는 녹화 수(전체). 서버 상한을 바꾸면 여기도 맞춘다. */
+export const RECORDER_TOTAL_LIMIT = 2;
+
+/**
+ * 서버 오류를 사람이 읽는 안내로 바꾼다. status · code 가 있으면(ApiError) 그 코드별 문구를,
+ * 없으면 서버가 준 메시지를, 그것도 없으면 fallback 을 쓴다.
+ */
+export function recorderErrorMessage(err: unknown, fallback: string): string {
+  const e = (typeof err === 'object' && err !== null ? err : {}) as {
+    status?: number;
+    code?: string;
+    message?: string;
+  };
+  switch (e.code) {
+    case 'RECORDER_LIMIT':
+      return `지금 녹화 중인 세션이 많아요. 동시에 ${RECORDER_TOTAL_LIMIT}개까지만 녹화할 수 있어요. 다른 녹화가 끝난 뒤 다시 시도해 주세요.`;
+    case 'RECORDER_CLOSED':
+      return '녹화가 끝났어요. 새로 시작해 주세요.';
+    case 'RECORDER_STARTING':
+      return '브라우저를 아직 준비하고 있어요. 준비가 끝나면 다시 눌러 주세요.';
+    case 'RECORDER_UNAVAILABLE':
+      return '이 서버에서는 Docker 를 쓸 수 없어서 녹화를 시작할 수 없어요. 관리자에게 알려 주세요.';
+    case 'RECORDER_SESSION_NOT_FOUND':
+      return '녹화 기록을 찾을 수 없어요. 새로 시작해 주세요.';
+    case 'FILE_EXISTS':
+      return '같은 경로에 이미 파일이 있어요. 경로를 바꿔서 다시 저장해 주세요.';
+  }
+  if (e.status === 502) {
+    return `녹화 브라우저와 통신하지 못했어요. 잠시 뒤 다시 시도해 주세요.${e.message ? ` (${e.message})` : ''}`;
+  }
+  return e.message || fallback;
 }
