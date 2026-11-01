@@ -355,6 +355,14 @@
       padding-bottom: 32px;
       border-bottom: 1px solid var(--border);
     }
+    .hero-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
     .hero-badge {
       display: inline-block;
       padding: 4px 12px;
@@ -364,7 +372,46 @@
       border: 1px solid var(--accent-border);
       font-size: 13px;
       font-weight: 600;
-      margin-bottom: 14px;
+    }
+    .btn-download-docx {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #FFFFFF !important;
+      font-size: 13.5px;
+      font-weight: 600;
+      text-decoration: none;
+      box-shadow: var(--shadow-sm);
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .btn-download-docx:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      text-decoration: none;
+    }
+    .sidebar-download-wrap {
+      margin-top: 10px;
+    }
+    .sidebar-download-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: var(--accent-subtle);
+      border: 1px solid var(--accent-border);
+      color: var(--accent) !important;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s ease;
+    }
+    .sidebar-download-btn:hover {
+      background: var(--accent-glow);
     }
     .hero-title {
       font-size: 34px;
@@ -893,6 +940,16 @@
         <div class="sidebar-title">AI-TestOps</div>
       </div>
       <div class="sidebar-subtitle">사용자 가이드 목차</div>
+      <div class="sidebar-download-wrap">
+        <a href="../AI-TestOps-사용자-가이드.docx" class="sidebar-download-btn" download>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>워드 파일 내려받기</span>
+        </a>
+      </div>
     </div>
     <nav class="sidebar-nav">
       <a class="nav-item" href="#5분-빠른-시작" data-section="5분-빠른-시작">
@@ -963,6 +1020,16 @@
       </button>
     </div>
     <div class="mobile-menu-drawer" id="mobile-drawer">
+      <div style="padding: 10px 16px; border-bottom: 1px solid var(--border);">
+        <a href="../AI-TestOps-사용자-가이드.docx" class="sidebar-download-btn" download>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>워드 파일 내려받기</span>
+        </a>
+      </div>
       <a class="mobile-nav-item" href="#5분-빠른-시작">
   <span class="mobile-nav-num">01</span>
   <span class="mobile-nav-text">5분 빠른 시작</span>
@@ -1022,16 +1089,25 @@
   <div class="main-wrapper">
     <main class="content-container">
       <header class="guide-hero">
-<div class="hero-badge">AI-TestOps 안내서</div>
-<h1 class="hero-title">AI-TestOps 사용자 가이드</h1>
-<p class="hero-lead"># AI-TestOps 사용자 가이드</p>
-<p class="hero-lead">이 문서는 AI-TestOps를 처음 쓰는 분을 위한 안내서예요. 코드를 몰라도 괜찮아요.</p>
-<p class="hero-lead">화면마다 사진 위에 번호를 붙였고, 본문의 단계 번호와 사진의 번호가 같아요. 사진을 보면서 번호 순서대로 따라 하면 돼요.</p>
-<div class="callout callout-quote hero-quote">
-  <div class="callout-icon">💡</div>
-  <div class="callout-body"><strong>AI-TestOps란?</strong> 쇼핑몰 같은 웹사이트가 잘 동작하는지 사람 대신 자동으로 눌러 보고, 결과를 알려 주는 도구예요.</div>
-</div>
-</header>
+        <div class="hero-top-row">
+          <div class="hero-badge">AI-TestOps 안내서</div>
+          <a href="../AI-TestOps-사용자-가이드.docx" class="btn-download-docx" download>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>워드 파일 내려받기 (.docx)</span>
+          </a>
+        </div>
+        <h1 class="hero-title">AI-TestOps 사용자 가이드</h1>
+        <p class="hero-lead">이 문서는 AI-TestOps를 처음 쓰는 분을 위한 안내서예요. 코드를 몰라도 괜찮아요.</p>
+        <p class="hero-lead">화면마다 사진 위에 번호를 붙였고, 본문의 단계 번호와 사진의 번호가 같아요. 사진을 보면서 번호 순서대로 따라 하면 돼요.</p>
+        <div class="callout callout-quote hero-quote">
+          <div class="callout-icon">💡</div>
+          <div class="callout-body"><strong>AI-TestOps란?</strong> 쇼핑몰 같은 웹사이트가 잘 동작하는지 사람 대신 자동으로 눌러 보고, 결과를 알려 주는 도구예요.</div>
+        </div>
+      </header>
 <section class="guide-section toc-section" id="목차">
   <h2 class="section-heading-h2">
     <span class="h2-anchor-text">목차</span>

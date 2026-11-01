@@ -93,7 +93,7 @@ export function HelpMenu({
             )}
 
             <a
-              href="/guide/"
+              href="/guide/index.html"
               target="_blank"
               rel="noreferrer"
               onClick={() => setOpen(false)}
