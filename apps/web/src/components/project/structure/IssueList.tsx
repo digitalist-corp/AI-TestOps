@@ -46,7 +46,7 @@ export function IssueList({ items, aiActive, onAction, busyKey, onSelect, emptyT
             key={`${item.routeKey}-${index}`}
             className={cn('rounded-lg border bg-card p-3 shadow-sm', blocking ? 'border-destructive/35' : 'border-border')}
             data-testid="structure-issue-card"
-            data-route={item.routeKey}
+            data-issue-route={item.routeKey}
           >
             <button
               type="button"
