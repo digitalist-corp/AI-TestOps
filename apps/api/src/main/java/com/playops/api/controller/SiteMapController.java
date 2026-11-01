@@ -6,6 +6,7 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,10 +46,23 @@ public class SiteMapController {
         return siteAnalysisService.viewNode(projectId, route);
     }
 
+    /** 사용자가 직접 화면 노드를 추가하거나 수정한다. */
+    @PostMapping("/node")
+    public SiteAnalysisService.SiteMap addNode(@PathVariable String projectId,
+                                               @RequestBody SiteAnalysisService.ManualNodeRequest request) {
+        return siteAnalysisService.saveManualNode(projectId, request);
+    }
+
     @PatchMapping("/node")
     public SiteAnalysisService.NodeDetail editNode(@PathVariable String projectId, @RequestParam String route,
                                                    @RequestBody SiteAnalysisService.NodeEditRequest request) {
         return siteAnalysisService.editNode(projectId, route, request);
+    }
+
+    /** 화면 노드와 메모 · 연결된 전환을 삭제한다. */
+    @DeleteMapping("/node")
+    public SiteAnalysisService.SiteMap deleteNode(@PathVariable String projectId, @RequestParam String route) {
+        return siteAnalysisService.deleteNode(projectId, route);
     }
 
     /** 분석을 시작하고 바로 돌아온다. 진행 상황은 GET 으로 확인한다. */
@@ -61,7 +75,9 @@ public class SiteMapController {
 
     /** 소스 저장소 없이 대상 사이트 주소로 화면을 탐색한다. 시작하고 바로 돌아오며 진행 상황은 GET 으로 확인한다. */
     @PostMapping("/analyze-url")
-    public SiteAnalysisService.SiteMap analyzeUrl(@PathVariable String projectId) {
+    public SiteAnalysisService.SiteMap analyzeUrl(@PathVariable String projectId,
+                                                  @RequestBody(required = false) SiteAnalysisService.AnalyzeUrlRequest request) {
+        siteAnalysisService.saveLoginCredentials(projectId, request);
         SiteAnalysisRun run = siteAnalysisService.startByUrl(projectId);
         siteAnalysisService.runByUrlAsync(run.getId(), SiteAnalysisService.FULL_LIMITS);
         return siteAnalysisService.view(projectId);

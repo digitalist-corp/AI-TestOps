@@ -275,12 +275,12 @@ public class AiBootstrapService {
     }
 
     public AiBootstrapResponse start(String projectId, String instruction, String provider) {
-        if (instruction == null || instruction.isBlank()) {
-            throw new ApiException(400, "어떤 테스트를 만들지 입력하세요.");
-        }
+        String effectiveInstruction = (instruction != null && !instruction.isBlank())
+                ? instruction.trim()
+                : "메인 페이지가 정상적으로 열리고 핵심 화면과 기능이 동작하는지 확인";
         projectService.getProject(projectId);
         forgetOldStates();
-        State state = new State(projectId, instruction.trim(), parseProvider(provider));
+        State state = new State(projectId, effectiveInstruction, parseProvider(provider));
         state.estimatedDurationMs = estimateDurationMs();
         states.put(state.id, state);
         try {
@@ -339,6 +339,8 @@ public class AiBootstrapService {
                 Map<String, String> additions = new LinkedHashMap<>();
                 additions.put("LOGIN_ID", loginId);
                 additions.put("LOGIN_PASSWORD", password);
+                additions.put("USERNAME", loginId);
+                additions.put("PASSWORD", password);
                 if (loginPath != null && !loginPath.isBlank()) {
                     additions.put("LOGIN_PATH", loginPath);
                 }
@@ -488,18 +490,28 @@ public class AiBootstrapService {
      * LOGIN_ID · LOGIN_PASSWORD 가 없으면 {@code NEEDS_CREDENTIALS} 상태로 멈추고 true 를 돌려준다.
      */
     private boolean observe(State state, Project project) {
-        if (siteAnalysisService.hasUsableNodes(state.projectId)) {
-            return false;
-        }
         if (project.getBaseUrl() == null || project.getBaseUrl().isBlank()) {
             state.warn("대상 사이트 주소가 없어 화면을 탐색하지 않고 요구사항만으로 테스트를 만듭니다.");
             return false;
         }
         Map<String, String> env = safeParseEnv(project.getEnvVariables());
         String existingId = env.get("LOGIN_ID");
+        if (existingId == null || existingId.isBlank()) existingId = env.get("USERNAME");
         String existingPw = env.get("LOGIN_PASSWORD");
+        if (existingPw == null || existingPw.isBlank()) existingPw = env.get("PASSWORD");
         boolean hasSavedCredentials = existingId != null && !existingId.isBlank()
                 && existingPw != null && !existingPw.isBlank();
+
+        if (siteAnalysisService.hasUsableNodes(state.projectId)) {
+            boolean onlyOneNode = false;
+            try {
+                SiteAnalysisService.SiteMap map = siteAnalysisService.view(state.projectId);
+                onlyOneNode = map != null && map.nodes() != null && map.nodes().size() <= 1;
+            } catch (Exception ignored) {}
+            if (!onlyOneNode || hasSavedCredentials) {
+                return false;
+            }
+        }
 
         SiteAnalysisService.LoginSpec loginSpec = null;
         if (hasSavedCredentials) {

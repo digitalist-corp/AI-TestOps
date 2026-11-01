@@ -146,6 +146,9 @@ public class AiAnalysisService {
         if (toolNames.contains("sql_query")) {
             sb.append("- 실행 통계 · 이력처럼 여러 건을 모아 봐야 하는 질문은 sql_query 로 조회하세요. 조회만 가능합니다.\n");
         }
+        if (toolNames.contains("set_env_variables")) {
+            sb.append("- 로그인 계정이나 환경변수가 필요한데 아직 설정되지 않았다면 사용자에게 아이디·비밀번호 등 필요한 값을 질문해 받아내고(HITL), 사용자가 알려 준 값은 set_env_variables 도구로 프로젝트 환경변수에 직접 저장하세요. 사용자에게 dotenv를 직접 설치하라고 안내하지 마세요.\n");
+        }
         if (toolNames.contains("fix_test") || toolNames.contains("generate_scenario")) {
             sb.append("- 사용자가 수정을 요청하면 설명만 하지 말고 fix_test 또는 generate_scenario 를 실제로 호출하세요.\n");
             sb.append("  이 도구는 파일을 바로 바꾸지 않고 승인 대기 AI 작업만 만듭니다. 승인 전에는 아무것도 바뀌지 않았다는 점을 답변에 분명히 쓰세요.\n");

@@ -258,7 +258,7 @@ export function ProjectFormDialog({
   const [envEntries, setEnvEntries] = useState<EnvEntry[]>([emptyEnvRow()]);
   const [bulkEnvText, setBulkEnvText] = useState('');
   const [envError, setEnvError] = useState('');
-  const [aiBootstrapEnabled, setAiBootstrapEnabled] = useState(false);
+  const [aiBootstrapEnabled, setAiBootstrapEnabled] = useState(true);
   const [aiBootstrapInstruction, setAiBootstrapInstruction] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [projectIdTouched, setProjectIdTouched] = useState(false);
@@ -321,6 +321,10 @@ export function ProjectFormDialog({
     setCheckingSite(false);
     setAdvancedOpen(false);
     setProjectIdTouched(Boolean(initial));
+    if (!initial) {
+      setAiBootstrapEnabled(true);
+      setAiBootstrapInstruction('');
+    }
   }, [initial, open]);
 
   const update = (key: keyof ProjectFormData, value: FormValue) => {
@@ -437,9 +441,10 @@ export function ProjectFormDialog({
       setLoading(false);
       return;
     }
+    const DEFAULT_BOOTSTRAP_INSTRUCTION = '메인 페이지가 정상적으로 열리고 핵심 화면과 기능이 동작하는지 확인';
     const bootstrapInstruction =
-      !initial && aiActive && aiBootstrapEnabled && aiBootstrapInstruction.trim()
-        ? aiBootstrapInstruction.trim()
+      !initial && aiActive && aiBootstrapEnabled
+        ? (aiBootstrapInstruction.trim() || DEFAULT_BOOTSTRAP_INSTRUCTION)
         : undefined;
     try {
       await onSubmit(form, bootstrapInstruction);

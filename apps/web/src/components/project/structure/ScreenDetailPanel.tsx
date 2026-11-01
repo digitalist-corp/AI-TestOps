@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CircleDashed, CheckCircle2, Loader2, Plus, Save, X, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleDashed, CheckCircle2, Loader2, Plus, Save, Trash2, X, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMapNode, SiteMapNodeDetail } from '@/types';
 import { Badge } from '@/components/ui/Badge';
@@ -49,13 +49,14 @@ function Prop({ k, v, mono = false }: { k: string; v: ReactNode; mono?: boolean 
  * 화면 상세. 속성, 확인 현황, 메모 · 제외(다시 분석해도 남는다), 이 화면으로 만든
  * 테스트의 최근 결과, 들고 나는 전환, 요소 표를 보여 준다.
  */
-export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump, onNodeUpdated }: {
+export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump, onNodeUpdated, onDeleteNode }: {
   projectId: string;
   routeKey: string;
   onClose: () => void;
   onAdd: (routeKey: string) => void;
   onJump: (routeKey: string) => void;
   onNodeUpdated: (node: SiteMapNode) => void;
+  onDeleteNode?: (routeKey: string) => void;
 }) {
   const { active: aiActive } = useAiEnabled();
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
@@ -117,6 +118,21 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm(`'${routeKey}' 화면을 구조에서 삭제할까요? 연결된 전환선도 함께 삭제됩니다.`)) return;
+    setSaving(true);
+    setError('');
+    try {
+      await api.deleteSiteMapNode(projectId, routeKey);
+      onClose();
+      onDeleteNode?.(routeKey);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '화면 삭제에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const node = detail?.node;
   const status = STATUS[node ? nodeStatus(node) : 'neutral'];
   const outgoing = detail?.edges.filter((e) => e.from === routeKey) ?? [];
@@ -141,9 +157,21 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <Button variant="secondary" size="xs" className="mt-3 w-full" onClick={() => onAdd(routeKey)}>
-          <Plus className="h-4 w-4" /> 경로에 추가
-        </Button>
+        <div className="mt-3 flex items-center gap-2">
+          <Button variant="secondary" size="xs" className="flex-1" onClick={() => onAdd(routeKey)}>
+            <Plus className="h-4 w-4" /> 경로에 추가
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            onClick={handleDelete}
+            disabled={saving}
+            title="이 화면을 구조에서 삭제"
+          >
+            <Trash2 className="h-3.5 w-3.5 mr-1" /> 삭제
+          </Button>
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -173,7 +201,10 @@ export function ScreenDetailPanel({ projectId, routeKey, onClose, onAdd, onJump,
                   v={<span title={node.sourceFile ?? node.url ?? ''}>{node.sourceFile ?? node.url ?? '-'}</span>}
                   mono
                 />
-                <Prop k="찾은 방법" v={node.origin === 'SITE' ? '사이트 탐색' : '코드 분석'} />
+                <Prop
+                  k="찾은 방법"
+                  v={node.origin === 'SITE' ? '사이트 탐색' : node.origin === 'MANUAL' ? '직접 추가' : '코드 분석'}
+                />
                 <Prop k="로그인" v={node.authRequired ? <span className="text-warning">필요</span> : '필요 없음'} />
                 <Prop
                   k="표시"

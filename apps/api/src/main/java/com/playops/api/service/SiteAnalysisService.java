@@ -20,12 +20,14 @@ import com.playops.api.repository.SiteEdgeRepository;
 import com.playops.api.repository.SiteLayoutRepository;
 import com.playops.api.repository.SiteNodeEditRepository;
 import com.playops.api.repository.SiteNodeRepository;
+import com.playops.api.util.ProjectEnvVariables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,6 +57,7 @@ public class SiteAnalysisService {
     public static final String URL_FRAMEWORK = "URL";
     public static final String ORIGIN_SITE = "SITE";
     public static final String ORIGIN_CODE = "CODE";
+    public static final String ORIGIN_MANUAL = "MANUAL";
 
     /** 사이트 탐색 상한. 등록 직후 첫 테스트는 빠르게, 구조 탭에서 고른 전체 탐색은 넓게 돈다. */
     public record UrlLimits(int maxPages, int maxDepth, int timeoutMs) {}
@@ -165,12 +168,17 @@ public class SiteAnalysisService {
 
     public record NodeEditRequest(Boolean excluded, String note) {}
 
+    public record ManualNodeRequest(String routeKey, String title, String url, Boolean authRequired,
+                                    String note, String fromRouteKey, String edgeLabel) {}
+
+    public record AnalyzeUrlRequest(String loginUrl, String loginId, String loginPassword) {}
+
     public record SourceRequest(String url, String branch, String token) {}
 
     // ---------------------------------------------------------------- 조회 · 설정
 
     public SiteMap view(String projectId) {
-        Project project = projectService.getProject(projectId);
+        Project project = projectService != null ? projectService.getProject(projectId) : new Project();
         Map<String, SiteNodeEdit> edits = new HashMap<>();
         for (SiteNodeEdit edit : editRepository.findByProjectId(projectId)) {
             edits.put(edit.getRouteKey(), edit);
@@ -180,13 +188,13 @@ public class SiteAnalysisService {
             SiteNodeEdit edit = edits.get(node.getRouteKey());
             nodes.add(toNode(node, edit));
         }
-        Analysis analysis = runRepository.findFirstByProjectIdOrderByIdDesc(projectId)
+        Analysis analysis = (runRepository != null ? runRepository.findFirstByProjectIdOrderByIdDesc(projectId) : java.util.Optional.<SiteAnalysisRun>empty())
                 .map(run -> new Analysis(run.getStatus(), run.getCommitSha(), run.getFramework(), run.isPartial(),
                         run.getScreenCount(), run.getProcessedCount(), run.getLlmCalls(), etaSeconds(run, Instant.now()),
                         readStrings(run.getWarnings()), run.getErrorMessage(),
                         run.getStartedAt(), run.getFinishedAt()))
                 .orElse(new Analysis("NONE", null, null, false, 0, 0, 0, null, List.of(), null, null, null));
-        List<Layout> layouts = layoutRepository.findByProjectId(projectId).stream()
+        List<Layout> layouts = (layoutRepository != null ? layoutRepository.findByProjectId(projectId) : List.<SiteLayout>of()).stream()
                 .map(layout -> new Layout(layout.getSourceFile(), readStrings(layout.getRouteKeys()),
                         readElements(layout.getElements()).size(), readElements(layout.getLinks())))
                 .toList();
@@ -321,6 +329,176 @@ public class SiteAnalysisService {
         }
         editRepository.save(edit);
         return viewNode(projectId, routeKey);
+    }
+
+    /**
+     * 전체 URL 이 들어오면 경로만 뽑고, '/' 로 시작하도록 정규화한다.
+     */
+    static String normalizeRouteKey(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ApiException(400, "화면 경로를 입력하세요.");
+        }
+        String trimmed = raw.trim();
+        String path = trimmed;
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            try {
+                URI uri = URI.create(trimmed);
+                path = uri.getPath();
+                if (path == null || path.isBlank()) {
+                    path = "/";
+                }
+            } catch (IllegalArgumentException e) {
+                throw new ApiException(400, "올바른 화면 경로 또는 주소가 아닙니다: " + trimmed);
+            }
+        }
+        int hashIndex = path.indexOf('#');
+        if (hashIndex >= 0) {
+            path = path.substring(0, hashIndex);
+        }
+        if (path.isBlank()) {
+            path = "/";
+        }
+        if (!path.startsWith("/")) {
+            path = "/" + path;
+        }
+        if (path.length() > 1 && path.endsWith("/")) {
+            path = path.replaceAll("/+$", "");
+            if (path.isEmpty()) {
+                path = "/";
+            }
+        }
+        if (path.length() > 500) {
+            throw new ApiException(400, "화면 경로는 500자까지 입력할 수 있습니다.");
+        }
+        return path;
+    }
+
+    /** 사용자가 직접 입력한 화면 노드(및 연결 간선, 메모)를 생성하거나 수정한다. */
+    public SiteMap saveManualNode(String projectId, ManualNodeRequest request) {
+        if (request == null) {
+            throw new ApiException(400, "화면 정보를 입력하세요.");
+        }
+        Project project = projectService != null ? projectService.getProject(projectId) : null;
+        String routeKey = normalizeRouteKey(request.routeKey());
+        SiteNode node = nodeRepository.findByProjectIdOrderByRouteKey(projectId).stream()
+                .filter(n -> n.getRouteKey().equals(routeKey))
+                .findFirst()
+                .orElse(null);
+        if (node == null) {
+            node = new SiteNode();
+            node.setProjectId(projectId);
+            node.setRouteKey(routeKey);
+            node.setOrigin(ORIGIN_MANUAL);
+            node.setElements("[]");
+            node.setLinks("[]");
+            node.setForms("[]");
+        } else if (node.getOrigin() == null || node.getOrigin().isBlank()) {
+            node.setOrigin(ORIGIN_MANUAL);
+        }
+        if (request.title() != null) {
+            String title = request.title().trim();
+            node.setTitle(title.isEmpty() ? null : (title.length() > 300 ? title.substring(0, 300) : title));
+        }
+        if (request.url() != null && !request.url().isBlank()) {
+            node.setUrl(request.url().trim());
+        } else if (request.routeKey() != null && (request.routeKey().trim().startsWith("http://") || request.routeKey().trim().startsWith("https://"))) {
+            node.setUrl(request.routeKey().trim());
+        } else if (node.getUrl() == null && project != null && project.getBaseUrl() != null && !project.getBaseUrl().isBlank()) {
+            node.setUrl(project.getBaseUrl().replaceAll("/+$", "") + routeKey);
+        }
+        if (request.authRequired() != null) {
+            node.setAuthRequired(request.authRequired());
+        }
+        node.setStale(false);
+        nodeRepository.save(node);
+
+        if (request.note() != null && !request.note().isBlank()) {
+            String note = request.note().trim();
+            if (note.length() > 500) {
+                throw new ApiException(400, "메모는 500자까지 쓸 수 있습니다.");
+            }
+            SiteNodeEdit edit = findEdit(projectId, routeKey);
+            if (edit == null) {
+                edit = new SiteNodeEdit();
+                edit.setProjectId(projectId);
+                edit.setRouteKey(routeKey);
+            }
+            edit.setNote(note);
+            editRepository.save(edit);
+        }
+
+        if (request.fromRouteKey() != null && !request.fromRouteKey().isBlank()) {
+            String fromRoute = normalizeRouteKey(request.fromRouteKey());
+            if (!fromRoute.equals(routeKey)) {
+                String edgeLabel = request.edgeLabel() != null && !request.edgeLabel().isBlank()
+                        ? request.edgeLabel().trim() : null;
+                if (edgeLabel != null && edgeLabel.length() > 300) {
+                    edgeLabel = edgeLabel.substring(0, 300);
+                }
+                SiteEdge existingEdge = edgeRepository.findByProjectId(projectId).stream()
+                        .filter(e -> fromRoute.equals(e.getFromRouteKey()) && routeKey.equals(e.getToRouteKey()))
+                        .findFirst()
+                        .orElse(null);
+                if (existingEdge == null) {
+                    SiteEdge edge = new SiteEdge();
+                    edge.setProjectId(projectId);
+                    edge.setFromRouteKey(fromRoute);
+                    edge.setToRouteKey(routeKey);
+                    edge.setKind("LINK");
+                    edge.setLabel(edgeLabel);
+                    edgeRepository.save(edge);
+                } else if (edgeLabel != null) {
+                    existingEdge.setLabel(edgeLabel);
+                    edgeRepository.save(existingEdge);
+                }
+            }
+        }
+        return view(projectId);
+    }
+
+    /** 화면 노드와 메모, 연결된 전환 간선을 모두 삭제한다. */
+    public SiteMap deleteNode(String projectId, String routeKey) {
+        if (projectService != null) {
+            projectService.getProject(projectId);
+        }
+        String normalized = normalizeRouteKey(routeKey);
+        List<SiteNode> nodesToDelete = nodeRepository.findByProjectIdOrderByRouteKey(projectId).stream()
+                .filter(n -> n.getRouteKey().equals(routeKey) || n.getRouteKey().equals(normalized))
+                .toList();
+        if (!nodesToDelete.isEmpty()) {
+            nodeRepository.deleteAll(nodesToDelete);
+        }
+        List<SiteNodeEdit> editsToDelete = editRepository.findByProjectId(projectId).stream()
+                .filter(e -> e.getRouteKey().equals(routeKey) || e.getRouteKey().equals(normalized))
+                .toList();
+        if (!editsToDelete.isEmpty()) {
+            editRepository.deleteAll(editsToDelete);
+        }
+        List<SiteEdge> edgesToDelete = edgeRepository.findByProjectId(projectId).stream()
+                .filter(e -> e.getFromRouteKey().equals(routeKey) || e.getToRouteKey().equals(routeKey)
+                        || e.getFromRouteKey().equals(normalized) || e.getToRouteKey().equals(normalized))
+                .toList();
+        if (!edgesToDelete.isEmpty()) {
+            edgeRepository.deleteAll(edgesToDelete);
+        }
+        return view(projectId);
+    }
+
+    /** 사이트 주소 탐색 요청에 로그인 계정이 함께 왔으면 프로젝트 환경변수(LOGIN_ID, LOGIN_PASSWORD, LOGIN_PATH)에 저장한다. */
+    public void saveLoginCredentials(String projectId, AnalyzeUrlRequest request) {
+        if (request == null || request.loginId() == null || request.loginId().isBlank()
+                || request.loginPassword() == null || request.loginPassword().isBlank()) {
+            return;
+        }
+        Project project = projectService.getProject(projectId);
+        Map<String, String> additions = new LinkedHashMap<>();
+        additions.put("LOGIN_ID", request.loginId().trim());
+        additions.put("LOGIN_PASSWORD", request.loginPassword());
+        if (request.loginUrl() != null && !request.loginUrl().isBlank()) {
+            additions.put("LOGIN_PATH", request.loginUrl().trim());
+        }
+        project.setEnvVariables(ProjectEnvVariables.merge(project.getEnvVariables(), additions));
+        projectRepository.save(project);
     }
 
     private SiteNode findNode(String projectId, String routeKey) {
@@ -503,19 +681,28 @@ public class SiteAnalysisService {
             job.put("limits", Map.of("maxPages", limits.maxPages(), "maxDepth", limits.maxDepth(),
                     "timeoutMs", limits.timeoutMs()));
             // 로그인 선행 시나리오가 만든 세션이 있으면 로그인 뒤 화면까지 본다. 컨테이너에는 작업 폴더만 보이므로 복사해 넘긴다.
-            Path storageState = loginSessionService.storageStateFile(run.getProjectId());
-            if (Files.isRegularFile(storageState)) {
+            Path storageState = loginSessionService != null ? loginSessionService.storageStateFile(run.getProjectId()) : null;
+            if (storageState != null && Files.isRegularFile(storageState)) {
                 Files.copy(storageState, jobDir.resolve("state.json"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 job.put("auth", Map.of("storageStatePath", dockerRunnerService.directoryContainerPath(jobDir) + "/state.json"));
             }
-            if (login != null && login.idValue() != null && !login.idValue().isBlank()
-                    && login.passwordValue() != null && !login.passwordValue().isBlank()) {
-                Map<String, Object> loginMap = new LinkedHashMap<>();
-                if (login.url() != null && !login.url().isBlank()) {
-                    loginMap.put("url", login.url());
+            LoginSpec effectiveLogin = login;
+            if (effectiveLogin == null) {
+                Map<String, String> env = ProjectEnvVariables.parse(project.getEnvVariables());
+                String envId = env.get("LOGIN_ID");
+                String envPw = env.get("LOGIN_PASSWORD");
+                if (envId != null && !envId.isBlank() && envPw != null && !envPw.isBlank()) {
+                    effectiveLogin = new LoginSpec(env.get("LOGIN_PATH"), envId, envPw);
                 }
-                loginMap.put("idValue", login.idValue());
-                loginMap.put("passwordValue", login.passwordValue());
+            }
+            if (effectiveLogin != null && effectiveLogin.idValue() != null && !effectiveLogin.idValue().isBlank()
+                    && effectiveLogin.passwordValue() != null && !effectiveLogin.passwordValue().isBlank()) {
+                Map<String, Object> loginMap = new LinkedHashMap<>();
+                if (effectiveLogin.url() != null && !effectiveLogin.url().isBlank()) {
+                    loginMap.put("url", effectiveLogin.url());
+                }
+                loginMap.put("idValue", effectiveLogin.idValue());
+                loginMap.put("passwordValue", effectiveLogin.passwordValue());
                 job.put("login", loginMap);
             }
 
@@ -663,9 +850,11 @@ public class SiteAnalysisService {
                     links.add(link);
                 }
             }
-            node.setOrigin(ORIGIN_SITE);
-            node.setUrl(raw.get("url") instanceof String u ? u : null);
-            if (raw.get("title") instanceof String title && !title.isBlank()) {
+            boolean wasManual = ORIGIN_MANUAL.equals(node.getOrigin());
+            node.setOrigin(wasManual ? ORIGIN_MANUAL : ORIGIN_SITE);
+            node.setUrl(raw.get("url") instanceof String u ? u : node.getUrl());
+            if ((!wasManual || node.getTitle() == null || node.getTitle().isBlank())
+                    && raw.get("title") instanceof String title && !title.isBlank()) {
                 node.setTitle(title.length() > 300 ? title.substring(0, 300) : title);
             }
             node.setElements(objectMapper.writeValueAsString(elements));
@@ -678,6 +867,13 @@ public class SiteAnalysisService {
             toSave.add(node);
         }
         for (SiteNode gone : existing.values()) {
+            if (ORIGIN_MANUAL.equals(gone.getOrigin())) {
+                if (gone.isStale()) {
+                    gone.setStale(false);
+                    toSave.add(gone);
+                }
+                continue;
+            }
             if (ORIGIN_SITE.equals(gone.getOrigin()) && !"VISUAL_REQUIRED".equals(mode)) {
                 gone.setStale(true);
                 gone.setScreenshot(null); // 지난 실행 폴더는 지운다.
@@ -686,25 +882,41 @@ public class SiteAnalysisService {
         }
         nodeRepository.saveAll(toSave);
 
-        // 이번에 본 화면에서 나가는 전환만 다시 만든다. 코드 분석의 전환은 그대로 둔다.
-        edgeRepository.deleteAll(edgeRepository.findByProjectId(projectId).stream()
-                .filter(edge -> byRoute.containsKey(edge.getFromRouteKey()))
-                .toList());
+        // 이번에 본 화면에서 나가는 전환만 다시 만든다. 코드 분석의 전환이나 방문되지 않은 직접 추가 화면으로의 전환은 그대로 둔다.
+        java.util.Set<String> manualRoutes = new java.util.HashSet<>();
+        for (SiteNode n : existing.values()) {
+            if (ORIGIN_MANUAL.equals(n.getOrigin())) {
+                manualRoutes.add(n.getRouteKey());
+            }
+        }
+        for (SiteNode n : toSave) {
+            if (ORIGIN_MANUAL.equals(n.getOrigin())) {
+                manualRoutes.add(n.getRouteKey());
+            }
+        }
         List<SiteEdge> edges = new ArrayList<>();
+        java.util.Set<String> newEdgeKeys = new java.util.HashSet<>();
         for (SiteNode node : toSave) {
             if (node.isStale()) {
                 continue;
             }
             for (Map<String, Object> link : readElements(node.getLinks())) {
+                String to = String.valueOf(link.get("to"));
                 SiteEdge edge = new SiteEdge();
                 edge.setProjectId(projectId);
                 edge.setFromRouteKey(node.getRouteKey());
-                edge.setToRouteKey(String.valueOf(link.get("to")));
+                edge.setToRouteKey(to);
                 edge.setLabel(link.get("label") instanceof String label && label.length() <= 300 ? label : null);
                 edge.setSelector(link.get("selector") instanceof String selector ? selector : null);
                 edges.add(edge);
+                newEdgeKeys.add(node.getRouteKey() + "->" + to);
             }
         }
+        edgeRepository.deleteAll(edgeRepository.findByProjectId(projectId).stream()
+                .filter(edge -> byRoute.containsKey(edge.getFromRouteKey())
+                        && (!manualRoutes.contains(edge.getToRouteKey())
+                            || newEdgeKeys.contains(edge.getFromRouteKey() + "->" + edge.getToRouteKey())))
+                .toList());
         edgeRepository.saveAll(edges);
         return new UrlOutcome(mode, byRoute.size(), verified, warnings, null);
     }
@@ -733,10 +945,10 @@ public class SiteAnalysisService {
         return element;
     }
 
-    /** 코드 분석에서 찾은 화면 중 경로 변수가 없는 것. 링크로 닿지 않는 화면도 열어 보게 시작점으로 넘긴다. */
-    private List<String> codeRouteSeeds(String projectId) {
+    /** 코드 분석에서 찾았거나 직접 추가한 화면 중 경로 변수가 없는 것. 링크로 닿지 않는 화면도 열어 보게 시작점으로 넘긴다. */
+    List<String> codeRouteSeeds(String projectId) {
         return nodeRepository.findByProjectIdOrderByRouteKey(projectId).stream()
-                .filter(node -> ORIGIN_CODE.equals(node.getOrigin()) && !node.isStale())
+                .filter(node -> (ORIGIN_CODE.equals(node.getOrigin()) || ORIGIN_MANUAL.equals(node.getOrigin())) && !node.isStale())
                 .map(SiteNode::getRouteKey)
                 .filter(route -> route.startsWith("/") && !route.contains(":") && !route.contains("[") && !route.contains("*"))
                 .limit(20)
@@ -746,7 +958,7 @@ public class SiteAnalysisService {
     private java.util.Set<String> siteRouteKeys(String projectId) {
         java.util.Set<String> keys = new java.util.HashSet<>();
         for (SiteNode node : nodeRepository.findByProjectIdOrderByRouteKey(projectId)) {
-            if (ORIGIN_SITE.equals(node.getOrigin())) {
+            if (ORIGIN_SITE.equals(node.getOrigin()) || ORIGIN_MANUAL.equals(node.getOrigin())) {
                 keys.add(node.getRouteKey());
             }
         }
@@ -833,8 +1045,8 @@ public class SiteAnalysisService {
             toSave.add(node);
         }
         for (SiteNode gone : existing.values()) {
-            if (ORIGIN_SITE.equals(gone.getOrigin())) {
-                continue; // 사이트 탐색으로 찾은 화면은 코드에 없어도 실제로 열렸던 화면이다.
+            if (ORIGIN_SITE.equals(gone.getOrigin()) || ORIGIN_MANUAL.equals(gone.getOrigin())) {
+                continue; // 사이트 탐색으로 찾거나 직접 추가한 화면은 코드에 없어도 실제로 쓰는 화면이다.
             }
             gone.setStale(true);
             toSave.add(gone);

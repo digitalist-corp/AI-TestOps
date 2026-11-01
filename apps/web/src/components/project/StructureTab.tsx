@@ -1,11 +1,18 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, Globe, List, Loader2, RefreshCw, Settings2, TriangleAlert, Waypoints } from 'lucide-react';
+import { ChevronDown, Globe, KeyRound, List, Loader2, Plus, RefreshCw, Settings2, TriangleAlert, Waypoints } from 'lucide-react';
 import { api } from '@/api/client';
 import type { SiteMap, SiteMapNode } from '@/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/Dialog';
 import { formatEta } from '@/components/project/AnalysisProgress';
 import { StructureEmptyState } from './structure/StructureEmptyState';
 import { StructureList } from './structure/StructureList';
@@ -76,6 +83,21 @@ export function StructureTab({ projectId }: { projectId: string }) {
   const [chosenView, setChosenView] = useState<StructureView | null>(null);
   const view: StructureView = chosenView ?? (wide ? 'graph' : 'list');
 
+  const [addNodeOpen, setAddNodeOpen] = useState(false);
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const [addRouteKey, setAddRouteKey] = useState('');
+  const [addTitle, setAddTitle] = useState('');
+  const [addFromRouteKey, setAddFromRouteKey] = useState('');
+  const [addEdgeLabel, setEdgeLabel] = useState('');
+  const [addAuthRequired, setAddAuthRequired] = useState(false);
+  const [addNote, setAddNote] = useState('');
+  const [addError, setAddError] = useState('');
+
+  const [loginId, setLoginId] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginPath, setLoginPath] = useState('/');
+  const [loginError, setLoginError] = useState('');
+
   const apply = useCallback((next: SiteMap) => {
     setSiteMap(next);
     setUrl(next.source.url ?? '');
@@ -104,6 +126,74 @@ export function StructureTab({ projectId }: { projectId: string }) {
       prev ? { ...prev, nodes: prev.nodes.map((n) => (n.routeKey === node.routeKey ? node : n)) } : prev
     );
   }, []);
+
+  const removeNodeFromState = useCallback((route: string) => {
+    setSiteMap((prev) =>
+      prev
+        ? {
+            ...prev,
+            nodes: prev.nodes.filter((n) => n.routeKey !== route),
+            edges: prev.edges.filter((e) => e.from !== route && e.to !== route),
+          }
+        : prev
+    );
+  }, []);
+
+  const handleAddNode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addRouteKey.trim()) {
+      setAddError('화면 경로를 입력하세요.');
+      return;
+    }
+    setBusy(true);
+    setAddError('');
+    try {
+      const next = await api.addSiteMapNode(projectId, {
+        routeKey: addRouteKey.trim(),
+        title: addTitle.trim() || undefined,
+        authRequired: addAuthRequired,
+        note: addNote.trim() || undefined,
+        fromRouteKey: addFromRouteKey.trim() || undefined,
+        edgeLabel: addEdgeLabel.trim() || undefined,
+      });
+      apply(next);
+      setAddNodeOpen(false);
+      setAddRouteKey('');
+      setAddTitle('');
+      setAddFromRouteKey('');
+      setEdgeLabel('');
+      setAddAuthRequired(false);
+      setAddNote('');
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : '화면 추가에 실패했습니다.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleStartLoginAnalysis = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginId.trim() || !loginPassword) {
+      setLoginError('아이디와 비밀번호를 모두 입력하세요.');
+      return;
+    }
+    setBusy(true);
+    setLoginError('');
+    try {
+      const next = await api.analyzeSiteMapByUrl(projectId, {
+        loginId: loginId.trim(),
+        loginPassword: loginPassword,
+        loginUrl: loginPath.trim() || undefined,
+      });
+      apply(next);
+      setLoginDialogOpen(false);
+      setLoginPassword('');
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : '탐색 시작 실패');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const run = async (action: () => Promise<SiteMap>) => {
     setBusy(true);
@@ -197,6 +287,28 @@ export function StructureTab({ projectId }: { projectId: string }) {
           )}
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setAddError('');
+                setAddNodeOpen(true);
+              }}
+              title="화면 노드를 직접 추가합니다"
+            >
+              <Plus className="h-4 w-4" /> 화면 추가
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoginError('');
+                setLoginDialogOpen(true);
+              }}
+              title="로그인 아이디/비밀번호를 입력하고 로그인 후 화면까지 탐색합니다"
+            >
+              <KeyRound className="h-4 w-4" /> 로그인 탐색
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -293,6 +405,31 @@ export function StructureTab({ projectId }: { projectId: string }) {
             ))}
           </ul>
         )}
+
+        {(analysis.warnings.some((w) => w.includes('로그인')) || (siteMap.nodes.length === 1 && siteMap.nodes[0].routeKey === '/')) && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
+            <div className="flex items-start gap-2">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div>
+                <p className="font-semibold text-foreground">로그인 화면 뒤의 화면들을 탐색하시겠습니까?</p>
+                <p className="mt-0.5 text-muted-foreground">
+                  로그인 아이디와 비밀번호를 입력하고 탐색을 실행하면 로그인 후 화면(상품 목록, 장바구니 등)까지 자동으로 탐색합니다.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={() => {
+                setLoginError('');
+                setLoginDialogOpen(true);
+              }}
+              className="border-warning/50 text-warning hover:bg-warning/20"
+            >
+              <KeyRound className="mr-1 h-3.5 w-3.5" /> 로그인 계정 입력 후 탐색
+            </Button>
+          </div>
+        )}
       </section>
 
       {empty ? (
@@ -305,6 +442,10 @@ export function StructureTab({ projectId }: { projectId: string }) {
           sourceHint={sourceHint}
           onFindBySite={findBySite}
           onFindByCode={findByCode}
+          onAddNode={() => {
+            setAddError('');
+            setAddNodeOpen(true);
+          }}
         />
       ) : view === 'graph' ? (
         <Suspense
@@ -318,6 +459,7 @@ export function StructureTab({ projectId }: { projectId: string }) {
             projectId={projectId}
             siteMap={siteMap}
             onNodeUpdated={updateNode}
+            onNodeDeleted={removeNodeFromState}
             viewSwitch={<ViewSwitch view={view} onChange={setChosenView} />}
           />
         </Suspense>
@@ -329,6 +471,169 @@ export function StructureTab({ projectId }: { projectId: string }) {
           <StructureList projectId={projectId} siteMap={siteMap} onError={setError} />
         </>
       )}
+
+      {/* ── 화면 직접 추가 모달 ── */}
+      <Dialog open={addNodeOpen} onOpenChange={setAddNodeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>화면 직접 추가</DialogTitle>
+            <DialogDescription>
+              탐색되지 않은 URL 경로나 새 화면 노드를 사이트 맵에 직접 추가합니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddNode} className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="add-route-key">화면 경로 <span className="text-destructive">*</span></Label>
+              <Input
+                id="add-route-key"
+                value={addRouteKey}
+                onChange={(e) => setAddRouteKey(e.target.value)}
+                placeholder="/inventory.html 또는 https://example.com/cart"
+                autoFocus
+              />
+              <p className="text-[11px] text-muted-foreground">URL을 입력하면 내부 경로(/...)로 자동 정규화됩니다.</p>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="add-title">화면 이름</Label>
+              <Input
+                id="add-title"
+                value={addTitle}
+                onChange={(e) => setAddTitle(e.target.value)}
+                placeholder="예: 상품 목록, 장바구니"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="add-from-route">이전 화면에서 연결 (선택)</Label>
+              <select
+                id="add-from-route"
+                value={addFromRouteKey}
+                onChange={(e) => setAddFromRouteKey(e.target.value)}
+                className="w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">연결 안 함 (단독 화면)</option>
+                {siteMap.nodes.map((n) => (
+                  <option key={n.routeKey} value={n.routeKey}>
+                    {n.routeKey} {n.title ? `(${n.title})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {addFromRouteKey && (
+              <div className="space-y-1">
+                <Label htmlFor="add-edge-label">연결선 이름/동작 (선택)</Label>
+                <Input
+                  id="add-edge-label"
+                  value={addEdgeLabel}
+                  onChange={(e) => setEdgeLabel(e.target.value)}
+                  placeholder="예: 로그인 버튼, 장바구니 클릭"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label htmlFor="add-note">메모 (선택)</Label>
+              <Input
+                id="add-note"
+                value={addNote}
+                onChange={(e) => setAddNote(e.target.value)}
+                placeholder="이 화면의 역할이나 주의사항"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="add-auth-required"
+                checked={addAuthRequired}
+                onChange={(e) => setAddAuthRequired(e.target.checked)}
+                className="h-4 w-4 rounded border-border"
+              />
+              <Label htmlFor="add-auth-required" className="cursor-pointer text-xs font-normal">
+                로그인이 필요한 화면입니다
+              </Label>
+            </div>
+
+            {addError && <p className="text-xs text-destructive">{addError}</p>}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setAddNodeOpen(false)}>
+                취소
+              </Button>
+              <Button type="submit" size="sm" disabled={busy || !addRouteKey.trim()}>
+                {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Plus className="mr-1 h-3 w-3" />}
+                추가하기
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── 로그인 계정 설정 & 탐색 모달 ── */}
+      <Dialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-1.5">
+              <KeyRound className="h-4 w-4 text-primary" />
+              로그인 계정 설정 및 사이트 탐색
+            </DialogTitle>
+            <DialogDescription>
+              로그인 계정을 프로젝트에 저장하고, 브라우저가 자동으로 로그인한 뒤 내부 화면들을 탐색합니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleStartLoginAnalysis} className="space-y-3 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="sitemap-login-id">로그인 아이디 / 이메일 <span className="text-destructive">*</span></Label>
+              <Input
+                id="sitemap-login-id"
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+                placeholder="standard_user"
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="sitemap-login-pw">비밀번호 <span className="text-destructive">*</span></Label>
+              <Input
+                id="sitemap-login-pw"
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="secret_sauce"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="sitemap-login-path">로그인 페이지 경로</Label>
+              <Input
+                id="sitemap-login-path"
+                value={loginPath}
+                onChange={(e) => setLoginPath(e.target.value)}
+                placeholder="/"
+              />
+              <p className="text-[11px] text-muted-foreground">기본값은 메인 페이지(/)입니다.</p>
+            </div>
+
+            {loginError && <p className="text-xs text-destructive">{loginError}</p>}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setLoginDialogOpen(false)}>
+                취소
+              </Button>
+              <Button type="submit" size="sm" disabled={busy || !loginId.trim() || !loginPassword}>
+                {busy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Globe className="mr-1 h-3 w-3" />}
+                저장하고 탐색 시작
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

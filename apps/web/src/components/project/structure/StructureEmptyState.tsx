@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FileCode2, Globe, Loader2, MousePointerClick, Network } from 'lucide-react';
+import { FileCode2, Globe, Loader2, MousePointerClick, Network, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const CHOICE_CLASS =
@@ -40,6 +40,7 @@ export function StructureEmptyState({
   sourceHint,
   onFindBySite,
   onFindByCode,
+  onAddNode,
 }: {
   projectId: string;
   running: boolean;
@@ -52,6 +53,7 @@ export function StructureEmptyState({
   sourceHint: string | null;
   onFindBySite: () => void;
   onFindByCode: () => void;
+  onAddNode?: () => void;
 }) {
   const locked = busy || running;
   const siteDisabled = locked || !siteReady;
@@ -114,6 +116,20 @@ export function StructureEmptyState({
             description="사이트를 직접 눌러 보면 그 흐름을 테스트로 녹화합니다."
           />
         </Link>
+
+        {onAddNode && (
+          <button
+            type="button"
+            onClick={onAddNode}
+            className={cn(CHOICE_CLASS, CHOICE_ENABLED)}
+          >
+            <ChoiceBody
+              icon={<Plus className="h-5 w-5" />}
+              title="화면 직접 추가하기"
+              description="URL 경로를 적어 새 화면 노드를 즉시 지도에 추가합니다."
+            />
+          </button>
+        )}
       </div>
     </section>
   );

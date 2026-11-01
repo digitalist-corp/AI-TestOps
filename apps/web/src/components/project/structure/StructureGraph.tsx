@@ -64,6 +64,7 @@ export interface StructureGraphProps {
   projectId: string;
   siteMap: SiteMap;
   onNodeUpdated: (node: SiteMapNode) => void;
+  onNodeDeleted?: (routeKey: string) => void;
   /** 툴바 오른쪽 끝에 넣을 그래프 ↔ 목록 전환 버튼 */
   viewSwitch?: ReactNode;
 }
@@ -81,7 +82,7 @@ function slugOf(route: string) {
   return route.replace(/[:*]/g, '').split('/').filter(Boolean).join('-') || 'home';
 }
 
-function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: StructureGraphProps) {
+function GraphCanvas({ projectId, siteMap, onNodeUpdated, onNodeDeleted, viewSwitch }: StructureGraphProps) {
   const flow = useReactFlow<GraphNode, PathFlowEdge>();
   const { theme } = useTheme();
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -526,6 +527,14 @@ function GraphCanvas({ projectId, siteMap, onNodeUpdated, viewSwitch }: Structur
             onNodeUpdated={(node) => {
               onNodeUpdated(node);
               setShown((prev) => ({ ...prev, nodes: prev.nodes.map((n) => (n.routeKey === node.routeKey ? node : n)) }));
+            }}
+            onDeleteNode={(route) => {
+              onNodeDeleted?.(route);
+              setShown((prev) => ({
+                ...prev,
+                nodes: prev.nodes.filter((n) => n.routeKey !== route),
+                edges: prev.edges.filter((e) => e.from !== route && e.to !== route),
+              }));
             }}
           />
         )}

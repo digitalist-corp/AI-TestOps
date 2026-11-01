@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, RotateCcw, Sparkles } from 'lucide-react';
+import { Compass, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AiJob, SiteMap } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { useAiEnabled } from '@/lib/aiEnabled';
 import { cn } from '@/lib/utils';
 import { autoSpecPath, buildSuggestions, type TestSuggestion } from '@/lib/testSuggestions';
+import { AiBootstrapProgressDialog } from '@/components/AiBootstrapProgressDialog';
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -44,6 +45,7 @@ export function AiTestGenerator({ projectId }: { projectId: string }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [job, setJob] = useState<AiJob | null>(null);
+  const [bootstrapOpen, setBootstrapOpen] = useState(false);
 
   // 추천 문장용 화면 정보. 저장소를 연결하지 않았거나 분석 전이면 실패할 수 있어 기본 추천으로 넘어간다.
   useEffect(() => {
@@ -136,14 +138,27 @@ export function AiTestGenerator({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="flex items-center gap-1.5 text-lg font-bold text-foreground">
-          <Sparkles className="h-4 w-4 text-ai-accent" />
-          AI로 테스트 만들기
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          확인하고 싶은 내용을 문장으로 적으면 AI가 Playwright 테스트를 만듭니다. 만든 코드는 승인해야 반영됩니다.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1">
+          <h2 className="flex items-center gap-1.5 text-lg font-bold text-foreground">
+            <Sparkles className="h-4 w-4 text-ai-accent" />
+            AI로 테스트 만들기
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            확인하고 싶은 내용을 문장으로 적으면 AI가 Playwright 테스트를 만듭니다. 만든 코드는 승인해야 반영됩니다.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setBootstrapOpen(true)}
+          className="text-xs"
+          title="AI가 사이트를 접속해 로그인 폼을 감지하고, 로그인 계정을 입력받아 첫 테스트를 만듭니다"
+        >
+          <Compass className="mr-1 h-3.5 w-3.5 text-ai-accent" />
+          사이트 탐색 후 첫 테스트 생성 (로그인 계정 감지)
+        </Button>
       </div>
 
       {!job ? (
@@ -248,6 +263,19 @@ export function AiTestGenerator({ projectId }: { projectId: string }) {
             )}
           </div>
         </Card>
+      )}
+
+      {bootstrapOpen && (
+        <AiBootstrapProgressDialog
+          open
+          projectId={projectId}
+          instruction={instruction.trim() || '메인 페이지가 정상적으로 열리고 핵심 기능이 동작하는지 확인'}
+          onClose={() => setBootstrapOpen(false)}
+          onOpenProject={() => {
+            setBootstrapOpen(false);
+            navigate(`/projects/${projectId}/source`);
+          }}
+        />
       )}
     </div>
   );

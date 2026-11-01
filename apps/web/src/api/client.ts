@@ -184,11 +184,35 @@ export const api = {
   getSiteMapNode: (projectId: string, routeKey: string) =>
     request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`),
 
+  /** 사용자가 직접 화면 노드를 추가하거나 수정한다 */
+  addSiteMapNode: (
+    projectId: string,
+    data: {
+      routeKey: string;
+      title?: string;
+      url?: string;
+      authRequired?: boolean;
+      note?: string;
+      fromRouteKey?: string;
+      edgeLabel?: string;
+    }
+  ) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/node`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   /** 제외 표시와 메모. 값을 준 항목만 바꾼다 */
   updateSiteMapNode: (projectId: string, routeKey: string, edit: { excluded?: boolean; note?: string }) =>
     request<SiteMapNodeDetail>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`, {
       method: 'PATCH',
       body: JSON.stringify(edit),
+    }),
+
+  /** 화면 노드와 연결된 전환 · 메모를 삭제한다 */
+  deleteSiteMapNode: (projectId: string, routeKey: string) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/node?route=${encodeURIComponent(routeKey)}`, {
+      method: 'DELETE',
     }),
 
   getRunningAnalyses: () => request<RunningAnalysis[]>('/api/sitemap/running'),
@@ -197,8 +221,14 @@ export const api = {
     request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze`, { method: 'POST' }),
 
   /** 소스 저장소 없이 대상 사이트 주소로 화면을 탐색한다 */
-  analyzeSiteMapByUrl: (projectId: string) =>
-    request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze-url`, { method: 'POST' }),
+  analyzeSiteMapByUrl: (
+    projectId: string,
+    login?: { loginUrl?: string; loginId?: string; loginPassword?: string }
+  ) =>
+    request<SiteMap>(`/api/projects/${projectId}/sitemap/analyze-url`, {
+      method: 'POST',
+      ...(login ? { body: JSON.stringify(login) } : {}),
+    }),
 
   fetchSiteMapScreenshot: async (projectId: string, routeKey: string): Promise<Blob> => {
     const auth = getStoredAuth();
