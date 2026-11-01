@@ -8,10 +8,22 @@ import {
   FolderTree,
   GitBranch,
   Play,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 
-export type ProjectTabId = 'dashboard' | 'source' | 'structure' | 'scenarios' | 'runs' | 'results' | 'ai-analysis' | 'schedules' | 'settings';
+export type ProjectTabId =
+  | 'dashboard'
+  | 'source'
+  | 'structure'
+  | 'scenarios'
+  | 'runs'
+  | 'results'
+  | 'ai-generate'
+  | 'ai-analysis'
+  | 'ai-review'
+  | 'schedules'
+  | 'settings';
 
 export const PROJECT_WORKSPACE_TABS: {
   id: ProjectTabId;
@@ -27,7 +39,7 @@ export const PROJECT_WORKSPACE_TABS: {
   },
   {
     id: 'source',
-    label: '코드',
+    label: '코드 편집기',
     description: '직접 편집 · AI 수정 도움',
     icon: FolderTree,
   },
@@ -40,7 +52,7 @@ export const PROJECT_WORKSPACE_TABS: {
   {
     id: 'scenarios',
     label: '테스트',
-    description: '케이스 선택 · 묶음 · AI 생성',
+    description: '케이스 선택 · 묶음 · 실행',
     icon: GitBranch,
   },
   {
@@ -56,10 +68,22 @@ export const PROJECT_WORKSPACE_TABS: {
     icon: BarChart3,
   },
   {
+    id: 'ai-generate',
+    label: 'AI로 만들기',
+    description: '문장으로 테스트 생성',
+    icon: Sparkles,
+  },
+  {
     id: 'ai-analysis',
     label: 'AI 분석',
     description: '수준별 맞춤 AI 진단 · 해설',
     icon: Sparkles,
+  },
+  {
+    id: 'ai-review',
+    label: 'AI 검토',
+    description: 'AI가 만든 변경 승인 · 거부',
+    icon: ShieldCheck,
   },
   {
     id: 'schedules',

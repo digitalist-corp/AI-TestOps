@@ -17,6 +17,8 @@ type AiEnabledState = {
   enabled: boolean;
   /** available && enabled. AI 기능을 보여줄지는 이 값으로 정한다. */
   active: boolean;
+  /** 키 등록 여부를 한 번이라도 확인했는지. 확인 전에는 active 가 false 라서, 이걸 보고 내쫓기 같은 동작을 미룬다. */
+  checked: boolean;
   setEnabled: (enabled: boolean) => void;
 };
 
@@ -33,6 +35,7 @@ const AiEnabledContext = createContext<AiEnabledState | null>(null);
 export function AiEnabledProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [available, setAvailable] = useState(false);
+  const [checked, setChecked] = useState(false);
   const [enabled, setEnabledState] = useState(readStoredEnabled);
 
   // 관리자가 AI 설정에서 키를 넣거나 빼면 화면을 옮길 때 반영된다.
@@ -44,6 +47,9 @@ export function AiEnabledProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!ignore) setAvailable(false);
+      })
+      .finally(() => {
+        if (!ignore) setChecked(true);
       });
     return () => {
       ignore = true;
@@ -60,7 +66,7 @@ export function AiEnabledProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AiEnabledContext.Provider value={{ available, enabled, active: available && enabled, setEnabled }}>
+    <AiEnabledContext.Provider value={{ available, enabled, active: available && enabled, checked, setEnabled }}>
       {children}
     </AiEnabledContext.Provider>
   );

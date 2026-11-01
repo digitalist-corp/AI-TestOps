@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Play, RefreshCw, Settings2, Sparkles, Square, Terminal, Upload } from 'lucide-react';
+import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Play, RefreshCw, Settings2, Square, Terminal, Upload } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthStateStatus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +13,8 @@ import { ExecutionsTab } from '@/components/project/ExecutionsTab';
 import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
 import { ResultsTab } from '@/components/project/ResultsTab';
 import { AiAnalysisTab } from '@/components/project/AiAnalysisTab';
+import { AiReviewTab } from '@/components/project/AiReviewTab';
+import { AiTestGenerator } from '@/components/project/AiTestGenerator';
 import { SchedulesTab } from '@/components/project/SchedulesTab';
 import { StructureTab } from '@/components/project/StructureTab';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
@@ -25,6 +27,7 @@ import {
   resolveEnvRequirementState,
 } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { cn } from '@/lib/utils';
 import {
   DEFAULT_PROJECT_TAB,
@@ -33,6 +36,7 @@ import {
   PROJECT_WORKSPACE_TABS,
   type ProjectTabId,
 } from '@/config/projectWorkspace';
+import { groupOfTab } from '@/config/shellNav';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const dockerStatusLabel: Record<Project['dockerStatus'], string> = {
@@ -132,22 +136,31 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
   const activeTab: ProjectTabId = isValidProjectTab(tabParam) ? tabParam : DEFAULT_PROJECT_TAB;
 
+  const { active: aiActive, checked: aiChecked } = useAiEnabled();
+  const isAiTab = Boolean(groupOfTab(activeTab).aiOnly);
+
   const [project, setProject] = useState<Project | null>(null);
   const [files, setFiles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (projectId && tabParam && !isValidProjectTab(tabParam)) {
+    if (!projectId) return;
+    if (tabParam && !isValidProjectTab(tabParam)) {
       navigate(projectTabPath(projectId, DEFAULT_PROJECT_TAB), { replace: true });
+      return;
     }
-  }, [projectId, tabParam, navigate]);
+    // 키 확인이 끝나기 전에는 active 가 잠깐 false 라서, 확인한 뒤에만 AI 탭에서 내보낸다.
+    if (isAiTab && aiChecked && !aiActive) {
+      navigate(projectTabPath(projectId, 'dashboard'), { replace: true });
+    }
+  }, [projectId, tabParam, isAiTab, aiActive, aiChecked, navigate]);
 
   const goTab = (tab: ProjectTabId) => {
     if (projectId) navigate(projectTabPath(projectId, tab));
   };
 
   // 헤더에서 누른 동작은 주소(?do=)로 넘겨 테스트 탭이 받아 연다.
-  const requestScenarioAction = (action: 'pick' | 'generate') => {
+  const requestScenarioAction = (action: 'pick') => {
     if (projectId) navigate(`${projectTabPath(projectId, 'scenarios')}?do=${action}`);
   };
 
@@ -503,14 +516,6 @@ export function ProjectDetailPage() {
           선택 실행
         </Button>
         <Button
-          variant="secondary"
-          onClick={() => requestScenarioAction('generate')}
-          title="테스트하고 싶은 내용을 문장으로 적으면 AI가 테스트 코드를 만듭니다"
-        >
-          <Sparkles className="h-4 w-4" />
-          AI로 만들기
-        </Button>
-        <Button
           onClick={() => handleRun()}
           disabled={!canRunTests}
           title={
@@ -684,6 +689,10 @@ export function ProjectDetailPage() {
             </div>
           )}
 
+          {activeTab === 'ai-generate' && projectId && (
+            <AiTestGenerator projectId={projectId} />
+          )}
+
           {activeTab === 'ai-analysis' && (
             <AiAnalysisTab
               projectId={projectId}
@@ -691,6 +700,10 @@ export function ProjectDetailPage() {
               selectedExecutionId={selectedExecutionId}
               onSelectExecution={handleSelectExecution}
             />
+          )}
+
+          {activeTab === 'ai-review' && projectId && (
+            <AiReviewTab projectId={projectId} />
           )}
 
           {activeTab === 'structure' && projectId && (
