@@ -12,9 +12,12 @@ import com.playops.api.repository.AiJobRepository;
 import com.playops.api.repository.ExecutionCaseResultRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.mockito.ArgumentCaptor;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,8 +42,12 @@ class FixProposalServiceTest {
     private final NotificationService notifications = mock(NotificationService.class);
     private final AiProviderSettingsService providers = mock(AiProviderSettingsService.class);
     private final LlmGatewayService llm = mock(LlmGatewayService.class);
+    private final ProjectService projects = mock(ProjectService.class);
     private final FixProposalService self = mock(FixProposalService.class);
-    private final FixProposalService service = new FixProposalService(jobs, cases, notifications, providers, llm, self);
+    private final FixProposalService service = new FixProposalService(jobs, cases, notifications, providers, llm, projects, self);
+
+    @TempDir
+    Path root;
 
     @BeforeEach
     void setUp() {
@@ -50,6 +57,7 @@ class FixProposalServiceTest {
             return job;
         });
         when(llm.defaultProvider()).thenReturn(AiModelProvider.CLAUDE);
+        when(projects.getProjectPath("demo")).thenReturn(root);
     }
 
     private static Project project() {
@@ -108,6 +116,18 @@ class FixProposalServiceTest {
         assertThat(saved.get(1).getTargetSpecPath()).isEqualTo("tests/b.spec.ts");
         verify(notifications).fixProposed(any(Project.class), eq(7L), eq(2));
         verify(self, never()).polishAsync(any());
+    }
+
+    @Test
+    void reportPathsRelativeToTestDirBecomeProjectPaths() throws Exception {
+        Files.createDirectories(root.resolve("tests/sub"));
+        Files.writeString(root.resolve("tests/sub/a.spec.ts"), "");
+        Files.writeString(root.resolve("top.spec.ts"), "");
+
+        assertThat(FixProposalService.projectRelative(root, "sub/a.spec.ts")).isEqualTo("tests/sub/a.spec.ts");
+        assertThat(FixProposalService.projectRelative(root, "top.spec.ts")).isEqualTo("top.spec.ts");
+        assertThat(FixProposalService.projectRelative(root, "missing.spec.ts")).isEqualTo("missing.spec.ts");
+        assertThat(FixProposalService.projectRelative(root, "../../etc/passwd")).isEqualTo("../../etc/passwd");
     }
 
     @Test

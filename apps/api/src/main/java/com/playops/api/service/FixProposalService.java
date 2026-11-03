@@ -15,6 +15,8 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -56,6 +58,7 @@ public class FixProposalService {
     private final NotificationService notificationService;
     private final AiProviderSettingsService aiProviderSettingsService;
     private final LlmGatewayService llmGatewayService;
+    private final ProjectService projectService;
     private final FixProposalService self;
 
     public FixProposalService(
@@ -64,6 +67,7 @@ public class FixProposalService {
             NotificationService notificationService,
             AiProviderSettingsService aiProviderSettingsService,
             LlmGatewayService llmGatewayService,
+            ProjectService projectService,
             @Lazy FixProposalService self
     ) {
         this.aiJobRepository = aiJobRepository;
@@ -71,6 +75,7 @@ public class FixProposalService {
         this.notificationService = notificationService;
         this.aiProviderSettingsService = aiProviderSettingsService;
         this.llmGatewayService = llmGatewayService;
+        this.projectService = projectService;
         this.self = self;
     }
 
@@ -98,10 +103,12 @@ public class FixProposalService {
         long today = aiJobRepository.countByProjectIdAndRequestedByIsNullAndCreatedAtAfter(
                 projectId, LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
         int room = (int) Math.min(MAX_PER_EXECUTION, DAILY_LIMIT - today);
+        Path root = projectService.getProjectPath(projectId);
         List<AiJob> created = new ArrayList<>();
         for (ExecutionCaseResult failed : firstFailurePerSpec(execution.getId()).values()) {
             if (created.size() >= room) break;
-            if (aiJobRepository.existsByProjectIdAndTargetSpecPathAndStatusIn(projectId, failed.getSpecPath(), OPEN)) continue;
+            String specPath = projectRelative(root, failed.getSpecPath());
+            if (aiJobRepository.existsByProjectIdAndTargetSpecPathAndStatusIn(projectId, specPath, OPEN)) continue;
             FixProposalRules.Proposal proposal = FixProposalRules.of(failed.getCaseTitle(), failed.getErrorMessage());
             AiJob job = new AiJob();
             job.setProjectId(projectId);
@@ -109,12 +116,24 @@ public class FixProposalService {
             job.setStatus(AiJobStatus.PROPOSED);
             job.setAiModelProvider(llmGatewayService.defaultProvider());
             job.setFailedExecutionId(execution.getId());
-            job.setTargetSpecPath(failed.getSpecPath());
+            job.setTargetSpecPath(specPath);
             job.setSummary(proposal.problem());
             job.setInstruction(proposal.plan());
             created.add(aiJobRepository.save(job));
         }
         return created;
+    }
+
+    /**
+     * 리포트의 spec 경로는 playwright.config 의 testDir(기본 ./tests) 기준이다. AI 수정 러너는 프로젝트 폴더 기준 경로를
+     * 쓰므로, 그대로 있는 파일이면 그대로, tests/ 아래에 있으면 tests/ 를 붙인다. 둘 다 아니면 원래 값을 둔다.
+     */
+    static String projectRelative(Path root, String reportPath) {
+        for (String candidate : List.of(reportPath, "tests/" + reportPath)) {
+            Path file = root.resolve(candidate).normalize();
+            if (file.startsWith(root) && Files.isRegularFile(file)) return candidate;
+        }
+        return reportPath;
     }
 
     private Map<String, ExecutionCaseResult> firstFailurePerSpec(Long executionId) {
@@ -139,7 +158,10 @@ public class FixProposalService {
 
     private void polish(AiJob job) {
         if (job.getStatus() != AiJobStatus.PROPOSED) return;
-        ExecutionCaseResult failed = firstFailurePerSpec(job.getFailedExecutionId()).get(job.getTargetSpecPath());
+        String target = job.getTargetSpecPath();
+        ExecutionCaseResult failed = firstFailurePerSpec(job.getFailedExecutionId()).values().stream()
+                .filter(r -> target.equals(r.getSpecPath()) || target.endsWith("/" + r.getSpecPath()))
+                .findFirst().orElse(null);
         String error = failed == null || failed.getErrorMessage() == null ? "" : failed.getErrorMessage();
         String prompt = "고칠 방법: " + job.getInstruction()
                 + "\n케이스: " + (failed == null ? "" : failed.getCaseTitle())
