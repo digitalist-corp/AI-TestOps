@@ -660,6 +660,11 @@ export const api = {
       request<import('@/types').AiJob>(`/api/ai-jobs/${id}/approve`, { method: 'POST' }),
     reject: (id: number) =>
       request<import('@/types').AiJob>(`/api/ai-jobs/${id}/reject`, { method: 'POST' }),
+    /** 수정 제안(PROPOSED)을 진행해 AI 수정을 시작한다 */
+    proceed: (id: number) =>
+      request<import('@/types').AiJob>(`/api/ai-jobs/${id}/proceed`, { method: 'POST' }),
+    dismiss: (id: number) =>
+      request<import('@/types').AiJob>(`/api/ai-jobs/${id}/dismiss`, { method: 'POST' }),
   },
 
   schedules: {

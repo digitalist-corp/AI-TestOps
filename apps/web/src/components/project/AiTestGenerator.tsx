@@ -18,6 +18,7 @@ const TERMINAL_STATUSES: AiJob['status'][] = [
 ];
 
 const STATUS_LABEL: Record<AiJob['status'], string> = {
+  PROPOSED: '수정 제안',
   PENDING: '대기 중',
   RUNNING: 'AI가 테스트 코드를 만드는 중...',
   DIFF_READY: '결과 처리 중',

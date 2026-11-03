@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 
 const statusLabel: Record<AiJob['status'], string> = {
+  PROPOSED: '수정 제안',
   PENDING: '대기 중',
   RUNNING: '실행 중',
   DIFF_READY: '결과 처리 중',
@@ -19,6 +20,7 @@ const statusLabel: Record<AiJob['status'], string> = {
 };
 
 const statusBadgeClass: Record<AiJob['status'], string> = {
+  PROPOSED: 'bg-primary/15 text-primary',
   PENDING: 'bg-muted text-muted-foreground',
   RUNNING: 'bg-primary/15 text-primary',
   DIFF_READY: 'bg-warning/15 text-warning',
