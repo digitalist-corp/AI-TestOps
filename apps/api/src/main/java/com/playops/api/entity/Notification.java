@@ -16,7 +16,7 @@ public class Notification {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    /** EXECUTION_FINISHED, SCHEDULE_FINISHED, SCHEDULE_FAILED */
+    /** EXECUTION_FINISHED, SCHEDULE_FINISHED, SCHEDULE_FAILED, FIX_PROPOSED */
     @Column(nullable = false, length = 40)
     private String kind;
 

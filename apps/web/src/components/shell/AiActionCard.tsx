@@ -23,6 +23,7 @@ const POLL_INTERVAL_MS = 3000;
 type Tone = 'pending' | 'review' | 'done' | 'failed';
 
 const STATUS_VIEW: Record<AiJobStatus, { label: string; tone: Tone }> = {
+  PROPOSED: { label: '수정 제안', tone: 'review' },
   PENDING: { label: '대기 중', tone: 'pending' },
   RUNNING: { label: 'AI가 코드 작성 중', tone: 'pending' },
   DIFF_READY: { label: '변경 준비됨', tone: 'review' },

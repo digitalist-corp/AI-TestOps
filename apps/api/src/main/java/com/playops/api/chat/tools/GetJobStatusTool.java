@@ -57,6 +57,7 @@ public class GetJobStatusTool implements ChatTool {
             sb.append("오류: ").append(job.getErrorMessage()).append('\n');
         }
         sb.append(switch (job.getStatus()) {
+            case PROPOSED -> "→ 실패에서 자동으로 만든 수정 제안입니다. 사람이 진행을 눌러야 AI 수정이 시작됩니다.";
             case NEEDS_REVIEW, DIFF_READY -> "→ 사용자의 승인을 기다리는 중입니다. 아직 파일은 바뀌지 않았습니다.";
             case PENDING, RUNNING -> "→ 아직 작업 중입니다.";
             case APPLIED -> "→ 승인되어 파일에 반영되었습니다.";

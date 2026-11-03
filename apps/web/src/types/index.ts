@@ -645,7 +645,7 @@ export interface ExecutionScheduleRequest {
 
 export type AiJobType = 'CODE_FIX' | 'TEMPLATE_GENERATE' | 'TEST_ANALYSIS';
 export type AiJobStatus =
-  | 'PENDING' | 'RUNNING' | 'DIFF_READY' | 'NEEDS_REVIEW'
+  | 'PROPOSED' | 'PENDING' | 'RUNNING' | 'DIFF_READY' | 'NEEDS_REVIEW'
   | 'APPLIED' | 'REJECTED' | 'FAILED' | 'ERROR' | 'CANCELED' | 'TIMEOUT';
 
 export type PostApplyVerificationStatus = 'PENDING' | 'PASSED' | 'REGRESSED' | 'SKIPPED';
