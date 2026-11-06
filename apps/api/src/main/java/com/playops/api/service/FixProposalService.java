@@ -100,7 +100,7 @@ public class FixProposalService {
 
     private List<AiJob> create(Execution execution, Project project) {
         String projectId = project.getProjectId();
-        long today = aiJobRepository.countByProjectIdAndRequestedByIsNullAndCreatedAtAfter(
+        long today = aiJobRepository.countByProjectIdAndAutoCreatedTrueAndCreatedAtAfter(
                 projectId, LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant());
         int room = (int) Math.min(MAX_PER_EXECUTION, DAILY_LIMIT - today);
         Path root = projectService.getProjectPath(projectId);
@@ -114,6 +114,7 @@ public class FixProposalService {
             job.setProjectId(projectId);
             job.setJobType(AiJobType.CODE_FIX);
             job.setStatus(AiJobStatus.PROPOSED);
+            job.setAutoCreated(true);
             job.setAiModelProvider(llmGatewayService.defaultProvider());
             job.setFailedExecutionId(execution.getId());
             job.setTargetSpecPath(specPath);
