@@ -20,6 +20,8 @@ vi.mock('@/api/client', () => ({
       streamMessage: vi.fn(),
     },
     aiJobs: {
+      listByProject: vi.fn().mockResolvedValue([]),
+      needsReview: vi.fn().mockResolvedValue([]),
       get: vi.fn().mockResolvedValue({
         id: 77,
         projectId: 'p1',
@@ -36,6 +38,8 @@ vi.mock('@/api/client', () => ({
   },
 }));
 
+vi.mock('@/hooks/useAiTaskEvents', () => ({ useAiTaskEvents: () => {} }));
+
 const mockedChat = vi.mocked(api.chat);
 
 const sampleSession: ChatSession = {
@@ -50,6 +54,17 @@ describe('AiPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.clear();
+  });
+
+  it('패널을 열면 작업 큐가 먼저 보이고 대화는 옆 탭에 있다 (D-04)', async () => {
+    mockedChat.listSessions.mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <AiPanel onClose={() => {}} contextLabel="proj-1 · 실행" projectId="proj-1" />
+      </MemoryRouter>
+    );
+    expect(screen.getByRole('tab', { name: '작업' }).getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByText('지금 처리할 AI 작업이 없습니다')).toBeTruthy();
   });
 
   it('프로젝트의 최근 세션을 자동으로 불러와 도구 카드 · 표 · 실행 링크 · 토큰 사용량을 표시한다', async () => {
@@ -116,6 +131,7 @@ describe('AiPanel', () => {
         <AiPanel onClose={() => {}} contextLabel="proj-1 · 실행" projectId="proj-1" />
       </MemoryRouter>
     );
+    fireEvent.click(screen.getByRole('tab', { name: '대화' }));
 
     expect(await screen.findByText('로그인 실패 원인 분석')).toBeTruthy();
     expect(screen.getByText('DB 조회')).toBeTruthy();
@@ -170,6 +186,7 @@ describe('AiPanel', () => {
         <AiPanel onClose={() => {}} contextLabel="proj-1 · 시나리오" projectId="proj-1" />
       </MemoryRouter>
     );
+    fireEvent.click(screen.getByRole('tab', { name: '대화' }));
 
     await waitFor(() => expect(mockedChat.listSessions).toHaveBeenCalledWith('proj-1'));
 
@@ -228,6 +245,7 @@ describe('AiPanel', () => {
         <AiPanel onClose={() => {}} contextLabel="proj-1 · 실행" projectId="proj-1" />
       </MemoryRouter>
     );
+    fireEvent.click(screen.getByRole('tab', { name: '대화' }));
 
     await screen.findByText('로그인 실패 원인 분석');
 

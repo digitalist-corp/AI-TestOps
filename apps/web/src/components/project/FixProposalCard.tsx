@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Wrench } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AiJob } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { useAiEnabled } from '@/lib/aiEnabled';
+import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 
 /**
  * 실패한 실행에서 자동으로 만든 수정 제안 카드. (FR-25)
@@ -14,18 +15,19 @@ import { useAiEnabled } from '@/lib/aiEnabled';
 export function FixProposals({ projectId, executionId }: { projectId: string; executionId: number }) {
   const [proposals, setProposals] = useState<AiJob[]>([]);
 
-  useEffect(() => {
-    let alive = true;
+  const load = useCallback(() => {
     api.aiJobs
       .listByProject(projectId)
-      .then((jobs) => {
-        if (alive) setProposals(jobs.filter((j) => j.status === 'PROPOSED' && j.failedExecutionId === executionId));
-      })
+      .then((jobs) => setProposals(jobs.filter((j) => j.status === 'PROPOSED' && j.failedExecutionId === executionId)))
       .catch(() => {});
-    return () => {
-      alive = false;
-    };
   }, [projectId, executionId]);
+
+  useEffect(load, [load]);
+
+  // 실행이 끝난 뒤 제안이 조금 늦게 만들어져도 새로고침 없이 나타난다.
+  useAiTaskEvents((event) => {
+    if (event.type === 'ready' || event.projectId === projectId) load();
+  });
 
   if (proposals.length === 0) return null;
   return (
@@ -37,7 +39,7 @@ export function FixProposals({ projectId, executionId }: { projectId: string; ex
   );
 }
 
-function FixProposalCard({ job }: { job: AiJob }) {
+export function FixProposalCard({ job }: { job: AiJob }) {
   const { active: aiActive } = useAiEnabled();
   const [busy, setBusy] = useState<'proceed' | 'dismiss' | null>(null);
   const [done, setDone] = useState<'proceeded' | 'dismissed' | null>(null);
