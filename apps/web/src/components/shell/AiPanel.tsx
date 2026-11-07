@@ -15,6 +15,8 @@ import {
   ListChecks,
   Loader2,
   Maximize2,
+  ListTodo,
+  MessageSquare,
   MessageSquarePlus,
   Minimize2,
   Network,
@@ -33,6 +35,7 @@ import {
 } from 'lucide-react';
 import { AiMarkdown } from '@/components/ai/AiMarkdown';
 import { AiActionCard } from '@/components/shell/AiActionCard';
+import { AiTaskQueue } from '@/components/shell/AiTaskQueue';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useChatSession } from '@/hooks/useChatSession';
@@ -548,6 +551,8 @@ export function AiPanel({
   const [userLevel, setUserLevel] = useState<UserLevel>(readStoredLevel);
   const [wide, setWide] = useState(false);
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
+  /** 패널을 열면 작업 큐가 먼저 보인다. 대화는 옆 탭으로 둔다. (D-04) */
+  const [view, setView] = useState<'tasks' | 'chat'>('tasks');
 
   const {
     sessions,
@@ -767,6 +772,36 @@ export function AiPanel({
           </div>
         </div>
 
+        <div role="tablist" aria-label="AI 패널 보기" className="mt-1.5 inline-flex rounded-lg border border-border bg-muted p-0.5">
+          {(
+            [
+              { id: 'tasks', label: '작업', icon: ListTodo },
+              { id: 'chat', label: '대화', icon: MessageSquare },
+            ] as const
+          ).map((tab) => {
+            const Icon = tab.icon;
+            const selected = view === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setView(tab.id)}
+                className={cn(
+                  'flex items-center gap-1 rounded-md px-2.5 py-0.5 text-[12px] font-semibold transition-all',
+                  selected
+                    ? 'border border-border bg-card text-ai-accent shadow-sm'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
           <p className="min-w-0 truncate text-[12px] text-muted-foreground" title={contextLabel}>
             맥락: {contextLabel}
@@ -801,8 +836,14 @@ export function AiPanel({
         </div>
       </header>
 
+      {view === 'tasks' && (
+        <div className="flex-1 overflow-y-auto bg-background p-3">
+          <AiTaskQueue projectId={projectId} />
+        </div>
+      )}
+
       {/* 대화 본문 */}
-      <div ref={listRef} className="flex-1 space-y-3 overflow-y-auto bg-background p-3">
+      <div ref={listRef} className={cn('flex-1 space-y-3 overflow-y-auto bg-background p-3', view !== 'chat' && 'hidden')}>
         {loadingSession && messages.length === 0 ? (
           <div className="flex h-full items-center justify-center gap-2 text-[13px] text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin text-ai-accent" />
@@ -854,7 +895,7 @@ export function AiPanel({
       </div>
 
       {/* 입력창: 진행 중에는 보내기 버튼 자리에 중단 버튼을 둔다 */}
-      <form onSubmit={handleSend} className="flex items-end gap-2 border-t border-border bg-card p-2.5">
+      <form onSubmit={handleSend} className={cn('flex items-end gap-2 border-t border-border bg-card p-2.5', view !== 'chat' && 'hidden')}>
         <textarea
           ref={inputRef}
           rows={1}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
@@ -15,10 +15,8 @@ import { Button } from '@/components/ui/Button';
 import { api } from '@/api/client';
 import type { AiChatAction, AiJob, AiJobFileDiff, AiJobStatus } from '@/types';
 import { cn } from '@/lib/utils';
+import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 
-/** 더 이상 변하지 않는 상태 — 여기 닿으면 폴링을 멈춘다. */
-const TERMINAL: AiJobStatus[] = ['APPLIED', 'REJECTED', 'FAILED', 'ERROR', 'CANCELED', 'TIMEOUT'];
-const POLL_INTERVAL_MS = 3000;
 
 type Tone = 'pending' | 'review' | 'done' | 'failed';
 
@@ -69,37 +67,23 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
   const [diffLoading, setDiffLoading] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+  // 작업 상태는 SSE 로 바뀔 때만 다시 읽는다 (D-04). 다시 붙을 때(ready)도 읽어 놓친 변경을 메운다.
+  const read = useCallback(async () => {
+    if (!action.jobId) return;
+    try {
+      setJob(await api.aiJobs.get(action.jobId));
+    } catch {
+      // 일시적인 조회 실패로 카드를 망가뜨리지 않는다. 다음 변경 알림에서 다시 읽는다.
     }
-  }, []);
+  }, [action.jobId]);
 
   useEffect(() => {
-    if (!action.jobId) return;
-    let cancelled = false;
-
-    const read = async () => {
-      try {
-        const next = await api.aiJobs.get(action.jobId!);
-        if (cancelled) return;
-        setJob(next);
-        if (TERMINAL.includes(next.status)) stopPolling();
-      } catch {
-        // 일시적인 조회 실패로 카드를 망가뜨리지 않는다. 다음 주기에 다시 읽는다.
-      }
-    };
-
     void read();
-    pollRef.current = setInterval(read, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      stopPolling();
-    };
-  }, [action.jobId, stopPolling]);
+  }, [read]);
+
+  useAiTaskEvents((event) => {
+    if (event.type === 'ready' || event.id === action.jobId) void read();
+  });
 
   const handleRun = async () => {
     if (!action.projectId) return;
@@ -148,7 +132,6 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
           ? await api.aiJobs.approve(action.jobId)
           : await api.aiJobs.reject(action.jobId);
       setJob(next);
-      if (TERMINAL.includes(next.status)) stopPolling();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
