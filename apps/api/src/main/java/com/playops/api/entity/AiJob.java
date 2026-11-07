@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
+@EntityListeners(AiJobEvents.class)
 @Table(name = "ai_jobs")
 public class AiJob {
 
