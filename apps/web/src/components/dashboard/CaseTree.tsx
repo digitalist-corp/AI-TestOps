@@ -44,9 +44,9 @@ export function CaseTree({ projectName, groups, roundLabel }: { projectName: str
         {
           type: 'tree',
           orient: 'LR',
-          left: 90,
-          right: 180,
-          top: 16,
+          left: 24,
+          right: 230,
+          top: 40,
           bottom: 16,
           symbolSize: 10,
           initialTreeDepth: 1,
@@ -59,6 +59,8 @@ export function CaseTree({ projectName, groups, roundLabel }: { projectName: str
             {
               name: projectName,
               itemStyle: { color: '#2563eb' },
+              // 뿌리 이름은 왼쪽에 두면 잘리므로 점 위에 둔다.
+              label: { position: 'top', align: 'left', verticalAlign: 'bottom', fontWeight: 'bold' },
               tip: `${projectName} · 화면 ${groups.filter((g) => g.routeKey).length}개`,
               children: groups.map((g) => ({
                 name: g.cases.length ? `${g.name} (통과 ${g.counts.passed}/${g.cases.length})` : `${g.name} · 테스트 없음`,
