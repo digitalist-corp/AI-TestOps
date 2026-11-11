@@ -297,6 +297,41 @@ export interface Execution {
   createdAt: string;
 }
 
+/** N차 테스트. 사용자가 돌린 실행을 순서대로 센 것 (실행 이력에서 계산). */
+export interface TestRound {
+  round: number;
+  executionId: number;
+  status: ExecutionStatus;
+  title: string;
+  source: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+}
+
+/** 케이스가 그 케이스를 마지막으로 돌린 앞 차수와 비교해 어떻게 바뀌었나 */
+export type RoundChange = 'NEW_FAIL' | 'STILL_FAIL' | 'FIXED' | 'STILL_PASS' | 'FIRST_RUN' | 'SKIPPED';
+
+export interface TestRoundCase {
+  specPath: string | null;
+  caseTitle: string | null;
+  status: 'PASSED' | 'FAILED' | 'SKIPPED';
+  errorMessage: string | null;
+  change: RoundChange;
+  previousRound: number | null;
+}
+
+export interface TestRoundDetail {
+  round: TestRound;
+  previousRound: number | null;
+  changes: Record<RoundChange, number>;
+  cases: TestRoundCase[];
+}
+
 export interface ArtifactFile {
   path: string;
   name: string;

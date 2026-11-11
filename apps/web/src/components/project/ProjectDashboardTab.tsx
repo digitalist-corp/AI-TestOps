@@ -1,98 +1,36 @@
-import { useEffect, useMemo, useRef } from 'react';
-import type { ECharts, EChartsOption } from 'echarts';
-import { BarChart3, Clock3, FileCode, Play, TimerReset } from 'lucide-react';
-import type { Execution, ExecutionStatus, Project } from '@/types';
+import { useEffect, useMemo, useState } from 'react';
+import { BarChart3, Clock3, FileCode, GitCompare, Loader2, Network, Play } from 'lucide-react';
+import { api } from '@/api/client';
+import type {
+  Coverage,
+  Execution,
+  ExecutionSchedule,
+  Project,
+  ScenarioTree,
+  SiteMap,
+  TestRound,
+  TestRoundDetail,
+} from '@/types';
 import { Button } from '@/components/ui/Button';
-import { cn } from '@/lib/utils';
-import { useTheme } from '@/lib/theme';
-
-const statusLabel: Record<ExecutionStatus, string> = {
-  SCHEDULED: '예약됨',
-  PENDING: '대기',
-  RUNNING: '실행 중',
-  CANCEL_REQUESTED: '중단 중',
-  CANCELLED: '중단됨',
-  PASSED: '성공',
-  FAILED: '실패',
-  ERROR: '오류',
-};
-
-const statusTone: Record<ExecutionStatus, string> = {
-  SCHEDULED: 'bg-ai-accent/10 text-ai-accent',
-  PENDING: 'bg-muted text-muted-foreground',
-  RUNNING: 'bg-primary/10 text-primary',
-  CANCEL_REQUESTED: 'bg-warning/10 text-warning',
-  CANCELLED: 'bg-muted text-muted-foreground',
-  PASSED: 'bg-success/10 text-success',
-  FAILED: 'bg-destructive/10 text-destructive',
-  ERROR: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
-};
-
-function formatShortDate(value: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString('ko-KR', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+import { SummaryCards } from '@/components/dashboard/SummaryCards';
+import { RoundChanges, RoundTrend } from '@/components/dashboard/RoundView';
+import { CaseTree } from '@/components/dashboard/CaseTree';
+import { casesByScreen, isRoundRunning, roundOptionLabel, roundSentence } from '@/lib/rounds';
 
 function formatDuration(durationMs: number | null) {
-  if (durationMs == null) return '-';
+  if (durationMs == null) return null;
   const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
   if (totalSeconds < 60) return `${totalSeconds}초`;
-  const totalMinutes = Math.floor(totalSeconds / 60);
+  const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  if (totalMinutes < 60) return seconds ? `${totalMinutes}분 ${seconds}초` : `${totalMinutes}분`;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  return minutes ? `${hours}시간 ${minutes}분` : `${hours}시간`;
+  return seconds ? `${minutes}분 ${seconds}초` : `${minutes}분`;
 }
 
-function formatDurationAxis(durationMs: number) {
-  if (durationMs < 60_000) return `${Math.round(durationMs / 1000)}초`;
-  return `${Math.round(durationMs / 60_000)}분`;
-}
-
-function formatDurationForChart(durationMs: number) {
-  if (durationMs < 60_000) return `${(durationMs / 1000).toFixed(1)}초`;
-  const minutes = durationMs / 60_000;
-  const minuteText = minutes >= 10 ? Math.round(minutes).toString() : minutes.toFixed(1);
-  return `${minuteText}분 (${formatDuration(durationMs)})`;
-}
-
-function percent(value: number, total: number) {
-  if (total === 0) return '0%';
-  return `${Math.round((value / total) * 100)}%`;
-}
-
-function ChartBox({ option }: { option: EChartsOption }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    let chart: ECharts | null = null;
-    let disposed = false;
-
-    import('echarts').then((echarts) => {
-      if (!ref.current || disposed) return;
-      chart = echarts.init(ref.current);
-      chart.setOption(option);
-    });
-
-    const resize = () => chart?.resize();
-    window.addEventListener('resize', resize);
-    return () => {
-      disposed = true;
-      window.removeEventListener('resize', resize);
-      chart?.dispose();
-    };
-  }, [option]);
-
-  return <div ref={ref} className="h-[260px] w-full" />;
-}
-
+/**
+ * 프로젝트 대시보드. 비전공자도 한눈에 보도록
+ * 요약 4칸(계획 · 매핑 · 맵 · 언제) → 차수 고르기와 한 문장 결과 → 지난번 대비 변화 → 화면별 케이스 트리 순으로 놓는다.
+ * 차수(N차 테스트)는 사용자가 돌린 실행을 순서대로 센 것이다.
+ */
 export function ProjectDashboardTab({
   project,
   executions,
@@ -108,134 +46,81 @@ export function ProjectDashboardTab({
   onOpenRuns: () => void;
   onOpenResults: () => void;
 }) {
-  const { theme } = useTheme();
-  // 콘솔 테마(dark)는 index.css 의 콘솔 팔레트에 맞춘다.
-  const consoleTheme = theme === 'dark';
-  const axisTextColor = consoleTheme ? '#8395a9' : '#475569';
-  const splitLineColor = consoleTheme ? '#1c2734' : '#e2e8f0';
-  const tooltipStyle = consoleTheme
-    ? { backgroundColor: '#10171f', borderColor: '#2a3a4c', textStyle: { color: '#d6e2ee' } }
-    : {};
-  const latest = executions[0] ?? null;
-  const completed = executions.filter((execution) =>
-    execution.status === 'PASSED'
-    || execution.status === 'FAILED'
-    || execution.status === 'ERROR'
-    || execution.status === 'CANCELLED'
-  );
-  const durationSamples = completed.filter((execution) => execution.durationMs != null);
-  const statusCounts = executions.reduce<Record<ExecutionStatus, number>>((counts, execution) => {
-    counts[execution.status] += 1;
-    return counts;
-  }, {
-    SCHEDULED: 0,
-    PENDING: 0,
-    RUNNING: 0,
-    CANCEL_REQUESTED: 0,
-    CANCELLED: 0,
-    PASSED: 0,
-    FAILED: 0,
-    ERROR: 0,
-  });
-  const totalDuration = durationSamples.reduce((sum, execution) => sum + (execution.durationMs ?? 0), 0);
-  const avgDuration = durationSamples.length
-    ? Math.round(totalDuration / durationSamples.length)
-    : null;
-  const successRateBase = statusCounts.PASSED + statusCounts.FAILED + statusCounts.ERROR;
+  const projectId = project.projectId;
+  const [rounds, setRounds] = useState<TestRound[] | null>(null);
+  const [pickedId, setPickedId] = useState<number | null>(null);
+  const [detail, setDetail] = useState<TestRoundDetail | null>(null);
+  const [scenarios, setScenarios] = useState<ScenarioTree | null>(null);
+  const [siteMap, setSiteMap] = useState<SiteMap | null>(null);
+  const [coverage, setCoverage] = useState<Coverage | null>(null);
+  const [schedules, setSchedules] = useState<ExecutionSchedule[] | null>(null);
 
-  const statusOption = useMemo<EChartsOption>(() => ({
-    color: consoleTheme
-      ? ['#2ee59d', '#ff4f61', '#ff8a3d', '#51637a', '#ffb224', '#36d3ff', '#9c7cff', '#3d5168']
-      : ['#10b981', '#ef4444', '#f97316', '#64748b', '#f59e0b', '#3b82f6', '#8b5cf6', '#94a3b8'],
-    tooltip: {
-      ...tooltipStyle,
-      trigger: 'item',
-      formatter: '{b}: {c}건 ({d}%)',
-    },
-    legend: {
-      bottom: 0,
-      left: 'center',
-      itemWidth: 12,
-      itemHeight: 8,
-      textStyle: { color: axisTextColor, fontSize: 12 },
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: ['48%', '72%'],
-        center: ['50%', '40%'],
-        avoidLabelOverlap: true,
-        label: { show: false },
-        emphasis: {
-          label: {
-            show: true,
-            formatter: '{b}\n{c}건',
-            fontSize: 13,
-            fontWeight: 600,
-          },
-        },
-        labelLine: { show: false },
-        itemStyle: consoleTheme ? { borderColor: '#10171f', borderWidth: 2 } : undefined,
-        data: [
-          { name: '성공', value: statusCounts.PASSED },
-          { name: '실패', value: statusCounts.FAILED },
-          { name: '오류', value: statusCounts.ERROR },
-          { name: '중단됨', value: statusCounts.CANCELLED },
-          { name: '중단 중', value: statusCounts.CANCEL_REQUESTED },
-          { name: '실행 중', value: statusCounts.RUNNING },
-          { name: '예약됨', value: statusCounts.SCHEDULED },
-          { name: '대기', value: statusCounts.PENDING },
-        ].filter((item) => item.value > 0),
-      },
-    ],
-  }), [statusCounts, axisTextColor, consoleTheme]);
+  // 실행 목록은 화면이 자주 다시 읽는다. 실행이 생기거나 상태가 바뀔 때만 차수와 지도를 다시 읽는다.
+  const runKey = executions.map((e) => `${e.id}:${e.status}`).join(',');
 
-  const durationOption = useMemo<EChartsOption>(() => {
-    const recent = [...executions].slice(0, 8).reverse();
-    return {
-      color: [
-        consoleTheme
-          ? {
-              type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-              colorStops: [{ offset: 0, color: '#36d3ff' }, { offset: 1, color: 'rgba(54, 211, 255, 0.15)' }],
-            }
-          : '#2563eb',
-      ],
-      tooltip: {
-        ...tooltipStyle,
-        trigger: 'axis',
-        valueFormatter: (value: unknown) => formatDurationForChart(Number(value)),
-      },
-      grid: { left: 56, right: 18, top: 24, bottom: 36 },
-      xAxis: {
-        type: 'category',
-        data: recent.map((execution) => `#${execution.id}`),
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: 'value',
-        axisLabel: {
-          formatter: (value: number) => formatDurationAxis(value),
-        },
-        splitLine: { lineStyle: { color: splitLineColor } },
-      },
-      series: [
-        {
-          type: 'bar',
-          barMaxWidth: 34,
-          data: recent.map((execution) => execution.durationMs ?? 0),
-          itemStyle: { borderRadius: consoleTheme ? [1, 1, 0, 0] : [4, 4, 0, 0] },
-        },
-      ],
+  useEffect(() => {
+    let alive = true;
+    api.rounds.list(projectId).then((list) => alive && setRounds(list)).catch(() => alive && setRounds([]));
+    api.getSiteMapCoverage(projectId).then((c) => alive && setCoverage(c)).catch(() => {});
+    return () => {
+      alive = false;
     };
-  }, [executions, splitLineColor, consoleTheme]);
+  }, [projectId, runKey]);
+
+  useEffect(() => {
+    let alive = true;
+    api.getScenarios(projectId).then((s) => alive && setScenarios(s)).catch(() => {});
+    api.getSiteMap(projectId).then((m) => alive && setSiteMap(m)).catch(() => {});
+    api.schedules.listByProject(projectId).then((s) => alive && setSchedules(s)).catch(() => alive && setSchedules([]));
+    return () => {
+      alive = false;
+    };
+  }, [projectId]);
+
+  // 고르지 않았으면 가장 최근 차수를 따라간다.
+  const selected = rounds?.find((r) => r.executionId === pickedId) ?? rounds?.[0] ?? null;
+  const selectedKey = selected ? `${selected.executionId}:${selected.status}` : null;
+
+  useEffect(() => {
+    if (!selected) {
+      setDetail(null);
+      return;
+    }
+    let alive = true;
+    api.rounds
+      .get(projectId, selected.executionId)
+      .then((d) => alive && setDetail(d))
+      .catch(() => alive && setDetail(null));
+    return () => {
+      alive = false;
+    };
+    // selectedKey 가 바뀔 때(다른 차수 · 상태 변화)만 다시 읽는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, selectedKey]);
+
+  const screens = useMemo(
+    () =>
+      scenarios
+        ? casesByScreen({
+            nodes: siteMap?.nodes ?? [],
+            flows: coverage?.flows ?? [],
+            specs: scenarios.specs,
+            results: detail && detail.round.executionId === selected?.executionId ? detail.cases : [],
+          })
+        : null,
+    [scenarios, siteMap, coverage, detail, selected?.executionId]
+  );
+
+  const detailMatches = detail && selected && detail.round.executionId === selected.executionId;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 @5xl:flex-row @5xl:items-center @5xl:justify-between">
         <div>
           <h3 className="text-lg font-semibold text-foreground">프로젝트 대시보드</h3>
-          <p className="text-sm text-muted-foreground mt-1">{project.projectName}의 실행 상태와 최근 결과를 한눈에 봅니다.</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {project.projectName}를 무엇을 · 어느 화면에서 · 언제 테스트했는지 한눈에 봅니다.
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" onClick={onRun}>
@@ -253,82 +138,124 @@ export function ProjectDashboardTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 @3xl:grid-cols-2 @7xl:grid-cols-5 gap-3">
-        {[
-          ['최종 결과', latest ? statusLabel[latest.status] : '-', latest?.status],
-          ['성공률', percent(statusCounts.PASSED, successRateBase), null],
-          ['평균 소요', formatDuration(avgDuration), null],
-          ['전체 소요', formatDuration(durationSamples.length ? totalDuration : null), null],
-          ['실행 건수', `${executions.length}건`, null],
-        ].map(([label, value, status]) => (
-          <div key={label} className="rounded-lg border border-border bg-card px-4 py-3">
-            <p className="text-xs text-muted-foreground">{label}</p>
-            {status ? (
-              <span className={cn('mt-2 inline-flex px-2 py-0.5 rounded-full text-sm font-medium', statusTone[status as ExecutionStatus])}>
-                {value}
-              </span>
-            ) : (
-              <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
-            )}
-          </div>
-        ))}
-      </div>
+      <SummaryCards
+        projectId={projectId}
+        scenarios={scenarios}
+        screens={screens}
+        coverage={coverage}
+        latestRound={rounds?.[0] ?? null}
+        schedules={schedules}
+      />
 
-      <div className="grid grid-cols-1 @7xl:grid-cols-2 gap-4">
-        <section className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart3 className="h-4 w-4 text-primary" />
-            <h4 className="text-sm font-semibold text-foreground">상태 분포</h4>
+      <section className="rounded-lg border border-border bg-card p-4" aria-label="차수별 결과">
+        <div className="flex flex-col gap-3 @3xl:flex-row @3xl:items-end @3xl:justify-between">
+          <div className="min-w-0">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <BarChart3 className="h-4 w-4 text-primary" />
+              차수별 결과
+            </h4>
+            <p className="mt-1 text-xs text-muted-foreground">
+              테스트를 돌린 순서대로 1차, 2차…로 부릅니다. 차수를 고르면 아래 내용이 모두 그 차수 기준으로 바뀌어요.
+            </p>
           </div>
-          {executions.length ? <ChartBox option={statusOption} /> : <EmptyChart />}
-        </section>
-
-        <section className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <TimerReset className="h-4 w-4 text-primary" />
-            <h4 className="text-sm font-semibold text-foreground">최근 실행 소요시간</h4>
-          </div>
-          {executions.length ? <ChartBox option={durationOption} /> : <EmptyChart />}
-        </section>
-      </div>
-
-      <section className="rounded-lg border border-border bg-card">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <h4 className="text-sm font-semibold text-foreground">최근 실행</h4>
-          <Button size="sm" variant="outline" onClick={onOpenResults} disabled={!latest}>
-            결과 보기
-          </Button>
-        </div>
-        <div className="divide-y divide-border">
-          {executions.slice(0, 5).map((execution) => (
-            <button
-              key={execution.id}
-              type="button"
-              className="grid w-full grid-cols-[72px_minmax(180px,1fr)_96px_96px_150px] items-center gap-3 px-4 py-3 text-left text-sm hover:bg-accent"
-              onClick={onOpenResults}
-            >
-              <span className="font-mono text-muted-foreground">#{execution.id}</span>
-              <span className="truncate text-foreground">{execution.caseTitle ?? execution.grepFilter ?? '전체 실행'}</span>
-              <span className={cn('w-fit px-2 py-0.5 rounded-full text-xs font-medium', statusTone[execution.status])}>
-                {statusLabel[execution.status]}
-              </span>
-              <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDuration(execution.durationMs)}</span>
-              <span className="whitespace-nowrap text-right text-xs text-muted-foreground">{formatShortDate(execution.startedAt ?? execution.createdAt)}</span>
-            </button>
-          ))}
-          {executions.length === 0 && (
-            <div className="px-4 py-10 text-center text-sm text-muted-foreground">아직 실행 이력이 없습니다.</div>
+          {rounds && rounds.length > 0 && (
+            <div className="flex shrink-0 flex-col gap-1">
+              <label htmlFor="round-picker" className="text-xs font-semibold text-muted-foreground">
+                차수 고르기
+              </label>
+              <select
+                id="round-picker"
+                value={selected?.executionId ?? ''}
+                onChange={(e) => setPickedId(Number(e.target.value))}
+                className="h-10 w-full min-w-0 rounded-sm border border-border bg-card px-3 text-sm text-foreground hover:border-border-strong @3xl:w-[320px]"
+              >
+                {rounds.map((r) => (
+                  <option key={r.executionId} value={r.executionId}>
+                    {roundOptionLabel(r)}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
+
+        {rounds === null ? (
+          <Loading />
+        ) : rounds.length === 0 ? (
+          <p className="mt-4 rounded-md bg-muted px-4 py-10 text-center text-sm text-muted-foreground">
+            아직 돌린 테스트가 없어요. 위의 ‘전체 실행’을 누르면 1차 테스트가 시작돼요.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {selected && (
+              <div className="rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
+                <p className="text-[15px] font-medium leading-relaxed text-foreground">
+                  {detailMatches ? roundSentence(detail) : `${selected.round}차 테스트 결과를 불러오는 중이에요.`}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {selected.title}
+                  {formatDuration(selected.durationMs) && ` · ${formatDuration(selected.durationMs)} 걸림`}
+                  {' · '}
+                  <button type="button" onClick={onOpenResults} className="font-medium text-primary hover:underline">
+                    로그와 화면 기록 보기
+                  </button>
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 @7xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div>
+                <h5 className="mb-1 text-xs font-semibold text-muted-foreground">최근 차수 흐름 (막대를 누르면 그 차수로)</h5>
+                <RoundTrend rounds={rounds} selectedId={selected?.executionId ?? null} onSelect={setPickedId} />
+              </div>
+              <div>
+                <h5 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+                  <GitCompare className="h-3.5 w-3.5" />
+                  지난번과 비교
+                </h5>
+                {detailMatches && detail ? (
+                  isRoundRunning(detail.round) ? (
+                    <p className="text-sm text-muted-foreground">끝나면 지난번과 비교해 보여 줄게요.</p>
+                  ) : (
+                    <RoundChanges detail={detail} />
+                  )
+                ) : (
+                  <Loading />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-border bg-card p-4" aria-label="화면별 케이스">
+        <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Network className="h-4 w-4 text-primary" />
+          화면별 케이스
+        </h4>
+        <p className="mb-3 mt-1 text-xs text-muted-foreground">
+          화면마다 어떤 기능을 테스트하는지 펼쳐 봅니다.
+          {selected ? ` 색은 ${selected.round}차 테스트 결과예요.` : ''} 화면을 누르면 오른쪽에 케이스 목록이 나와요.
+        </p>
+        {screens ? (
+          <CaseTree
+            projectName={project.projectName}
+            groups={screens}
+            roundLabel={selected ? `${selected.round}차 테스트` : '아직 돌리지 않은'}
+          />
+        ) : (
+          <Loading />
+        )}
       </section>
     </div>
   );
 }
 
-function EmptyChart() {
+function Loading() {
   return (
-    <div className="flex h-[260px] items-center justify-center rounded-md bg-muted text-sm text-muted-foreground">
-      실행 데이터가 쌓이면 차트가 표시됩니다.
+    <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+      <Loader2 className="h-4 w-4 animate-spin" />
+      불러오는 중...
     </div>
   );
 }
