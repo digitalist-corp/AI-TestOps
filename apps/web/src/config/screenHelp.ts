@@ -10,6 +10,14 @@ export type ScreenHelp = {
 };
 
 const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
+  input: {
+    title: '입력',
+    body: '테스트할 사이트 주소나 저장소를 연결하고, 어떤 화면이 있는지 찾는 첫 단계예요. 찾은 화면은 계획 › 맵 보기에서 볼 수 있어요.',
+  },
+  plan: {
+    title: '계획',
+    body: '테스트 하나하나를 계획 항목으로 보고 담당자·마감일·우선순위를 정하는 표예요. 체크한 항목만 실행돼요.',
+  },
   dashboard: {
     title: '대시보드',
     body: '이 프로젝트의 최근 실행 결과와 성공률 추이를 한눈에 보는 곳이에요. 숫자가 이상하면 실행 탭에서 해당 실행의 로그를 열어보세요.',
@@ -31,8 +39,8 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
     body: '설정 아래에서 테스트 코드를 직접 열고 고치는 편집기입니다. AI를 켜면 오른쪽 아래 AI 채팅으로 파일 이름과 함께 수정을 요청할 수 있어요.',
   },
   structure: {
-    title: '구조',
-    body: '상단 구조 탭에서 앱의 소스 저장소나 대상 사이트를 읽어 어떤 화면이 있는지 살펴보는 곳이에요. 코드가 바뀌면 다시 분석하세요.',
+    title: '맵 보기',
+    body: '입력 단계에서 찾은 화면과, 테스트가 어떤 화면을 지나가는지 지도로 보는 곳이에요. 화면을 다시 찾으려면 입력 단계로 가세요.',
   },
   scenarios: {
     title: '시나리오',

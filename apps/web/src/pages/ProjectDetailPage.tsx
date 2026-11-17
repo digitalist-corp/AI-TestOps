@@ -725,6 +725,14 @@ export function ProjectDetailPage() {
             <StructureTab projectId={projectId} onOpenEnv={() => setEnvDialogOpen(true)} />
           )}
 
+          {activeTab === 'input' && projectId && (
+            <StructureTab mode="input" projectId={projectId} onOpenEnv={() => setEnvDialogOpen(true)} />
+          )}
+
+          {activeTab === 'plan' && projectId && (
+            <p className="rounded-lg border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">계획 표를 준비하고 있어요.</p>
+          )}
+
           {activeTab === 'schedules' && projectId && (
             <SchedulesTab projectId={projectId} />
           )}

@@ -9,42 +9,21 @@ import {
 } from '@/config/shellNav';
 
 describe('shellNav', () => {
-  it('visibleWorkspaceGroups(false) 에는 ai 그룹이 없고, true 에는 포함된다', () => {
-    const withoutAi = visibleWorkspaceGroups(false);
-    expect(withoutAi.map((g) => g.id)).toEqual([
-      'dashboard',
-      'structure',
-      'scenarios',
-      'runs',
-      'settings',
-    ]);
-    expect(withoutAi.some((g) => g.id === 'ai')).toBe(false);
-
-    const withAi = visibleWorkspaceGroups(true);
-    expect(withAi.map((g) => g.id)).toEqual([
-      'dashboard',
-      'structure',
-      'scenarios',
-      'runs',
-      'settings',
-      'ai',
-    ]);
-    expect(withAi.find((g) => g.id === 'ai')?.tabs).toEqual([
-      'ai-generate',
-      'ai-analysis',
-      'ai-review',
-    ]);
+  it('상단 그룹은 입력 → 계획 → 실행 → 대시보드 → 설정 순서이고, AI 는 켰을 때만 붙는다', () => {
+    expect(visibleWorkspaceGroups(false).map((g) => g.label)).toEqual(['입력', '계획', '실행', '대시보드', '설정']);
+    expect(visibleWorkspaceGroups(true).map((g) => g.id)).toEqual(['input', 'plan', 'runs', 'dashboard', 'settings', 'ai']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'input')?.tabs).toEqual(['input']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'plan')?.tabs).toEqual(['plan', 'scenarios', 'recorder', 'structure']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'results', 'schedules']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'source']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-generate', 'ai-analysis', 'ai-review']);
+    expect(tabLabel('structure')).toBe('맵 보기');
   });
 
-  it("'클릭으로 만들기'(recorder)는 테스트 그룹의 두 번째 탭이고, AI 를 꺼도 보인다", () => {
-    const scenarios = WORKSPACE_GROUPS.find((g) => g.id === 'scenarios');
-    expect(scenarios?.tabs).toEqual(['scenarios', 'recorder']);
-    expect(scenarios?.aiOnly).toBeFalsy();
-    expect(groupOfTab('recorder').id).toBe('scenarios');
+  it("'클릭으로 만들기'(recorder)는 계획 그룹에 있고, AI 를 꺼도 보인다", () => {
+    expect(groupOfTab('recorder').id).toBe('plan');
     expect(tabLabel('recorder')).toBe('클릭으로 만들기');
-
-    const withoutAi = visibleWorkspaceGroups(false).find((g) => g.id === 'scenarios');
-    expect(withoutAi?.tabs).toContain('recorder');
+    expect(visibleWorkspaceGroups(false).find((g) => g.id === 'plan')?.tabs).toContain('recorder');
     expect(PROJECT_WORKSPACE_TABS.find((t) => t.id === 'recorder')?.description).toBe(
       '사이트를 직접 눌러 테스트 녹화'
     );
@@ -65,7 +44,7 @@ describe('shellNav', () => {
 
   it("groupOfTab('source') 가 settings 이고 라벨은 코드 편집기다", () => {
     expect(groupOfTab('source').id).toBe('settings');
-    expect(groupOfTab('structure').id).toBe('structure');
+    expect(groupOfTab('structure').id).toBe('plan');
     expect(groupOfTab('ai-generate').id).toBe('ai');
     expect(groupOfTab('ai-analysis').id).toBe('ai');
     expect(groupOfTab('ai-review').id).toBe('ai');

@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { projectTabPath } from '@/config/projectWorkspace';
 import { ChevronDown, Globe, Info, KeyRound, List, Loader2, Plus, RefreshCw, Settings2, TriangleAlert, Waypoints, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { Coverage, Execution, SiteMap, SiteMapNode } from '@/types';
@@ -99,8 +100,10 @@ function ViewSwitch({ view, onChange }: {
  * 있으면 넓은 화면(1024px 이상)은 그래프 보기, 좁은 화면은 목록 보기가 기본이다. 여러 화면을 이어 경로로
  * 테스트를 만드는 일은 그래프 보기에서만 한다.
  */
-export function StructureTab({ projectId, onOpenEnv }: {
+export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
   projectId: string;
+  /** input: 입력 단계 — 저장소 연결·화면 찾기 버튼만. map: 계획 › 맵 보기 — 찾은 화면만. 상태·폴링은 같이 쓴다. */
+  mode?: 'input' | 'map';
   /** 프로젝트 환경변수 창을 연다 (막힌 곳의 "로그인 정보 넣기") */
   onOpenEnv?: () => void;
 }) {
@@ -463,6 +466,11 @@ export function StructureTab({ projectId, onOpenEnv }: {
             <span className="text-xs text-muted-foreground">마지막 분석 {formatTime(analysis.finishedAt)}</span>
           )}
 
+          {mode === 'map' ? (
+            <Link to={projectTabPath(projectId, 'input')} className="ml-auto text-xs font-medium text-primary hover:underline">
+              화면 다시 찾기는 입력 단계에서 →
+            </Link>
+          ) : (
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
@@ -512,9 +520,10 @@ export function StructureTab({ projectId, onOpenEnv }: {
               코드로 찾기
             </Button>
           </div>
+          )}
         </div>
 
-        {showSource && (
+        {mode === 'input' && showSource && (
           <div id="structure-source-settings" className="mt-3 space-y-3 border-t border-border pt-3">
             <p className="text-xs text-muted-foreground">
               테스트할 앱의 소스 코드가 있는 GitHub 저장소입니다. React Router 와 Next.js 프로젝트를 읽을 수 있습니다.
@@ -609,7 +618,16 @@ export function StructureTab({ projectId, onOpenEnv }: {
         )}
       </section>
 
-      {empty ? (
+      {mode === 'input' ? (
+        <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          {empty ? '아직 찾은 화면이 없어요. 위에서 사이트 주소나 코드로 화면을 찾아 주세요.' : `찾은 화면 ${siteMap.nodes.length}개는 `}
+          {!empty && (
+            <Link to={projectTabPath(projectId, 'structure')} className="font-medium text-primary hover:underline">
+              계획 › 맵 보기에서 봅니다 →
+            </Link>
+          )}
+        </p>
+      ) : empty ? (
         <StructureEmptyState
           projectId={projectId}
           running={Boolean(running)}
