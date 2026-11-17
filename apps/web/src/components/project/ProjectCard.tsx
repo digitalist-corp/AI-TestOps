@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  ExternalLink,
   FileCode,
   Loader2,
   Pencil,
@@ -29,12 +28,6 @@ const runnerActivityLabel: Record<RunnerActivity, string> = {
   IDLE: '대기',
   TESTING: '테스트 중',
   UNAVAILABLE: '중지',
-};
-
-const serverTypeLabel: Record<Project['serverType'], string> = {
-  DEV: '개발',
-  TEST: '테스트',
-  PROD: '운영',
 };
 
 const executionStatusTone: Record<ExecutionStatus, string> = {
@@ -125,7 +118,7 @@ function IconButton({
  * 프로젝트 한 개를 카드로 보여준다.
  *
  * 표 10칸을 가로로 훑는 대신, 카드 안에서 위에서 아래로 읽히게 묶었다.
- *   이름 · 대상 사이트  →  최근 실행 결과  →  실행 환경 · 러너  →  할 수 있는 일
+ *   이름  →  최근 실행 결과  →  실행 환경 · 러너  →  할 수 있는 일
  */
 export function ProjectCard({
   project,
@@ -167,24 +160,20 @@ export function ProjectCard({
         justCreated ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-border-strong'
       )}
     >
-      {/* 이름 · 대상 사이트 */}
+      {/* 이름 — 카드에서 가장 먼저 읽힌다. 사이트 주소는 프로젝트 정보에서 본다. */}
       <div className="flex items-start justify-between gap-3 px-4 pt-4">
-        <div className="min-w-0">
+        <h3 className="min-w-0">
           <button
             type="button"
             onClick={onOpen}
-            className="block max-w-full truncate text-left text-[17px] font-bold text-foreground hover:text-primary"
+            className="block max-w-full truncate text-left text-[21px] font-bold leading-tight text-foreground hover:text-primary"
             title={project.projectName}
           >
             {project.projectName}
           </button>
-          <p className="mt-0.5 truncate font-mono text-[12px] text-muted-foreground" title={project.baseUrl ?? project.projectId}>
-            {project.baseUrl ?? project.projectId}
-          </p>
-        </div>
+        </h3>
         <div className="flex shrink-0 flex-col items-end gap-1">
           {justCreated && <Chip tone="border-primary/30 bg-primary/10 text-primary">방금 등록됨</Chip>}
-          <Chip tone="border-border bg-muted text-secondary-foreground">{serverTypeLabel[project.serverType]}</Chip>
           <Chip tone={healthTone[projectHealth(project)]}>{healthLabel[projectHealth(project)]}</Chip>
         </div>
       </div>
@@ -265,7 +254,6 @@ export function ProjectCard({
           </Button>
           <Button size="sm" variant="outline" onClick={onOpen}>
             열기
-            <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1">
