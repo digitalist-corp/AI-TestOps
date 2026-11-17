@@ -5,6 +5,7 @@ import type {
   Coverage,
   Execution,
   ExecutionSchedule,
+  PlanResponse,
   Project,
   ScenarioTree,
   SiteMap,
@@ -13,6 +14,8 @@ import type {
 } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
+import { PlanMetrics } from '@/components/dashboard/PlanMetrics';
+import { failingScreens, planAsResults } from '@/lib/plan';
 import { RoundChanges, RoundTrend } from '@/components/dashboard/RoundView';
 import { CaseTree } from '@/components/dashboard/CaseTree';
 import { casesByScreen, isRoundRunning, roundOptionLabel, roundSentence } from '@/lib/rounds';
@@ -28,7 +31,7 @@ function formatDuration(durationMs: number | null) {
 
 /**
  * 프로젝트 대시보드. 비전공자도 한눈에 보도록
- * 요약 4칸(계획 · 매핑 · 맵 · 언제) → 차수 고르기와 한 문장 결과 → 지난번 대비 변화 → 화면별 케이스 트리 순으로 놓는다.
+ * 품질 현황(계획 기준 지표 · 오류 난 화면) → 요약 3칸(매핑 · 맵 · 언제) → 차수 고르기와 한 문장 결과 → 지난번 대비 변화 → 화면별 케이스 트리 순으로 놓는다.
  * 차수(N차 테스트)는 사용자가 돌린 실행을 순서대로 센 것이다.
  */
 export function ProjectDashboardTab({
@@ -54,6 +57,7 @@ export function ProjectDashboardTab({
   const [siteMap, setSiteMap] = useState<SiteMap | null>(null);
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [schedules, setSchedules] = useState<ExecutionSchedule[] | null>(null);
+  const [plan, setPlan] = useState<PlanResponse | null>(null);
 
   // 실행 목록은 화면이 자주 다시 읽는다. 실행이 생기거나 상태가 바뀔 때만 차수와 지도를 다시 읽는다.
   const runKey = executions.map((e) => `${e.id}:${e.status}`).join(',');
@@ -61,6 +65,7 @@ export function ProjectDashboardTab({
   useEffect(() => {
     let alive = true;
     api.rounds.list(projectId).then((list) => alive && setRounds(list)).catch(() => alive && setRounds([]));
+    api.plan.get(projectId).then((p) => alive && setPlan(p)).catch(() => {});
     api.getSiteMapCoverage(projectId).then((c) => alive && setCoverage(c)).catch(() => {});
     return () => {
       alive = false;
@@ -111,6 +116,24 @@ export function ProjectDashboardTab({
     [scenarios, siteMap, coverage, detail, selected?.executionId]
   );
 
+  // 오류 난 화면은 차수가 아니라 계획 항목별 최근 결과로 센다 (지표와 같은 기준).
+  const failing = useMemo(
+    () =>
+      scenarios && plan
+        ? failingScreens(
+            casesByScreen({
+              nodes: siteMap?.nodes ?? [],
+              flows: coverage?.flows ?? [],
+              specs: scenarios.specs,
+              results: planAsResults(plan.items),
+            })
+          )
+        : plan && plan.items.length === 0
+          ? []
+          : null,
+    [scenarios, siteMap, coverage, plan]
+  );
+
   const detailMatches = detail && selected && detail.round.executionId === selected.executionId;
 
   return (
@@ -138,9 +161,10 @@ export function ProjectDashboardTab({
         </div>
       </div>
 
+      <PlanMetrics projectId={projectId} summary={plan?.summary ?? null} failing={failing} />
+
       <SummaryCards
         projectId={projectId}
-        scenarios={scenarios}
         screens={screens}
         coverage={coverage}
         latestRound={rounds?.[0] ?? null}
@@ -228,7 +252,7 @@ export function ProjectDashboardTab({
         )}
       </section>
 
-      <section className="rounded-lg border border-border bg-card p-4" aria-label="화면별 케이스">
+      <section id="screen-cases" className="scroll-mt-4 rounded-lg border border-border bg-card p-4" aria-label="화면별 케이스">
         <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Network className="h-4 w-4 text-primary" />
           화면별 케이스

@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { SourceExplorerTab } from '@/components/project/SourceExplorerTab';
 import { ProjectDashboardTab } from '@/components/project/ProjectDashboardTab';
+import { PlanTab } from '@/components/project/PlanTab';
 import { ScenarioTab, type SelectedCase, type SelectedScenario } from '@/components/project/ScenarioTab';
 import { ExecutionsTab } from '@/components/project/ExecutionsTab';
 import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
@@ -730,7 +731,7 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'plan' && projectId && (
-            <p className="rounded-lg border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">계획 표를 준비하고 있어요.</p>
+            <PlanTab projectId={projectId} onRun={() => handleRun()} />
           )}
 
           {activeTab === 'schedules' && projectId && (

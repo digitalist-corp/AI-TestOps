@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { api } from '@/api/client';
@@ -11,6 +11,7 @@ vi.mock('@/components/dashboard/ChartBox', () => ({
 }));
 vi.mock('@/api/client', () => ({
   api: {
+    plan: { get: vi.fn() },
     rounds: { list: vi.fn(), get: vi.fn() },
     getScenarios: vi.fn(),
     getSiteMap: vi.fn(),
@@ -68,6 +69,18 @@ const detailOf = (r: TestRound, loginStatus: 'PASSED' | 'FAILED'): TestRoundDeta
 const project = { projectId: 'p1', projectName: '쇼핑몰' } as Project;
 
 afterEach(cleanup);
+
+beforeEach(() => {
+  vi.mocked(api.plan.get).mockResolvedValue({
+    items: [
+      {
+        specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1, enabled: true, parentEnabled: true,
+        sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: 'FAILED', lastRunAt: null,
+      },
+    ],
+    summary: { total: 10, enabled: 8, disabled: 2, passed: 6, failed: 1, notRun: 1, completionRate: 0.75 },
+  });
+});
 
 describe('ProjectDashboardTab', () => {
   it('최근 차수를 한 문장으로 요약하고, 콤보박스로 다른 차수를 고르면 그 차수로 바뀐다', async () => {
@@ -129,6 +142,17 @@ describe('ProjectDashboardTab', () => {
       await screen.findByText('2차 테스트에서 2개 중 1개가 통과했어요. 지난번보다 1개가 새로 실패했어요.')
     ).toBeTruthy();
     expect(screen.getByText('화면 1개 중 1개')).toBeTruthy(); // 매핑 칸
+    // 계획 기준 지표
+    const metrics = screen.getByRole('region', { name: '품질 현황' });
+    expect(metrics.textContent).toContain('75%');
+    expect(metrics.textContent).toContain('사용 8 · 미사용 2');
+    expect(metrics.textContent).toMatch(/성공\s*6/);
+    expect(metrics.textContent).toMatch(/실패\s*1/);
+    expect(metrics.textContent).toMatch(/미수행\s*1/);
+    // 오류 난 화면: 로그인 화면에 실패 1건
+    const failing = screen.getByRole('list', { name: '오류 난 화면' });
+    expect(failing.textContent).toContain('로그인');
+    expect(failing.textContent).toContain('1건');
     expect(screen.getByText("'로그인' 버튼을 찾지 못했어요")).toBeTruthy();
     // 화면별 케이스: 로그인 화면에 두 케이스, 로그인된다는 실패
     const list = await screen.findByRole('list', { name: '로그인 케이스 목록' });
@@ -155,5 +179,27 @@ describe('ProjectDashboardTab', () => {
       </MemoryRouter>
     );
     expect(await screen.findByText(/‘전체 실행’을 누르면 1차 테스트가 시작돼요/)).toBeTruthy();
+  });
+
+  it('실패한 계획 항목이 없으면 "오류 난 화면이 없어요"', async () => {
+    vi.mocked(api.rounds.list).mockResolvedValue([]);
+    vi.mocked(api.plan.get).mockResolvedValue({
+      items: [],
+      summary: { total: 0, enabled: 0, disabled: 0, passed: 0, failed: 0, notRun: 0, completionRate: 0 },
+    });
+    render(
+      <MemoryRouter>
+        <ProjectDashboardTab
+          project={project}
+          executions={[]}
+          onRun={() => {}}
+          onOpenSource={() => {}}
+          onOpenRuns={() => {}}
+          onOpenResults={() => {}}
+        />
+      </MemoryRouter>
+    );
+    expect(await screen.findByText('오류 난 화면이 없어요.')).toBeTruthy();
+    expect(screen.getByRole('region', { name: '품질 현황' }).textContent).toContain('0%');
   });
 });

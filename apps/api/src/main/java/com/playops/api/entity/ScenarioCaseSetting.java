@@ -2,6 +2,7 @@ package com.playops.api.entity;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(
@@ -32,6 +33,18 @@ public class ScenarioCaseSetting {
     @Column(nullable = false)
     private Boolean enabled = true;
 
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+
+    @Column(length = 100)
+    private String assignee;
+
+    @Column(name = "due_date")
+    private LocalDate dueDate;
+
+    @Column(length = 10)
+    private String priority;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -57,6 +70,18 @@ public class ScenarioCaseSetting {
 
     public Boolean getEnabled() { return Boolean.TRUE.equals(enabled); }
     public void setEnabled(Boolean enabled) { this.enabled = Boolean.TRUE.equals(enabled); }
+
+    public Integer getSortOrder() { return sortOrder; }
+    public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+
+    public String getAssignee() { return assignee; }
+    public void setAssignee(String assignee) { this.assignee = assignee; }
+
+    public LocalDate getDueDate() { return dueDate; }
+    public void setDueDate(LocalDate dueDate) { this.dueDate = dueDate; }
+
+    public String getPriority() { return priority; }
+    public void setPriority(String priority) { this.priority = priority; }
 
     public Instant getUpdatedAt() { return updatedAt; }
 }

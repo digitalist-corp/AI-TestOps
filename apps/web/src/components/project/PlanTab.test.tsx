@@ -1,0 +1,88 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { api } from '@/api/client';
+import type { PlanItem, PlanResponse } from '@/types';
+import { PlanTab } from './PlanTab';
+
+vi.mock('@/api/client', () => ({
+  api: {
+    plan: { get: vi.fn(), patch: vi.fn(), reorder: vi.fn(), setEnabled: vi.fn() },
+    getScenarios: vi.fn(),
+    getSiteMap: vi.fn(),
+    getSiteMapCoverage: vi.fn(),
+  },
+}));
+
+const item = (over: Partial<PlanItem>): PlanItem => ({
+  specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1,
+  enabled: true, parentEnabled: true, sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
+  ...over,
+});
+
+const plan: PlanResponse = {
+  items: [
+    item({}),
+    item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED' }),
+    item({ grep: '탈퇴된다', title: '탈퇴된다', line: 20, enabled: false, lastStatus: null }),
+    item({ specPath: 'tests/off.spec.ts', grep: '꺼진 파일', title: '꺼진 파일', enabled: false, parentEnabled: false, lastStatus: null }),
+  ],
+  summary: { total: 4, enabled: 2, disabled: 2, passed: 1, failed: 1, notRun: 0, completionRate: 0.5 },
+};
+
+beforeEach(() => {
+  vi.mocked(api.plan.get).mockResolvedValue(plan);
+  vi.mocked(api.getScenarios).mockResolvedValue({ projectId: 'p1', totalSpecs: 0, totalCases: 0, specs: [] });
+  vi.mocked(api.getSiteMap).mockRejectedValue(new Error('없음'));
+  vi.mocked(api.getSiteMapCoverage).mockRejectedValue(new Error('없음'));
+});
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+describe('PlanTab', () => {
+  it('코드 용어 없이 업무 열 이름을 보여 준다', async () => {
+    const { container } = render(<PlanTab projectId="p1" onRun={() => {}} />);
+    await screen.findByText('로그아웃된다');
+    for (const name of ['사용', '순서', '계획 항목', '화면', '담당자', '마감일', '우선순위', '최근 결과']) {
+      expect(screen.getAllByText(name).length).toBeGreaterThan(0);
+    }
+    expect(container.textContent).not.toMatch(/spec|grep/i);
+  });
+
+  it('사용 체크를 끄면 그 행의 계획 칸과 함께 enabled=false 를 보낸다', async () => {
+    vi.mocked(api.plan.patch).mockResolvedValue(undefined);
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    fireEvent.click(await screen.findByRole('checkbox', { name: '로그인된다 사용' }));
+    await waitFor(() =>
+      expect(api.plan.patch).toHaveBeenCalledWith('p1', {
+        specPath: 'tests/login.spec.ts', grep: '로그인된다', enabled: false, assignee: '윤재', dueDate: null, priority: null,
+      })
+    );
+  });
+
+  it('파일이나 묶음이 꺼진 케이스는 체크를 잠그고 이유를 알려 준다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    const box = (await screen.findByRole('checkbox', { name: '꺼진 파일 사용' })) as HTMLInputElement;
+    expect(box.disabled).toBe(true);
+    expect(box.title).toContain('파일이나 묶음이 꺼져 있어요');
+  });
+
+  it('revertsCellWhenSaveFails', async () => {
+    vi.mocked(api.plan.patch).mockRejectedValue(new Error('500'));
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    const box = await screen.findByRole('checkbox', { name: '로그인된다 사용' });
+    fireEvent.click(box);
+    expect(await screen.findByText('저장하지 못했어요. 다시 시도해 주세요.')).toBeTruthy();
+    await waitFor(() =>
+      expect((screen.getByRole('checkbox', { name: '로그인된다 사용' }) as HTMLInputElement).checked).toBe(true)
+    );
+  });
+
+  it('체크한 N건 실행 버튼에 사용 중 건수가 나오고 누르면 실행한다', async () => {
+    const onRun = vi.fn();
+    render(<PlanTab projectId="p1" onRun={onRun} />);
+    fireEvent.click(await screen.findByRole('button', { name: '체크한 2건 실행' }));
+    expect(onRun).toHaveBeenCalled();
+  });
+});
