@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { getStoredAuth } from '@/api/client';
-import type { ExecutionLogChunk } from '@/types';
+import type { ExecutionLogChunk, ExecutionStatus } from '@/types';
+import { executionStatusLabel } from '@/lib/utils';
+import { parseRunProgress } from '@/lib/runProgress';
 
 interface Props {
   executionId: number | null;
@@ -73,6 +75,7 @@ export function useExecutionLogStream(executionId: number | null) {
 export function ExecutionLogPanel({ executionId, className }: Props) {
   const { log, finished, status } = useExecutionLogStream(executionId);
   const logContainerRef = useRef<HTMLPreElement>(null);
+  const progress = parseRunProgress(log);
 
   useEffect(() => {
     const container = logContainerRef.current;
@@ -93,9 +96,15 @@ export function ExecutionLogPanel({ executionId, className }: Props) {
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-muted-foreground">실행 로그 #{executionId}</span>
         {finished ? (
-          <span className="text-xs text-muted-foreground">완료 · {status}</span>
+          <span className="text-xs text-muted-foreground">
+            완료 · {executionStatusLabel[status as ExecutionStatus] ?? status}
+          </span>
         ) : (
-          <span className="text-xs text-primary animate-pulse">스트리밍 중...</span>
+          <span className="text-xs text-primary animate-pulse">
+            {progress
+              ? `완료 ${progress.done} / ${progress.total} · 성공 ${progress.passed} · 실패 ${progress.failed}`
+              : '로그 받는 중...'}
+          </span>
         )}
       </div>
       <pre
