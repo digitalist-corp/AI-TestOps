@@ -74,7 +74,7 @@ beforeEach(() => {
   vi.mocked(api.plan.get).mockResolvedValue({
     items: [
       {
-        specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1, enabled: true,
+        specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1, enabled: true, parentEnabled: true,
         sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: 'FAILED', lastRunAt: null,
       },
     ],

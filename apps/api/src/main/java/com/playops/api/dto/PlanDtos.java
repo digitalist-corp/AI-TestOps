@@ -9,9 +9,12 @@ public final class PlanDtos {
 
     private PlanDtos() {}
 
-    /** lastStatus: PASSED | FAILED | null(미수행). priority: HIGH | MEDIUM | LOW | null */
+    /**
+     * lastStatus: PASSED | FAILED | null(미수행). priority: HIGH | MEDIUM | LOW | null.
+     * parentEnabled: 파일 · 상위 묶음이 모두 사용 중인지. false 면 이 행만 켜도 실행되지 않는다.
+     */
     public record PlanItem(String specPath, String grep, String title, String describePath, int line,
-                           boolean enabled, Integer sortOrder, String assignee, LocalDate dueDate,
+                           boolean enabled, boolean parentEnabled, Integer sortOrder, String assignee, LocalDate dueDate,
                            String priority, String lastStatus, Instant lastRunAt) {}
 
     /** passed · failed · notRun 은 사용 중 항목만 센다. completionRate = passed / enabled (0~1). */

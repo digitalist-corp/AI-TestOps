@@ -6,7 +6,7 @@ import { failingScreens, planAsResults, screenNameByCase } from '@/lib/plan';
 const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
 const item = (over: Partial<PlanItem>): PlanItem => ({
-  specPath: 'a.spec.ts', grep: '가입', title: '가입', describePath: '', line: 1, enabled: true, sortOrder: null,
+  specPath: 'a.spec.ts', grep: '가입', title: '가입', describePath: '', line: 1, enabled: true, parentEnabled: true, sortOrder: null,
   assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, ...over,
 });
 

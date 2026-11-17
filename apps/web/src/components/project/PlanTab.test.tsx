@@ -15,7 +15,7 @@ vi.mock('@/api/client', () => ({
 
 const item = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1,
-  enabled: true, sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
+  enabled: true, parentEnabled: true, sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
   ...over,
 });
 
@@ -24,8 +24,9 @@ const plan: PlanResponse = {
     item({}),
     item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED' }),
     item({ grep: '탈퇴된다', title: '탈퇴된다', line: 20, enabled: false, lastStatus: null }),
+    item({ specPath: 'tests/off.spec.ts', grep: '꺼진 파일', title: '꺼진 파일', enabled: false, parentEnabled: false, lastStatus: null }),
   ],
-  summary: { total: 3, enabled: 2, disabled: 1, passed: 1, failed: 1, notRun: 0, completionRate: 0.5 },
+  summary: { total: 4, enabled: 2, disabled: 2, passed: 1, failed: 1, notRun: 0, completionRate: 0.5 },
 };
 
 beforeEach(() => {
@@ -58,6 +59,13 @@ describe('PlanTab', () => {
         specPath: 'tests/login.spec.ts', grep: '로그인된다', enabled: false, assignee: '윤재', dueDate: null, priority: null,
       })
     );
+  });
+
+  it('파일이나 묶음이 꺼진 케이스는 체크를 잠그고 이유를 알려 준다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    const box = (await screen.findByRole('checkbox', { name: '꺼진 파일 사용' })) as HTMLInputElement;
+    expect(box.disabled).toBe(true);
+    expect(box.title).toContain('파일이나 묶음이 꺼져 있어요');
   });
 
   it('revertsCellWhenSaveFails', async () => {

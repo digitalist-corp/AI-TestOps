@@ -81,7 +81,10 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
       });
   };
 
-  const setEnabledMany = (targets: PlanItem[], enabled: boolean) => {
+  const setEnabledMany = (all: PlanItem[], enabled: boolean) => {
+    // 파일 · 묶음이 꺼진 행은 켜도 실행되지 않으므로 건드리지 않는다.
+    const targets = all.filter((i) => i.parentEnabled);
+    if (targets.length === 0) return;
     const before = items;
     const ids = new Set(targets.map(rowId));
     setItems((list) => list?.map((i) => (ids.has(rowId(i)) ? { ...i, enabled } : i)) ?? list);
@@ -104,8 +107,10 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
               type="checkbox"
               aria-label={`${p.data.title} 사용`}
               checked={p.data.enabled}
+              disabled={!p.data.parentEnabled}
+              title={p.data.parentEnabled ? undefined : '파일이나 묶음이 꺼져 있어요. 계획 › 테스트에서 먼저 켜 주세요.'}
               onChange={(e) => save(p.data!, { enabled: e.target.checked })}
-              className="h-4 w-4 cursor-pointer accent-primary"
+              className="h-4 w-4 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-40"
             />
           ) : null,
       },

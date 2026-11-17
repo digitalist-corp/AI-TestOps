@@ -1130,6 +1130,8 @@ export interface PlanItem {
   describePath: string;
   line: number;
   enabled: boolean;
+  /** 파일 · 상위 묶음이 모두 사용 중인지. false 면 이 행만 켜도 실행되지 않는다. */
+  parentEnabled: boolean;
   sortOrder: number | null;
   assignee: string | null;
   /** YYYY-MM-DD */

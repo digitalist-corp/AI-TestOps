@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,14 +54,14 @@ public class PlanService {
             if (TEST.equals(s.getNodeType())) settings.put(key(s.getSpecPath(), s.getGrepFilter()), s);
         }
         // ponytail: 프로젝트의 모든 케이스 결과를 읽는다. 이력이 수만 건이 되면 케이스별 마지막 결과만 고르는 쿼리로 바꾼다.
-        Map<String, ExecutionCaseResult> latest =
-                latestByCase(caseResultRepository.findEarlierInProject(projectId, Long.MAX_VALUE));
+        Map<String, List<ExecutionCaseResult>> results =
+                byLeaf(caseResultRepository.findEarlierInProject(projectId, Long.MAX_VALUE));
 
         List<PlanItem> items = flatten(scenarioService.analyze(projectId)).stream().map(item -> {
             ScenarioCaseSetting s = settings.get(key(item.specPath(), item.grep()));
-            ExecutionCaseResult r = latest.get(key(item.specPath(), item.title()));
+            ExecutionCaseResult r = latestFor(item, results);
             return new PlanItem(item.specPath(), item.grep(), item.title(), item.describePath(), item.line(),
-                    item.enabled(),
+                    item.enabled(), item.parentEnabled(),
                     s != null ? s.getSortOrder() : null,
                     s != null ? s.getAssignee() : null,
                     s != null ? s.getDueDate() : null,
@@ -154,7 +153,7 @@ public class PlanService {
         for (ScenarioCaseNode n : nodes) {
             boolean on = enabled && n.enabled();
             if (TEST.equals(n.type())) {
-                out.add(new PlanItem(spec, n.grep(), n.title(), String.join(" > ", describes), n.line(), on,
+                out.add(new PlanItem(spec, n.grep(), n.title(), String.join(" > ", describes), n.line(), on, enabled,
                         null, null, null, null, null, null));
             } else {
                 List<String> next = new ArrayList<>(describes);
@@ -181,13 +180,30 @@ public class PlanService {
         return new PlanSummary(items.size(), on.size(), items.size() - on.size(), passed, failed, notRun, rate);
     }
 
-    /** 최신 실행부터 들어온 결과에서 케이스별 첫 결과. 키 = 파일 경로 + "\n" + 마지막 제목 (웹 caseLeaf 와 같은 규칙). */
-    static Map<String, ExecutionCaseResult> latestByCase(List<ExecutionCaseResult> newestFirst) {
-        Map<String, ExecutionCaseResult> out = new LinkedHashMap<>();
+    /** 결과를 (리포트 경로, 마지막 제목)으로 묶는다. 들어온 순서(최신 실행부터)를 지킨다. */
+    static Map<String, List<ExecutionCaseResult>> byLeaf(List<ExecutionCaseResult> newestFirst) {
+        Map<String, List<ExecutionCaseResult>> out = new HashMap<>();
         for (ExecutionCaseResult r : newestFirst) {
-            out.putIfAbsent(key(r.getSpecPath(), leaf(r.getCaseTitle())), r);
+            out.computeIfAbsent(key(r.getSpecPath(), leaf(r.getCaseTitle())), k -> new ArrayList<>()).add(r);
         }
         return out;
+    }
+
+    /**
+     * 계획 항목의 마지막 결과. 리포트 경로는 testDir 기준이라 저장 경로의 뒷부분과 맞춘다(SiteCoverageService 와 같은 규칙).
+     * 같은 제목이 다른 묶음에 있으면 "묶음 > 제목"으로 끝나는 결과만 쓴다. 후보 중 가장 최근 실행의 결과.
+     */
+    static ExecutionCaseResult latestFor(PlanItem item, Map<String, List<ExecutionCaseResult>> byLeaf) {
+        String tail = item.describePath().isEmpty() ? null : " > " + item.describePath() + " > " + item.title();
+        ExecutionCaseResult best = null;
+        for (String suffix : SiteCoverageService.suffixes(item.specPath())) {
+            for (ExecutionCaseResult r : byLeaf.getOrDefault(key(suffix, item.title()), List.of())) {
+                if (tail != null && (r.getCaseTitle() == null || !r.getCaseTitle().endsWith(tail))) continue;
+                if (best == null || r.getExecutionId() > best.getExecutionId()) best = r;
+                break; // 같은 목록 안에서는 최신 실행이 먼저 온다
+            }
+        }
+        return best;
     }
 
     private static String leaf(String title) {

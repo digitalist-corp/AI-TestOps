@@ -25,7 +25,7 @@ class PlanRulesTest {
     }
 
     private static PlanItem item(String spec, int line, Integer order, boolean enabled, String lastStatus) {
-        return new PlanItem(spec, "t" + line, "t" + line, "", line, enabled, order, null, null, null, lastStatus, null);
+        return new PlanItem(spec, "t" + line, "t" + line, "", line, enabled, true, order, null, null, null, lastStatus, null);
     }
 
     private static ExecutionCaseResult result(long executionId, String spec, String title, String status) {
@@ -47,11 +47,12 @@ class PlanRulesTest {
 
         List<PlanItem> items = PlanService.flatten(tree);
 
-        assertThat(items).extracting(PlanItem::specPath, PlanItem::title, PlanItem::enabled, PlanItem::describePath)
+        assertThat(items).extracting(PlanItem::specPath, PlanItem::title, PlanItem::enabled, PlanItem::parentEnabled,
+                        PlanItem::describePath)
                 .containsExactly(
-                        tuple("a.spec.ts", "카드", false, "결제"),
-                        tuple("a.spec.ts", "로그인", true, ""),
-                        tuple("b.spec.ts", "검색", false, ""));
+                        tuple("a.spec.ts", "카드", false, false, "결제"),
+                        tuple("a.spec.ts", "로그인", true, true, ""),
+                        tuple("b.spec.ts", "검색", false, false, ""));
     }
 
     @Test
@@ -86,13 +87,36 @@ class PlanRulesTest {
                 .containsExactly(tuple("a.spec.ts", 2), tuple("c.spec.ts", 1), tuple("a.spec.ts", 9), tuple("b.spec.ts", 3));
     }
 
+    private static PlanItem planned(String spec, String describePath, String title) {
+        return new PlanItem(spec, title, title, describePath, 1, true, true, null, null, null, null, null, null);
+    }
+
     @Test
     void latestResultIgnoresSkipped() {
         // 저장소 쿼리가 SKIPPED 를 이미 거르고 최신 실행부터 준다.
-        var latest = PlanService.latestByCase(List.of(
+        var byLeaf = PlanService.byLeaf(List.of(
                 result(4, "a.spec.ts", "a.spec.ts > 묶음 > 로그인", "FAILED"),
                 result(2, "a.spec.ts", "a.spec.ts > 묶음 > 로그인", "PASSED")));
 
-        assertThat(latest.get("a.spec.ts\n로그인").getStatus()).isEqualTo("FAILED");
+        assertThat(PlanService.latestFor(planned("a.spec.ts", "묶음", "로그인"), byLeaf).getStatus()).isEqualTo("FAILED");
+    }
+
+    @Test
+    void latestResultMatchesReportPathRelativeToTestDir() {
+        // 저장 경로는 tests/a.spec.ts, 리포트 경로는 testDir(./tests) 기준이라 a.spec.ts
+        var byLeaf = PlanService.byLeaf(List.of(result(7, "a.spec.ts", "a.spec.ts > 로그인", "PASSED")));
+
+        assertThat(PlanService.latestFor(planned("tests/a.spec.ts", "", "로그인"), byLeaf).getStatus()).isEqualTo("PASSED");
+        assertThat(PlanService.latestFor(planned("tests/b.spec.ts", "", "로그인"), byLeaf)).isNull();
+    }
+
+    @Test
+    void sameTitleInDifferentDescribesKeepsSeparateResults() {
+        var byLeaf = PlanService.byLeaf(List.of(
+                result(7, "a.spec.ts", "a.spec.ts > 관리자 > 저장", "FAILED"),
+                result(7, "a.spec.ts", "a.spec.ts > 사용자 > 저장", "PASSED")));
+
+        assertThat(PlanService.latestFor(planned("a.spec.ts", "관리자", "저장"), byLeaf).getStatus()).isEqualTo("FAILED");
+        assertThat(PlanService.latestFor(planned("a.spec.ts", "사용자", "저장"), byLeaf).getStatus()).isEqualTo("PASSED");
     }
 }
