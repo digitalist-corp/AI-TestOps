@@ -2,11 +2,9 @@ import {
   BarChart3,
   FileCode,
   Loader2,
-  Pencil,
   Play,
   SlidersHorizontal,
   TriangleAlert,
-  Trash2,
 } from 'lucide-react';
 import type { DockerStatus, ExecutionStatus, Project, RunnerActivity, RunningAnalysis } from '@/types';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
@@ -128,8 +126,6 @@ export function ProjectCard({
   onOpen,
   onRun,
   onEnv,
-  onEdit,
-  onDelete,
   onGo,
 }: {
   project: Project;
@@ -140,8 +136,6 @@ export function ProjectCard({
   onOpen: () => void;
   onRun: () => void;
   onEnv: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
   onGo: (tab: 'results' | 'runs' | 'source') => void;
 }) {
   const state = envState(project);
@@ -269,12 +263,6 @@ export function ProjectCard({
             tone={missingEnv ? 'border-destructive text-destructive hover:bg-destructive/10' : undefined}
           >
             <SlidersHorizontal className="h-4 w-4" />
-          </IconButton>
-          <IconButton title="수정" onClick={onEdit}>
-            <Pencil className="h-4 w-4" />
-          </IconButton>
-          <IconButton title="삭제" onClick={onDelete} tone="hover:border-destructive hover:text-destructive">
-            <Trash2 className="h-4 w-4" />
           </IconButton>
         </div>
       </div>
