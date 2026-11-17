@@ -31,6 +31,20 @@ public interface ExecutionCaseResultRepository extends JpaRepository<ExecutionCa
             @Param("specPaths") java.util.Collection<String> specPaths);
 
     /**
+     * 한 프로젝트에서 이 실행보다 앞선 실행들의 케이스 결과(건너뜀 제외)를 최신 실행부터. (차수 비교)
+     * ponytail: 앞선 결과를 모두 읽는다. 이력이 수만 건이 되면 케이스별 마지막 결과만 고르는 쿼리로 바꾼다.
+     */
+    @Query("""
+            select r from ExecutionCaseResult r
+            where r.executionId < :executionId and r.status <> 'SKIPPED'
+              and r.executionId in (select e.id from Execution e where e.projectId = :projectId)
+            order by r.executionId desc, r.id
+            """)
+    List<ExecutionCaseResult> findEarlierInProject(
+            @Param("projectId") String projectId,
+            @Param("executionId") Long executionId);
+
+    /**
      * 한 프로젝트 안에서 케이스 이름이 맞는 결과를 최신순으로 가져온다. (채팅 도구 get_case_history)
      * 결과 표에는 project_id 가 없어서 부모 실행으로 프로젝트를 거른다.
      *

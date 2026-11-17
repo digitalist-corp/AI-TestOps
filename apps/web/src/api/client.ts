@@ -472,6 +472,12 @@ export const api = {
   getExecutions: (projectId: string) =>
     request<Execution[]>(`/api/projects/${projectId}/executions`),
 
+  rounds: {
+    list: (projectId: string) => request<import('@/types').TestRound[]>(`/api/projects/${projectId}/rounds`),
+    get: (projectId: string, executionId: number) =>
+      request<import('@/types').TestRoundDetail>(`/api/projects/${projectId}/rounds/${executionId}`),
+  },
+
   cancelExecution: (executionId: number) =>
     request<Execution>(`/api/executions/${executionId}/cancel`, { method: 'POST' }),
 
