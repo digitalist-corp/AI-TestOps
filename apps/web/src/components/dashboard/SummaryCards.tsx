@@ -30,7 +30,7 @@ export function SummaryCards({
 
   return (
     <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-2 @7xl:grid-cols-3">
-      <Card icon={Network} title="매핑" to={`${base}/structure`} linkLabel="맵 보기">
+      <Card icon={Network} title="매핑" to={`${base}/structure`} linkLabel="화면 지도">
         {mapping && mapping.screens > 0 ? (
           <>
             <Big>
@@ -44,7 +44,7 @@ export function SummaryCards({
         )}
       </Card>
 
-      <Card icon={MapIcon} title="맵" to={`${base}/structure`} linkLabel="지도 열기">
+      <Card icon={MapIcon} title="화면 지도" to={`${base}/structure`} linkLabel="지도 열기">
         {hasMap && coverage ? (
           <>
             <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted" aria-hidden>

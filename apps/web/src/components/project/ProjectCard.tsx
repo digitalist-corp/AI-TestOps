@@ -12,7 +12,7 @@ import {
 import type { DockerStatus, ExecutionStatus, Project, RunnerActivity, RunningAnalysis } from '@/types';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
-import { cn, formatRelative } from '@/lib/utils';
+import { cn, executionStatusLabel, formatDuration, formatRelative } from '@/lib/utils';
 import {
   configuredEnvCount,
   resolveEnvRequirementState,
@@ -35,17 +35,6 @@ const serverTypeLabel: Record<Project['serverType'], string> = {
   DEV: '개발',
   TEST: '테스트',
   PROD: '운영',
-};
-
-const executionStatusLabel: Record<ExecutionStatus, string> = {
-  SCHEDULED: '예약',
-  PENDING: '대기',
-  RUNNING: '실행 중',
-  CANCEL_REQUESTED: '중단 중',
-  CANCELLED: '중단',
-  PASSED: '성공',
-  FAILED: '실패',
-  ERROR: '오류',
 };
 
 const executionStatusTone: Record<ExecutionStatus, string> = {
@@ -95,13 +84,6 @@ export function isRunnerReady(project: Project) {
 
 export function envState(project: Project) {
   return resolveEnvRequirementState(project.loginEnvRequired, project.envVariables);
-}
-
-function formatDuration(durationMs: number | null): string {
-  if (durationMs == null) return '';
-  const seconds = durationMs / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)}초`;
-  return `${Math.floor(seconds / 60)}분 ${Math.round(seconds % 60)}초`;
 }
 
 function Chip({ tone, children }: { tone: string; children: React.ReactNode }) {

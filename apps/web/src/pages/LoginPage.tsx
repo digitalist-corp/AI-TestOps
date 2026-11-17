@@ -13,7 +13,7 @@ import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const ENV_FILE_PRESENT = import.meta.env.VITE_PLAYOPS_ENV_FILE_PRESENT === 'true';
 
-/** 기본 계정 — 시드 데이터(DataLoader)가 만드는 관리자 계정. */
+/** 게스트로 시작 — 지금은 시드 데이터(DataLoader)의 관리자 계정으로 들어간다. 권한 분리는 개편 ②. */
 const DEFAULT_ACCOUNT = { username: 'admin', password: 'admin' };
 
 const HIGHLIGHTS = [
@@ -345,10 +345,10 @@ export function LoginPage() {
                 onClick={handleDefaultAccount}
                 disabled={loading}
               >
-                기본 계정으로 시작
+                게스트로 시작
               </Button>
               <p className="mt-2 text-center text-[13px] text-muted-foreground">
-                admin / admin 계정으로 바로 들어갑니다.
+                계정 없이 바로 들어가 둘러봅니다.
               </p>
             </div>
           </div>

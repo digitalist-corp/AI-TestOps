@@ -12,7 +12,7 @@ export type ScreenHelp = {
 const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
   input: {
     title: '입력',
-    body: '테스트할 사이트 주소나 저장소를 연결하고, 어떤 화면이 있는지 찾는 첫 단계예요. 찾은 화면은 계획 › 맵 보기에서 볼 수 있어요.',
+    body: '사이트 주소나 저장소를 연결하고, 어떤 화면이 있는지 찾는 첫 단계예요. 찾은 화면은 계획 › 화면 지도에서 볼 수 있어요.',
   },
   plan: {
     title: '계획',
@@ -39,7 +39,7 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
     body: '설정 아래에서 테스트 코드를 직접 열고 고치는 편집기입니다. AI를 켜면 오른쪽 아래 AI 채팅으로 파일 이름과 함께 수정을 요청할 수 있어요.',
   },
   structure: {
-    title: '맵 보기',
+    title: '화면 지도',
     body: '입력 단계에서 찾은 화면과, 테스트가 어떤 화면을 지나가는지 지도로 보는 곳이에요. 화면을 다시 찾으려면 입력 단계로 가세요.',
   },
   scenarios: {
@@ -48,7 +48,7 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
   },
   recorder: {
     title: '클릭으로 만들기',
-    body: '테스트할 사이트를 화면에서 직접 클릭 · 입력하면 그 흐름이 Playwright 테스트 파일로 저장돼요. 확인할 곳을 눌러 "보이는지 · 글자" 확인도 넣을 수 있고, AI 없이 동작합니다. 비밀번호는 값을 저장하지 않고 환경변수로 넣어요.',
+    body: '사이트를 화면에서 직접 클릭 · 입력하면 그 흐름이 Playwright 테스트 파일로 저장돼요. 확인할 곳을 눌러 "보이는지 · 글자" 확인도 넣을 수 있고, AI 없이 동작합니다. 비밀번호는 값을 저장하지 않고 환경변수로 넣어요.',
   },
   runs: {
     title: '실행 이력',
@@ -73,7 +73,7 @@ const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
     prefix: '/projects',
     help: {
       title: '프로젝트 목록',
-      body: '테스트할 사이트를 프로젝트 단위로 등록해 두는 곳입니다. 프로젝트를 열면 위쪽 탭으로 작업 화면이 바뀝니다.',
+      body: '사이트를 프로젝트 단위로 등록해 두는 곳입니다. 프로젝트를 열면 위쪽 탭으로 작업 화면이 바뀝니다.',
     },
   },
   {

@@ -18,7 +18,7 @@ import type { Execution, UserLevel, AiAnalysisResponse, AiJob, PostApplyVerifica
 import { Button } from '@/components/ui/Button';
 import { AiMarkdown } from '@/components/ai/AiMarkdown';
 import { useAiChat } from '@/hooks/useAiChat';
-import { cn } from '@/lib/utils';
+import { cn, executionStatusLabel, formatDuration } from '@/lib/utils';
 
 const aiJobStatusLabel: Record<AiJob['status'], string> = {
   PROPOSED: '수정 제안',
@@ -240,7 +240,7 @@ export function AiAnalysisTab({
                     : 'bg-warning/10 text-warning border border-warning/30'
                 }`}
               >
-                {currentExec.status} ({currentExec.durationMs ?? 0}ms)
+                {executionStatusLabel[currentExec.status]}{currentExec.durationMs != null && ` (${formatDuration(currentExec.durationMs)})`}
               </span>
             )}
           </div>

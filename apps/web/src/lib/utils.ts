@@ -1,5 +1,27 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import type { ExecutionStatus } from '@/types';
+
+export const executionStatusLabel: Record<ExecutionStatus, string> = {
+  SCHEDULED: '예약됨',
+  PENDING: '대기',
+  RUNNING: '실행 중',
+  CANCEL_REQUESTED: '중단 중',
+  CANCELLED: '중단됨',
+  PASSED: '성공',
+  FAILED: '실패',
+  ERROR: '오류',
+};
+
+/** 실행에 걸린 시간. "2분 44초", 1분 미만은 "44초". 값이 없으면 빈 문자열. */
+export function formatDuration(durationMs: number | null | undefined): string {
+  if (durationMs == null) return '';
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  if (totalSeconds < 60) return `${totalSeconds}초`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds ? `${minutes}분 ${seconds}초` : `${minutes}분`;
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

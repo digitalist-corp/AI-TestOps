@@ -691,7 +691,7 @@ function GraphCanvas({
             colorMode={theme}
             // 바탕색은 바깥 상자(bg-background)가 맡는다.
             style={{ background: 'transparent' }}
-            aria-label="화면 구조 그래프"
+            aria-label="화면 지도 그래프"
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="var(--color-border)" />
 

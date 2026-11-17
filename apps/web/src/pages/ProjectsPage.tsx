@@ -224,7 +224,7 @@ export function ProjectsPage() {
   );
 
   const emptyReason = projects.length === 0
-    ? { title: '등록된 프로젝트가 없습니다', desc: '테스트할 사이트 주소만 있으면 바로 시작할 수 있습니다.' }
+    ? { title: '등록된 프로젝트가 없습니다', desc: '사이트 주소만 있으면 바로 시작할 수 있습니다.' }
     : { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어나 필터를 바꿔보세요.' };
 
   return (
@@ -234,7 +234,7 @@ export function ProjectsPage() {
           <ConsoleEyebrow>WORKSPACE // PROJECTS</ConsoleEyebrow>
           <h2 className="text-[24px] font-bold leading-tight text-foreground">프로젝트</h2>
           <p className="mt-1 text-[15px] text-muted-foreground">
-            테스트할 사이트마다 프로젝트를 하나씩 둡니다. 카드를 열면 작업 화면으로 들어갑니다.
+            사이트마다 프로젝트를 하나씩 둡니다. 카드를 열면 작업 화면으로 들어갑니다.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
