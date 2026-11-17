@@ -27,6 +27,7 @@ import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import type { ExecutionDetail } from '@/types';
 import {
   configuredEnvCount as countConfiguredEnvVariables,
+  ENV_ASK_PM,
   isRequiredEnvMissing,
   resolveEnvRequirementState,
 } from '@/lib/envVariables';
@@ -313,6 +314,10 @@ export function ProjectDetailPage() {
     if (!projectId) return;
     if (!project) return;
     if (project && isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
+      if (!canManage) {
+        alert(ENV_ASK_PM);
+        return;
+      }
       alert('테스트 계정 환경변수가 필요합니다. 환경변수를 먼저 입력하세요.');
       setEnvDialogOpen(true);
       return;
@@ -576,11 +581,13 @@ export function ProjectDetailPage() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <div className="flex items-center gap-2 min-w-0">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="truncate">테스트 계정 환경변수가 필요합니다.</span>
+            <span className="truncate">{canManage ? '테스트 계정 환경변수가 필요합니다.' : ENV_ASK_PM}</span>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setEnvDialogOpen(true)}>
-            환경변수 입력
-          </Button>
+          {canManage && (
+            <Button size="sm" variant="outline" onClick={() => setEnvDialogOpen(true)}>
+              환경변수 입력
+            </Button>
+          )}
         </div>
       )}
 
@@ -747,7 +754,7 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'structure' && projectId && (
-            <StructureTab projectId={projectId} onOpenEnv={() => setEnvDialogOpen(true)} />
+            <StructureTab projectId={projectId} onOpenEnv={canManage ? () => setEnvDialogOpen(true) : undefined} />
           )}
 
           {activeTab === 'input' && projectId && (

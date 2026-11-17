@@ -10,7 +10,7 @@ import type { DockerStatus, ExecutionStatus, Project, RunnerActivity, RunningAna
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
 import { cn, executionStatusLabel, formatDuration, formatRelative } from '@/lib/utils';
-import { resolveEnvRequirementState } from '@/lib/envVariables';
+import { resolveEnvRequirementState, ENV_ASK_PM } from '@/lib/envVariables';
 import { parseRunProgress } from '@/lib/runProgress';
 import { useExecutionLogStream } from '@/components/project/ExecutionLogPanel';
 
@@ -134,7 +134,8 @@ export function ProjectCard({
   analysis?: RunningAnalysis;
   onOpen: () => void;
   onRun: () => void;
-  onEnv: () => void;
+  /** 없으면(팀원) 환경변수 버튼 대신 PM에게 요청하라고 안내한다 */
+  onEnv?: () => void;
   onGo: (tab: 'results' | 'runs' | 'source') => void;
 }) {
   const state = envState(project);
@@ -256,7 +257,7 @@ export function ProjectCard({
       {missingEnv && (
         <p className="mx-4 mt-2.5 flex items-start gap-1.5 rounded-sm border border-destructive bg-destructive/10 px-2.5 py-1.5 text-[12px] text-destructive">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          테스트 계정 환경변수가 필요합니다. 입력해야 실행할 수 있습니다.
+          {onEnv ? '테스트 계정 환경변수가 필요합니다. 입력해야 실행할 수 있습니다.' : ENV_ASK_PM}
         </p>
       )}
 
@@ -279,13 +280,15 @@ export function ProjectCard({
           <IconButton title="소스" onClick={() => onGo('source')}>
             <FileCode className="h-4 w-4" />
           </IconButton>
-          <IconButton
-            title="환경변수"
-            onClick={onEnv}
-            tone={missingEnv ? 'border-destructive text-destructive hover:bg-destructive/10' : undefined}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-          </IconButton>
+          {onEnv && (
+            <IconButton
+              title="환경변수"
+              onClick={onEnv}
+              tone={missingEnv ? 'border-destructive text-destructive hover:bg-destructive/10' : undefined}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </IconButton>
+          )}
         </div>
       </div>
     </article>

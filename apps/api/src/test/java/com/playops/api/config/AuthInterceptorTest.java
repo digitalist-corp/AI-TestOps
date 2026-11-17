@@ -28,4 +28,22 @@ class AuthInterceptorTest {
     void otherApisStillNeedAToken() throws Exception {
         assertThat(passes("GET", "/api/projects")).isFalse();
     }
+
+    @Test
+    void signupIsLimitedToFivePerMinutePerIp() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            assertThat(signupFrom("10.0.0.1").getStatus()).isEqualTo(200);
+        }
+        MockHttpServletResponse sixth = signupFrom("10.0.0.1");
+        assertThat(sixth.getStatus()).isEqualTo(429);
+        assertThat(signupFrom("10.0.0.2").getStatus()).isEqualTo(200);
+    }
+
+    private MockHttpServletResponse signupFrom(String ip) throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/signup");
+        request.setRemoteAddr(ip);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        interceptor.preHandle(request, response, new Object());
+        return response;
+    }
 }
