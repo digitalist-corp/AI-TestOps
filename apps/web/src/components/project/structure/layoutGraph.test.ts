@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { SiteMapEdge, SiteMapLayout, SiteMapNode } from '@/types';
-import { SCREEN_H, SCREEN_W, groupBoxes, layoutGraph, mergeEdges, nodeStatus, parentRoute, pickEntry } from './layoutGraph';
+import {
+  SCREEN_H, SCREEN_W, connectionCounts, connectionLevel, groupBoxes, layoutGraph, mergeEdges, nodeStatus, parentRoute, pickEntry,
+} from './layoutGraph';
 
 function screen(routeKey: string, counts: Partial<SiteMapNode> = {}): SiteMapNode {
   return {
@@ -69,6 +71,26 @@ describe('mergeEdges', () => {
     expect(detail).toMatchObject({ count: 2, labels: ['열기', '상세'] });
     expect(merged.some((e) => e.from === e.to)).toBe(false);
     expect(merged.some((e) => e.to === '/nowhere')).toBe(false);
+  });
+});
+
+describe('connectionCounts · connectionLevel', () => {
+  it('화면마다 들어오고 나가는 전환을 센다 (합친 전환 기준, 자기 자신 · 없는 화면은 빼고)', () => {
+    const counts = connectionCounts(mergeEdges(SELF));
+    // /projects: 로그인에서 들어옴 · 상세로 나감(열기·상세는 하나) · 상세에서 목록으로 들어옴
+    expect(counts.get('/projects')).toBe(3);
+    expect(counts.get('/projects/:id')).toBe(3);
+    expect(counts.get('/login')).toBe(1);
+    expect(counts.get('/ai-jobs')).toBe(1);
+    expect(counts.has('/templates')).toBe(false);
+  });
+
+  it('연결 수를 최다 대비 0~3 단계 진하기로 바꾼다', () => {
+    expect(connectionLevel(0, 6)).toBe(0);
+    expect(connectionLevel(1, 6)).toBe(1);
+    expect(connectionLevel(3, 6)).toBe(2);
+    expect(connectionLevel(6, 6)).toBe(3);
+    expect(connectionLevel(0, 0)).toBe(0);
   });
 });
 
