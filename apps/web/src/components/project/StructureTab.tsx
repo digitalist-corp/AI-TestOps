@@ -226,7 +226,8 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
       }
       if (action === 'SET_LOGIN') {
         if (onOpenEnv) onOpenEnv();
-        else setNotice({ tone: 'info', text: '프로젝트 환경변수에 LOGIN_ID 와 LOGIN_PASSWORD 를 넣어 주세요.' });
+        // 창을 열 수 없는 사람(팀원): 입력은 PM 이 한다
+        else setNotice({ tone: 'info', text: '로그인 정보(LOGIN_ID · LOGIN_PASSWORD)는 PM이 프로젝트 환경변수에 넣습니다. PM에게 요청하세요.' });
         return;
       }
       if (!issue.specPath || !data) return;

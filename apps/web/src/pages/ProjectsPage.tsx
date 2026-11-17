@@ -12,7 +12,7 @@ import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { AiBootstrapProgressDialog } from '@/components/AiBootstrapProgressDialog';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import { ProjectCard, isRunnerReady } from '@/components/project/ProjectCard';
-import { isRequiredEnvMissing } from '@/lib/envVariables';
+import { ENV_ASK_PM, isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { confirmFullRun } from '@/lib/runConfirm';
 import { cn } from '@/lib/utils';
@@ -39,7 +39,8 @@ export function ProjectsPage() {
   const [testLoadingId, setTestLoadingId] = useState<string | null>(null);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
   // 프로젝트 등록 · PM 지정은 관리자만 (#106)
-  const { admin } = useAccess();
+  const access = useAccess();
+  const { admin } = access;
   const [pmCandidates, setPmCandidates] = useState<{ id: number; label: string }[]>([]);
 
   useEffect(() => {
@@ -120,6 +121,10 @@ export function ProjectsPage() {
 
   const handleRunProject = async (project: Project) => {
     if (isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
+      if (!access.canManage(project.projectId)) {
+        alert(ENV_ASK_PM);
+        return;
+      }
       alert('테스트 계정 환경변수가 필요합니다. 환경변수를 먼저 입력하세요.');
       setEnvProject(project);
       return;
@@ -235,7 +240,7 @@ export function ProjectsPage() {
               analysis={runningAnalyses[project.projectId]}
               onOpen={() => navigate(projectTabPath(project.projectId, 'dashboard'))}
               onRun={() => handleRunProject(project)}
-              onEnv={() => setEnvProject(project)}
+              onEnv={access.canManage(project.projectId) ? () => setEnvProject(project) : undefined}
               onGo={(tab) => navigate(projectTabPath(project.projectId, tab))}
             />
           ))}

@@ -51,3 +51,20 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('환경변수')).toBeNull();
   });
 });
+
+describe('ProjectCard — 환경변수 입력은 PM · 관리자만', () => {
+  const missing = { ...cardProject, loginEnvRequired: true, envVariables: '{}' } as Project;
+
+  it('PM · 관리자에게는 환경변수 버튼이 있다', () => {
+    render(<ProjectCard project={missing} running={false} justCreated={false} {...cardHandlers} />);
+    expect(screen.getByRole('button', { name: '환경변수' })).toBeTruthy();
+  });
+
+  it('팀원(onEnv 없음)에게는 버튼 대신 PM에게 요청하라고 안내한다', () => {
+    const { onEnv: _omit, ...handlers } = cardHandlers;
+    void _omit;
+    render(<ProjectCard project={missing} running={false} justCreated={false} {...handlers} />);
+    expect(screen.queryByRole('button', { name: '환경변수' })).toBeNull();
+    expect(screen.getByText(/PM에게 입력을 요청하세요/)).toBeTruthy();
+  });
+});
