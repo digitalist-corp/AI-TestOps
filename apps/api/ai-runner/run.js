@@ -7,6 +7,7 @@
 // api는 "docker run --rm"이 끝날 때까지 블로킹해서 기다리므로, 별도 완료 콜백 없이
 // 컨테이너 종료 후 공유 볼륨의 result.json을 바로 읽는다.
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -19,7 +20,19 @@ const token = process.env.PLAYOPS_CALLBACK_TOKEN;
 // 맞춰주므로(Windows/Linux 호스트에 따라 실제 절대경로가 다름), 하드코딩된 경로 대신 그 값을 그대로 쓴다.
 // 예전엔 '/workspace'로 하드코딩되어 있었는데, 실제 마운트 경로(/playwright-projects/{projectId})와
 // 달라 파일을 전혀 찾지 못하는 버그가 있었다.
-const WORKSPACE = process.cwd();
+const PROJECT_DIR = process.cwd();
+// PROJECT_DIR 은 api 와 공유하는 실제 프로젝트 볼륨이다. AI 가 고친 내용이 승인 전에 거기 닿지 않도록
+// 프로젝트를 컨테이너 안 임시 폴더로 복사해 그 사본을 고치고 돌린다. 컨테이너가 중간에 죽어도 원본은 그대로다. (D-03)
+let WORKSPACE = PROJECT_DIR;
+const COPY_SKIP = new Set(['node_modules', '.git', 'test-results', 'playwright-report']);
+
+function useScratchCopy() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-workspace-'));
+  fs.cpSync(PROJECT_DIR, dir, { recursive: true, filter: (src) => !COPY_SKIP.has(path.basename(src)) });
+  const modules = path.join(PROJECT_DIR, 'node_modules');
+  if (fs.existsSync(modules)) fs.symlinkSync(modules, path.join(dir, 'node_modules'), 'dir');
+  WORKSPACE = dir;
+}
 const MAX_RELATED_FILES = 5;
 const MAX_RELATED_FILE_CHARS = 8000;
 const IMPORT_PATTERN = /(?:from\s+|require\()\s*['"](\.[^'"]+)['"]/g;
@@ -56,39 +69,22 @@ function stripMarkdownFence(raw) {
 
 /**
  * 에디터 "AI 수정 도움"의 실행 검증 전용 — LLM 호출도, 반복도 없이 제안된 파일 내용을
- * 딱 한 번 spec에 대해 돌려보고 pass/fail+로그만 돌려준다. CODE_FIX와 마찬가지로 실제 파일은
- * 검증 끝나면 항상 원본으로 복원한다(diff 검토 절차를 우회하지 않기 위함).
+ * 딱 한 번 spec에 대해 돌려보고 pass/fail+로그만 돌려준다. CODE_FIX와 마찬가지로 사본에서만 돌린다.
  */
 function runEditAssistVerify(job) {
   const overrides = job.files || [];
-  const originals = {};
-  try {
-    for (const f of overrides) {
-      const fullPath = path.join(WORKSPACE, f.path);
-      originals[f.path] = fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf-8') : null;
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      fs.writeFileSync(fullPath, f.content, 'utf-8');
-    }
-    const runResult = runPlaywright(job.specPath);
-    writeResult({
-      status: 'VERIFIED',
-      passed: runResult.passed,
-      output: runResult.output.slice(-8000),
-    });
-  } finally {
-    for (const [relPath, content] of Object.entries(originals)) {
-      try {
-        const fullPath = path.join(WORKSPACE, relPath);
-        if (content === null) {
-          fs.unlinkSync(fullPath);
-        } else {
-          fs.writeFileSync(fullPath, content, 'utf-8');
-        }
-      } catch (e) {
-        console.error(`원본 복원 실패 (${relPath}):`, e);
-      }
-    }
+  useScratchCopy();
+  for (const f of overrides) {
+    const fullPath = path.join(WORKSPACE, f.path);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, f.content, 'utf-8');
   }
+  const runResult = runPlaywright(job.specPath);
+  writeResult({
+    status: 'VERIFIED',
+    passed: runResult.passed,
+    output: runResult.output.slice(-8000),
+  });
 }
 
 function runPlaywright(specPath) {
@@ -183,6 +179,7 @@ async function main() {
     return require('./analyze').runSiteAnalysis(job, resultDir);
   }
 
+  useScratchCopy();
   const targetSpecPath = job.targetSpecPath;
   const specFullPath = path.join(WORKSPACE, targetSpecPath);
   const originalTargetContent = fs.readFileSync(specFullPath, 'utf-8');
@@ -209,78 +206,66 @@ Respond with ONLY the JSON object described in the instructions — no explanati
   let iterationsUsed = 0;
   let fixed = false;
 
-  // WORKSPACE는 api 컨테이너와 공유하는 실제 프로젝트 볼륨이다. 검토/승인 게이트를 거치기 전에
-  // 실제 소스가 AI의 시도 중간 상태로 남지 않도록, 이 함수가 끝나는 시점(성공/실패 무관)에 손댄 파일 전부를 원본으로 되돌린다.
-  try {
-    for (let i = 0; i < maxIterations; i++) {
-      iterationsUsed = i + 1;
-      const userPrompt = buildPrompt(job, targetSpecPath, currentContents, relatedPaths, lastFailureOutput);
+  for (let i = 0; i < maxIterations; i++) {
+    iterationsUsed = i + 1;
+    const userPrompt = buildPrompt(job, targetSpecPath, currentContents, relatedPaths, lastFailureOutput);
 
-      let aiContent;
-      try {
-        aiContent = await callLlm(systemPrompt, userPrompt);
-      } catch (e) {
-        writeResult({
-          jobId: job.jobId,
-          status: 'FAILED',
-          iterationsUsed,
-          changedFiles: [],
-          summary: null,
-          targetCaseFixed: false,
-          error: String(e.message || e),
-        });
-        return;
-      }
-
-      const edits = parseAiResponse(aiContent, allowedPaths);
-      if (edits.length === 0) {
-        continue;
-      }
-
-      for (const edit of edits) {
-        const fullPath = path.join(WORKSPACE, edit.path);
-        fs.writeFileSync(fullPath, edit.content, 'utf-8');
-        currentContents[edit.path] = edit.content;
-      }
-
-      const runResult = runPlaywright(targetSpecPath);
-      if (runResult.passed) {
-        fixed = true;
-        break;
-      }
-      lastFailureOutput = runResult.output.slice(-4000);
+    let aiContent;
+    try {
+      aiContent = await callLlm(systemPrompt, userPrompt);
+    } catch (e) {
+      writeResult({
+        jobId: job.jobId,
+        status: 'FAILED',
+        iterationsUsed,
+        changedFiles: [],
+        summary: null,
+        targetCaseFixed: false,
+        error: String(e.message || e),
+      });
+      return;
     }
 
-    const changedFiles = Object.keys(originalContents).filter(
-      (p) => currentContents[p] !== originalContents[p]
-    );
-
-    fs.mkdirSync(path.join(resultDir, 'files'), { recursive: true });
-    for (const relPath of changedFiles) {
-      const safeFileName = relPath.replace(/[\\/]/g, '__');
-      fs.writeFileSync(path.join(resultDir, 'files', safeFileName), currentContents[relPath], 'utf-8');
+    const edits = parseAiResponse(aiContent, allowedPaths);
+    if (edits.length === 0) {
+      continue;
     }
 
-    writeResult({
-      jobId: job.jobId,
-      status: fixed ? 'DIFF_READY' : 'FAILED',
-      iterationsUsed,
-      changedFiles,
-      summary: fixed
-        ? `${iterationsUsed}회 시도 후 ${changedFiles.join(', ') || targetSpecPath} 수정, 테스트 통과 확인`
-        : `${maxIterations}회 시도 후에도 테스트를 통과시키지 못함`,
-      targetCaseFixed: fixed,
-      error: fixed ? null : '반복 상한 도달',
-    });
-  } finally {
-    for (const [relPath, content] of Object.entries(originalContents)) {
-      try {
-        fs.writeFileSync(path.join(WORKSPACE, relPath), content, 'utf-8');
-      } catch (e) {
-        console.error(`원본 파일 복원 실패 (${relPath}):`, e);
-      }
+    for (const edit of edits) {
+      const fullPath = path.join(WORKSPACE, edit.path);
+      fs.writeFileSync(fullPath, edit.content, 'utf-8');
+      currentContents[edit.path] = edit.content;
     }
+
+    const runResult = runPlaywright(targetSpecPath);
+    if (runResult.passed) {
+      fixed = true;
+      break;
+    }
+    lastFailureOutput = runResult.output.slice(-4000);
   }
+
+  const changedFiles = Object.keys(originalContents).filter(
+    (p) => currentContents[p] !== originalContents[p]
+  );
+
+  fs.mkdirSync(path.join(resultDir, 'files'), { recursive: true });
+  for (const relPath of changedFiles) {
+    const safeFileName = relPath.replace(/[\\/]/g, '__');
+    fs.writeFileSync(path.join(resultDir, 'files', safeFileName), currentContents[relPath], 'utf-8');
+  }
+
+  writeResult({
+    jobId: job.jobId,
+    status: fixed ? 'DIFF_READY' : 'FAILED',
+    iterationsUsed,
+    changedFiles,
+    summary: fixed
+      ? `${iterationsUsed}회 시도 후 ${changedFiles.join(', ') || targetSpecPath} 수정, 테스트 통과 확인`
+      : `${maxIterations}회 시도 후에도 테스트를 통과시키지 못함`,
+    targetCaseFixed: fixed,
+    error: fixed ? null : '반복 상한 도달',
+  });
 }
 
 main().catch((e) => {

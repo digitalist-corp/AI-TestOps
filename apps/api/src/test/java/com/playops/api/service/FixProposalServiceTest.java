@@ -109,6 +109,7 @@ class FixProposalServiceTest {
         assertThat(first.getJobType()).isEqualTo(AiJobType.CODE_FIX);
         assertThat(first.getStatus()).isEqualTo(AiJobStatus.PROPOSED);
         assertThat(first.getRequestedBy()).isNull();
+        assertThat(first.isAutoCreated()).isTrue();
         assertThat(first.getFailedExecutionId()).isEqualTo(7L);
         assertThat(first.getTargetSpecPath()).isEqualTo("tests/a.spec.ts");
         assertThat(first.getSummary()).isEqualTo("'홈' 링크를 찾지 못했습니다 · 로그인");
@@ -170,7 +171,7 @@ class FixProposalServiceTest {
                 result("tests/b.spec.ts", "b", "FAILED", null),
                 result("tests/c.spec.ts", "c", "FAILED", null),
                 result("tests/d.spec.ts", "d", "FAILED", null)));
-        when(jobs.countByProjectIdAndRequestedByIsNullAndCreatedAtAfter(eq("demo"), any())).thenReturn(18L);
+        when(jobs.countByProjectIdAndAutoCreatedTrueAndCreatedAtAfter(eq("demo"), any())).thenReturn(18L);
 
         service.onExecutionFinished(execution(ExecutionStatus.FAILED, "MANUAL", null), project());
 

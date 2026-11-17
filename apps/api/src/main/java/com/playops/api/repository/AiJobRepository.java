@@ -18,5 +18,5 @@ public interface AiJobRepository extends JpaRepository<AiJob, Long> {
     boolean existsByProjectIdAndTargetSpecPathAndStatusIn(String projectId, String targetSpecPath, java.util.Collection<AiJobStatus> statuses);
 
     /** 자동으로 만든(요청자 없는) 작업 수 (수정 제안 하루 상한) */
-    long countByProjectIdAndRequestedByIsNullAndCreatedAtAfter(String projectId, java.time.Instant after);
+    long countByProjectIdAndAutoCreatedTrueAndCreatedAtAfter(String projectId, java.time.Instant after);
 }

@@ -265,8 +265,7 @@ public class AiJobService {
             job.setRiskFlags(objectMapper.writeValueAsString(allFlags));
         } catch (IOException ignored) {}
 
-        boolean autoApplyCandidate = !assessment.hasHardGate() && assessment.withinQuantitativeLimits(project);
-        if (autoApplyCandidate && project.getAiAutoApplyEnabled()) {
+        if (canAutoApply(job, project, assessment)) {
             applyDiff(job, project);
             job.setStatus(AiJobStatus.APPLIED);
             aiJobRepository.save(job);
@@ -415,8 +414,7 @@ public class AiJobService {
             job.setRiskFlags(objectMapper.writeValueAsString(allFlags));
         } catch (IOException ignored) {}
 
-        boolean autoApplyCandidate = !assessment.hasHardGate() && assessment.withinQuantitativeLimits(project);
-        if (autoApplyCandidate && project.getAiAutoApplyEnabled()) {
+        if (canAutoApply(job, project, assessment)) {
             applyDiff(job, project);
             job.setStatus(AiJobStatus.APPLIED);
             job.setReviewedBy(null);
@@ -429,7 +427,9 @@ public class AiJobService {
         aiJobRepository.save(job);
 
         String reason;
-        if (assessment.hasHardGate()) {
+        if (job.isAutoCreated()) {
+            reason = "자동으로 만든 수정 제안은 항상 사람 검토를 거칩니다";
+        } else if (assessment.hasHardGate()) {
             reason = String.join(", ", assessment.hardGateFlags());
         } else if (!assessment.withinQuantitativeLimits(project)) {
             reason = "변경 규모 임계값 초과 (changedLines=" + assessment.changedLines() + ", changedFiles=" + assessment.changedFiles() + ")";
@@ -480,6 +480,17 @@ public class AiJobService {
             files.add(job.getTargetSpecPath());
         }
         return files;
+    }
+
+    /**
+     * 사람 승인 없이 바로 반영해도 되는지. 프로젝트에서 자동 적용을 켰고, 사람이 요청한 작업이며,
+     * 검증 약화 같은 위험 표시가 없고 변경 규모가 상한 안일 때만 그렇다. (D-03 승인 게이트)
+     */
+    static boolean canAutoApply(AiJob job, Project project, AiDiffRiskEvaluatorService.Assessment assessment) {
+        return project.getAiAutoApplyEnabled()
+                && !job.isAutoCreated()
+                && !assessment.hasHardGate()
+                && assessment.withinQuantitativeLimits(project);
     }
 
     /**

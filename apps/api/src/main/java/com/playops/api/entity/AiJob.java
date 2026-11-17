@@ -70,6 +70,10 @@ public class AiJob {
     @Column(name = "requested_by")
     private Long requestedBy;
 
+    /** 사용자가 시키지 않았는데 시스템이 만든 작업(수정 제안 등). 자동 적용이 켜져 있어도 반드시 사람 검토를 거친다. */
+    @Column(name = "auto_created", nullable = false)
+    private boolean autoCreated = false;
+
     @Column(name = "reviewed_by")
     private Long reviewedBy;
 
@@ -167,6 +171,9 @@ public class AiJob {
 
     public Long getRequestedBy() { return requestedBy; }
     public void setRequestedBy(Long requestedBy) { this.requestedBy = requestedBy; }
+
+    public boolean isAutoCreated() { return autoCreated; }
+    public void setAutoCreated(boolean autoCreated) { this.autoCreated = autoCreated; }
 
     public Long getReviewedBy() { return reviewedBy; }
     public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
