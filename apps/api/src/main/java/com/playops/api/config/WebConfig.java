@@ -11,9 +11,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     private final AuthInterceptor authInterceptor;
+    private final ProjectAccessInterceptor projectAccessInterceptor;
 
-    public WebConfig(AuthInterceptor authInterceptor) {
+    public WebConfig(AuthInterceptor authInterceptor, ProjectAccessInterceptor projectAccessInterceptor) {
         this.authInterceptor = authInterceptor;
+        this.projectAccessInterceptor = projectAccessInterceptor;
     }
 
     @Override
@@ -27,6 +29,9 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
+                .addPathPatterns("/api/**");
+        // 인증 다음에 관리자 · PM · 팀원 권한을 본다
+        registry.addInterceptor(projectAccessInterceptor)
                 .addPathPatterns("/api/**");
     }
 }

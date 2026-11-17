@@ -21,7 +21,7 @@ class WebConfigCorsTest {
     @Test
     void apiAllowsEveryMethodTheControllersUse() {
         ExposedRegistry registry = new ExposedRegistry();
-        new WebConfig(mock(AuthInterceptor.class)).addCorsMappings(registry);
+        new WebConfig(mock(AuthInterceptor.class), mock(ProjectAccessInterceptor.class)).addCorsMappings(registry);
 
         assertThat(registry.configs().get("/api/**").getAllowedMethods())
                 .contains("GET", "POST", "PUT", "PATCH", "DELETE");

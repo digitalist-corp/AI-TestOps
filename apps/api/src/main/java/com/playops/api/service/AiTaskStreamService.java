@@ -8,7 +8,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.Duration;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Predicate;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,8 +22,7 @@ import java.util.concurrent.TimeUnit;
  * 전체를 다시 읽어 메운다.
  *
  * 30분마다 서버가 연결을 닫고 클라이언트가 다시 붙는다. 20초마다 ping 을 보내 죽은 연결을 걸러 낸다.
- * ponytail: 모든 로그인 사용자에게 같은 이벤트를 보낸다. 작업 목록 API 도 프로젝트 소유자 검사를 하지 않으므로
- * 노출 범위는 같다. 소유자 검사가 생기면 여기서도 projectId 로 거른다.
+ * 받는 사람마다 볼 수 있는 프로젝트(관리자 · 멤버)의 작업만 보낸다 (#105).
  */
 @Service
 public class AiTaskStreamService {
@@ -31,7 +30,8 @@ public class AiTaskStreamService {
     static final long TIMEOUT_MS = Duration.ofMinutes(30).toMillis();
     private static final long PING_SECONDS = 20;
 
-    private final Set<SseEmitter> emitters = ConcurrentHashMap.newKeySet();
+    /** 연결 → 이 사람이 볼 수 있는 프로젝트인지 */
+    private final Map<SseEmitter, Predicate<String>> emitters = new ConcurrentHashMap<>();
     private final ScheduledExecutorService pinger = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "ai-task-stream-ping");
         t.setDaemon(true);
@@ -42,9 +42,9 @@ public class AiTaskStreamService {
         pinger.scheduleAtFixedRate(this::ping, PING_SECONDS, PING_SECONDS, TimeUnit.SECONDS);
     }
 
-    public SseEmitter subscribe() {
+    public SseEmitter subscribe(Predicate<String> canSeeProject) {
         SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
-        emitters.add(emitter);
+        emitters.put(emitter, canSeeProject);
         emitter.onCompletion(() -> emitters.remove(emitter));
         emitter.onTimeout(() -> emitters.remove(emitter));
         emitter.onError(e -> emitters.remove(emitter));
@@ -56,9 +56,11 @@ public class AiTaskStreamService {
     @TransactionalEventListener(fallbackExecution = true)
     public void onJobChanged(AiJobChanged change) {
         Map<String, Object> data = Map.of("id", change.id(), "projectId", change.projectId(), "status", change.status());
-        for (SseEmitter emitter : emitters) {
-            send(emitter, SseEmitter.event().name("job").data(data, MediaType.APPLICATION_JSON));
-        }
+        emitters.forEach((emitter, canSee) -> {
+            if (canSee.test(change.projectId())) {
+                send(emitter, SseEmitter.event().name("job").data(data, MediaType.APPLICATION_JSON));
+            }
+        });
     }
 
     int subscriberCount() {
@@ -66,7 +68,7 @@ public class AiTaskStreamService {
     }
 
     private void ping() {
-        for (SseEmitter emitter : emitters) {
+        for (SseEmitter emitter : emitters.keySet()) {
             send(emitter, SseEmitter.event().comment("ping"));
         }
     }
@@ -83,6 +85,6 @@ public class AiTaskStreamService {
     @PreDestroy
     void shutdown() {
         pinger.shutdownNow();
-        emitters.forEach(SseEmitter::complete);
+        emitters.keySet().forEach(SseEmitter::complete);
     }
 }
