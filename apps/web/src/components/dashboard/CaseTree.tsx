@@ -142,7 +142,7 @@ function ScreenCaseList({ group }: { group: ScreenCases }) {
       <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
         이 화면을 지나는 테스트가 아직 없어요.
         <br />
-        녹화하거나 구조 지도에서 경로를 골라 만들 수 있어요.
+        녹화하거나 화면 지도에서 경로를 골라 만들 수 있어요.
       </p>
     );
   }

@@ -17,7 +17,7 @@ describe('shellNav', () => {
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'results', 'schedules']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'source']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-generate', 'ai-analysis', 'ai-review']);
-    expect(tabLabel('structure')).toBe('맵 보기');
+    expect(tabLabel('structure')).toBe('화면 지도');
   });
 
   it("'클릭으로 만들기'(recorder)는 계획 그룹에 있고, AI 를 꺼도 보인다", () => {

@@ -49,7 +49,7 @@ import type {
   ToolDisplay,
   UserLevel,
 } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, formatDuration } from '@/lib/utils';
 
 const LEVEL_STORAGE_KEY = 'playops.aiChat.userLevel';
 
@@ -105,10 +105,9 @@ function toolIconFor(name: string) {
   }
 }
 
-function formatDuration(durationMs?: number): string | null {
-  if (durationMs === undefined || durationMs === null) return null;
-  if (durationMs < 1000) return `${durationMs}ms`;
-  return `${(durationMs / 1000).toFixed(1)}s`;
+function toolDuration(durationMs?: number): string | null {
+  if (durationMs == null) return null;
+  return durationMs < 1000 ? '1초 미만' : formatDuration(durationMs);
 }
 
 function summarizeInput(input: Record<string, unknown>): string {
@@ -317,7 +316,7 @@ function ChatToolCard({
 
   const Icon = toolIconFor(block.name);
   const label = getToolLabel(block.name);
-  const durationText = formatDuration(block.durationMs);
+  const durationText = toolDuration(block.durationMs);
   const inputSummary = summarizeInput(block.input);
   const headerSummary = block.summary || inputSummary;
   const permission = block.permission;

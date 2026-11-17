@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog';
 import { buildPlaywrightMismatchMessage, extractPlaywrightVersion } from '@/lib/projectRuntime';
+import { formatDuration } from '@/lib/utils';
 
 interface Props {
   projectId: string;
@@ -326,7 +327,7 @@ export function SourceExplorerTab({ projectId, project, files, onFilesChange, in
                     {aiVerifyResult.passed
                       ? `이 수정으로 ${aiVerifyResult.specPath} 테스트가 통과합니다`
                       : `${aiVerifyResult.specPath} 테스트가 여전히 실패합니다`}
-                    <span className="text-xs font-normal text-muted-foreground">({aiVerifyResult.durationMs}ms)</span>
+                    <span className="text-xs font-normal text-muted-foreground">({formatDuration(aiVerifyResult.durationMs)})</span>
                   </p>
                   <details className="rounded-lg border border-border bg-muted/50">
                     <summary className="cursor-pointer px-3 py-1.5 text-xs text-muted-foreground">실행 로그 보기</summary>

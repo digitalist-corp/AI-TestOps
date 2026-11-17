@@ -63,7 +63,7 @@ export const PROJECT_WORKSPACE_TABS: {
   },
   {
     id: 'structure',
-    label: '맵 보기',
+    label: '화면 지도',
     description: '찾은 화면과 테스트가 지나는 길',
     icon: Network,
   },

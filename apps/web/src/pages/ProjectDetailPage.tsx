@@ -458,10 +458,10 @@ export function ProjectDetailPage() {
     ? hasActiveExecutions ? 'TESTING' : project.runnerActivity ?? 'IDLE'
     : 'UNAVAILABLE';
   const runnerBadgeLabel = dockerRunning
-    ? `Runner ${runnerActivityLabel[runnerActivity]}`
+    ? `러너 ${runnerActivityLabel[runnerActivity]}`
     : canAutoStartRunner
-      ? 'Runner 없음'
-      : 'Runner 중지';
+      ? '러너 없음'
+      : '러너 중지';
   const hasVisibleSourceFiles = files.some((file) => !isHiddenSourcePath(file));
   const envState = envButtonState(project);
   const missingRequiredEnv = envState === 'required-missing';

@@ -84,7 +84,7 @@ function ViewSwitch({ view, onChange }: {
     </button>
   );
   return (
-    <div role="tablist" aria-label="구조 보기" className="inline-flex rounded-full border border-border bg-card p-0.5">
+    <div role="tablist" aria-label="화면 지도 보기" className="inline-flex rounded-full border border-border bg-card p-0.5">
       {item('graph', '그래프', <Waypoints className="h-3.5 w-3.5" />)}
       {item('list', '목록', <List className="h-3.5 w-3.5" />)}
     </div>
@@ -102,7 +102,7 @@ function ViewSwitch({ view, onChange }: {
  */
 export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
   projectId: string;
-  /** input: 입력 단계 — 저장소 연결·화면 찾기 버튼만. map: 계획 › 맵 보기 — 찾은 화면만. 상태·폴링은 같이 쓴다. */
+  /** input: 입력 단계 — 저장소 연결·화면 찾기 버튼만. map: 계획 › 화면 지도 — 찾은 화면만. 상태·폴링은 같이 쓴다. */
   mode?: 'input' | 'map';
   /** 프로젝트 환경변수 창을 연다 (막힌 곳의 "로그인 정보 넣기") */
   onOpenEnv?: () => void;
@@ -623,7 +623,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
           {empty ? '아직 찾은 화면이 없어요. 위에서 사이트 주소나 코드로 화면을 찾아 주세요.' : `찾은 화면 ${siteMap.nodes.length}개는 `}
           {!empty && (
             <Link to={projectTabPath(projectId, 'structure')} className="font-medium text-primary hover:underline">
-              계획 › 맵 보기에서 봅니다 →
+              계획 › 화면 지도에서 봅니다 →
             </Link>
           )}
         </p>
@@ -695,7 +695,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
           <DialogHeader>
             <DialogTitle>화면 직접 추가</DialogTitle>
             <DialogDescription>
-              탐색되지 않은 URL 경로나 새 화면 노드를 사이트 맵에 직접 추가합니다.
+              탐색되지 않은 URL 경로나 새 화면 노드를 화면 지도에 직접 추가합니다.
             </DialogDescription>
           </DialogHeader>
 

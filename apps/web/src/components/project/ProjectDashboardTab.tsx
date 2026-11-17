@@ -18,16 +18,8 @@ import { PlanMetrics } from '@/components/dashboard/PlanMetrics';
 import { failingScreens, planAsResults } from '@/lib/plan';
 import { RoundChanges, RoundTrend } from '@/components/dashboard/RoundView';
 import { CaseTree } from '@/components/dashboard/CaseTree';
+import { formatDuration } from '@/lib/utils';
 import { casesByScreen, isRoundRunning, roundOptionLabel, roundSentence } from '@/lib/rounds';
-
-function formatDuration(durationMs: number | null) {
-  if (durationMs == null) return null;
-  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
-  if (totalSeconds < 60) return `${totalSeconds}초`;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return seconds ? `${minutes}분 ${seconds}초` : `${minutes}분`;
-}
 
 /**
  * 프로젝트 대시보드. 비전공자도 한눈에 보도록
