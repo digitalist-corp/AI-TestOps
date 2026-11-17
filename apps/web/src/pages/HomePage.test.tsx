@@ -18,6 +18,7 @@ vi.mock('@/api/client', () => ({
     getUsers: vi.fn(),
     getRunnerContainers: vi.fn(),
     runTests: vi.fn(),
+    notices: { list: vi.fn() },
   },
 }));
 
@@ -38,6 +39,7 @@ beforeEach(() => {
     items,
     summary: { total: 3, enabled: 3, disabled: 0, passed: 1, failed: 1, notRun: 1, completionRate: 1 / 3 },
   });
+  vi.mocked(api.notices.list).mockResolvedValue([1, 2, 3, 4].map((id) => ({ id, title: `공지 ${id}`, pinned: id === 1, createdAt: '2026-11-17T00:00:00Z' }) as never));
   vi.mocked(api.getUsers).mockResolvedValue([{ id: 1 }, { id: 2 }] as never);
   vi.mocked(api.getRunnerContainers).mockResolvedValue([
     { containerType: 'RUNNER', dockerStatus: 'RUNNING' },
@@ -91,5 +93,15 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     expect(await screen.findByText('프로젝트 1개')).toBeTruthy();
     expect(screen.getByText('사용자 2명')).toBeTruthy();
     expect(screen.getByText('러너 1 / 2 실행 중')).toBeTruthy();
+  });
+
+  it('모든 역할: 최근 공지 3개', async () => {
+    me = user('USER', [{ projectId: 'shop', role: 'MEMBER' }]);
+    renderHome();
+
+    expect(await screen.findByRole('heading', { name: '공지사항' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /공지 1/ }).getAttribute('href')).toBe('/notices/1');
+    expect(screen.getByText('공지 3')).toBeTruthy();
+    expect(screen.queryByText('공지 4')).toBeNull();
   });
 });

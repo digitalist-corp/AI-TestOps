@@ -60,7 +60,7 @@ class RolePermissionIntegrationTest {
         if (token != null) req.header("Authorization", "Bearer " + token);
         var res = mvc.perform(req.contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
         assertThat(res.getStatus()).as(res.getContentAsString()).isEqualTo(expectStatus);
-        String body = res.getContentAsString();
+        String body = res.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         return body.isBlank() ? null : json.readTree(body);
     }
 
@@ -162,5 +162,22 @@ class RolePermissionIntegrationTest {
         call(get("/api/sitemap/running"), member, 200).forEach(r -> ids.add(r.get("projectId").asText()));
 
         assertThat(ids).contains("example.com").doesNotContain("google.com");
+    }
+
+    @Test
+    void onlyAdminsWriteNoticesAndEveryoneIsNotified() throws Exception {
+        assertThat(status(post("/api/notices").content("{\"title\":\"팀원 공지\",\"content\":\"x\"}"), member)).isEqualTo(403);
+
+        JsonNode notice = call(post("/api/notices").content("{\"title\":\"점검 안내\",\"content\":\"11/20 점검\"}"), admin, 200);
+        long id = notice.get("id").asLong();
+
+        assertThat(status(put("/api/notices/" + id).content("{\"title\":\"x\",\"content\":\"y\"}"), member)).isEqualTo(403);
+        assertThat(status(delete("/api/notices/" + id), member)).isEqualTo(403);
+        List<String> titles = new ArrayList<>();
+        call(get("/api/notices"), member, 200).forEach(n -> titles.add(n.get("title").asText()));
+        assertThat(titles).contains("점검 안내");
+        List<String> links = new ArrayList<>();
+        call(get("/api/notifications"), member, 200).forEach(n -> links.add(n.get("link").asText()));
+        assertThat(links).contains("/notices/" + id);
     }
 }

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, RotateCcw } from 'lucide-react';
+import { Loader2, Pin, RotateCcw } from 'lucide-react';
 import { api } from '@/api/client';
-import type { PlanItem, Project } from '@/types';
+import type { Notice, PlanItem, Project } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 import { isRunnerReady } from '@/components/project/ProjectCard';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { useAccess } from '@/lib/access';
 import { byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
+import { formatRelative } from '@/lib/utils';
 
 const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (현지 날짜)
 
@@ -42,7 +43,7 @@ function ProgressBar({ value }: { value: number }) {
 /**
  * 첫 화면 — 역할마다 다르다 (#107).
  * 팀원: 내 프로젝트의 성공 · 실패 · 미수행과 실패 재실행 / PM: 진척률 · 팀원별 진행 · 기한 지난 항목 /
- * 관리자: 전체 프로젝트 · 사용자 수 · 러너 상태. 한 사람이 프로젝트마다 PM · 팀원일 수 있어 두 묶음이 같이 보일 수 있다.
+ * 관리자: 전체 프로젝트 · 사용자 수 · 러너 상태. 모두에게 맨 위에 최근 공지 3개 (#116). 한 사람이 프로젝트마다 PM · 팀원일 수 있어 두 묶음이 같이 보일 수 있다.
  */
 export function HomePage() {
   const navigate = useNavigate();
@@ -52,6 +53,7 @@ export function HomePage() {
   const [userCount, setUserCount] = useState<number | null>(null);
   const [runners, setRunners] = useState<{ running: number; total: number } | null>(null);
   const [rerunId, setRerunId] = useState<string | null>(null);
+  const [notices, setNotices] = useState<Notice[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -69,6 +71,10 @@ export function HomePage() {
     return () => {
       alive = false;
     };
+  }, []);
+
+  useEffect(() => {
+    api.notices.list().then((list) => setNotices(list.slice(0, 3))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -121,6 +127,23 @@ export function HomePage() {
         <ConsoleEyebrow>WORKSPACE // HOME</ConsoleEyebrow>
         <h2 className="text-[24px] font-bold leading-tight text-foreground">홈</h2>
       </div>
+
+      {notices.length > 0 && (
+        <Section title="공지사항">
+          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+            {notices.map((n) => (
+              <li key={n.id}>
+                <Link to={`/notices/${n.id}`} className="flex items-center gap-2 px-5 py-3 hover:bg-muted">
+                  {n.pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="고정" />}
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground">{n.title}</span>
+                  <span className="shrink-0 text-sm text-muted-foreground">{formatRelative(n.createdAt)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link to="/notices" className="inline-block text-sm text-muted-foreground hover:underline">공지 전체 보기</Link>
+        </Section>
+      )}
 
       {admin && (
         <Section title="전체 현황">

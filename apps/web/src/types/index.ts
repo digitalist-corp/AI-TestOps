@@ -148,6 +148,21 @@ export interface AppNotification {
   createdAt: string;
 }
 
+/** 공지사항 (#116). 게시 기간은 비우면 제한 없음 */
+export interface Notice {
+  id: number;
+  title: string;
+  content: string;
+  pinned: boolean;
+  visibleFrom: string | null;
+  visibleUntil: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NoticeRequest = Pick<Notice, 'title' | 'content' | 'pinned' | 'visibleFrom' | 'visibleUntil'>;
+
 export type ServiceStatus = 'ONLINE' | 'OFFLINE' | 'DEGRADED';
 
 export interface ServiceHealthItem {
