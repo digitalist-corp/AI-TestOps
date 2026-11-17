@@ -1,7 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { Project } from '@/types';
 import { ProjectCard } from './ProjectCard';
+
+const runningLog = 'Running 6 tests using 1 worker\n[1/6] a\n[2/6] b\n  1) [chromium] › b\n[3/6] c\n';
+vi.mock('@/components/project/ExecutionLogPanel', () => ({
+  useExecutionLogStream: (id: number | null) => ({ log: id ? runningLog : '', finished: false, status: null }),
+}));
 
 afterEach(cleanup);
 
@@ -35,5 +40,14 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('https://shop.example.com')).toBeNull();
     expect(screen.queryByText('운영')).toBeNull();
     expect(screen.getByText(/2분 44초/)).toBeTruthy();
+  });
+
+  it('실행 중이면 진척도(완료 / 전체, 성공 · 실패)를 보이고, 환경변수 줄은 없다', () => {
+    const running = { ...cardProject, latestExecutionStatus: 'RUNNING', latestExecutionId: 7 } as Project;
+    render(<ProjectCard project={running} running={false} justCreated={false} {...cardHandlers} />);
+
+    expect(screen.getByText('완료 2 / 6')).toBeTruthy();
+    expect(screen.getByText('성공 1 · 실패 1')).toBeTruthy();
+    expect(screen.queryByText('환경변수')).toBeNull();
   });
 });

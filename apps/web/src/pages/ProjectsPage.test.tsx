@@ -9,6 +9,7 @@ import { ProjectsPage } from './ProjectsPage';
 vi.mock('@/lib/aiEnabled', () => ({ useAiEnabled: () => ({ active: false }) }));
 vi.mock('@/lib/projectRuntime', () => ({ confirmPlaywrightVersion: vi.fn() }));
 vi.mock('@/api/client', () => ({
+  getStoredAuth: () => null,
   api: {
     getProjects: vi.fn(),
     getRunningAnalyses: vi.fn(),
