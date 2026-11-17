@@ -761,16 +761,15 @@ export function ProjectDetailPage() {
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   {[
                     ['순번', String(project.displayOrder ?? 0)],
-                    ['서버 구분', project.serverType === 'PROD' ? '운영' : project.serverType === 'TEST' ? '테스트' : '개발'],
                     ['프로젝트 설명', project.description ?? '-'],
                     ['테스트 목적', project.testPurpose ?? '-'],
-                    ['관리자', project.managerName ?? '-'],
+                    ['담당자', project.managerName ?? '-'],
                     ['연락처', project.managerContact ?? '-'],
                     ['Node', project.nodeVersion],
                     ['Playwright', project.playwrightVersion],
                     ['PM', project.packageManager],
                     ['Test', project.testCommand],
-                    ['Base URL', project.baseUrl ?? '-'],
+                    ['사이트', project.baseUrl ?? '-'],
                     ['Runner lifecycle', project.runnerLifecycle === 'EPHEMERAL' ? 'Ephemeral' : 'Persistent'],
                     ['테스트 계정 env', project.loginEnvRequired ? '필수' : '선택'],
                   ].map(([k, v]) => (
