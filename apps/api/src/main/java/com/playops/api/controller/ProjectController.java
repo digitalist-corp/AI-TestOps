@@ -13,10 +13,14 @@ import com.playops.api.dto.ScaffoldRequest;
 import com.playops.api.dto.ScaffoldResponse;
 import com.playops.api.dto.SiteCheckResponse;
 import com.playops.api.entity.DockerStatus;
+import com.playops.api.entity.ProjectRole;
 import com.playops.api.entity.User;
+import com.playops.api.entity.UserRole;
+import com.playops.api.exception.ApiException;
 import com.playops.api.service.DockerRunnerService;
 import com.playops.api.service.LoginSessionService;
 import com.playops.api.service.PlaywrightTemplateService;
+import com.playops.api.service.ProjectMemberService;
 import com.playops.api.service.ProjectService;
 import com.playops.api.service.RunnerCapacityService;
 import com.playops.api.service.SiteAnalysisService;
@@ -38,6 +42,7 @@ public class ProjectController {
     private final LoginSessionService loginSessionService;
     private final SiteCheckService siteCheckService;
     private final SiteAnalysisService siteAnalysisService;
+    private final ProjectMemberService memberService;
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ProjectController.class);
 
     public ProjectController(
@@ -47,7 +52,8 @@ public class ProjectController {
             DockerRunnerService dockerRunnerService,
             LoginSessionService loginSessionService,
             SiteCheckService siteCheckService,
-            SiteAnalysisService siteAnalysisService
+            SiteAnalysisService siteAnalysisService,
+            ProjectMemberService memberService
     ) {
         this.projectService = projectService;
         this.templateService = templateService;
@@ -56,6 +62,7 @@ public class ProjectController {
         this.loginSessionService = loginSessionService;
         this.siteCheckService = siteCheckService;
         this.siteAnalysisService = siteAnalysisService;
+        this.memberService = memberService;
     }
 
     @GetMapping
@@ -74,9 +81,16 @@ public class ProjectController {
         return projectService.findById(projectId, currentUser(httpRequest));
     }
 
+    /** 프로젝트 생성은 관리자만 하고, 고른 PM(없으면 만든 관리자)을 PM 으로 넣는다 (#104). */
     @PostMapping
     public ProjectResponse create(@RequestBody ProjectRequest request, HttpServletRequest httpRequest) {
-        ProjectResponse created = projectService.create(request, currentUser(httpRequest));
+        User actor = currentUser(httpRequest);
+        if (actor == null || actor.getRole() != UserRole.ADMIN) {
+            throw new ApiException(403, "FORBIDDEN", "프로젝트 등록은 관리자만 할 수 있습니다.");
+        }
+        ProjectResponse created = projectService.create(request, actor);
+        Long pmUserId = request.pmUserId() != null ? request.pmUserId() : actor.getId();
+        memberService.add(created.projectId(), pmUserId, ProjectRole.PM, actor);
         startSiteAnalysisIfSourceGiven(created.projectId(), request);
         return created;
     }

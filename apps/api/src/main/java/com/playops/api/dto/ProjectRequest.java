@@ -39,5 +39,7 @@ public record ProjectRequest(
         String sourceRepositoryUrl,
         String sourceRepositoryBranch,
         String sourceRepositoryToken,
-        Long version
+        Long version,
+        // 등록할 때만 쓴다: 이 프로젝트의 PM. 비우면 등록한 관리자가 PM 이 된다 (#104).
+        Long pmUserId
 ) {}
