@@ -106,3 +106,14 @@ describe('PlanTab', () => {
     expect(screen.getByText('성공 1 · 실패 0 · 미수행 0 · 미사용 1')).toBeTruthy();
   });
 });
+
+describe('PlanTab — 팀원(보기 전용)', () => {
+  it('사용 체크 · 칸 수정 · 일괄 버튼 없이 보기만 하고, 실행은 할 수 있다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} readOnly />);
+
+    const check = await screen.findByLabelText('로그인된다 사용');
+    expect((check as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: /체크한 2건 실행/ })).toBeTruthy();
+    expect(screen.queryByText(/칸을 두 번 눌러 고치고/)).toBeNull();
+  });
+});

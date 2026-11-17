@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderKanban, Loader2, Plus, RefreshCw, Search } from 'lucide-react';
-import { api, getStoredAuth } from '@/api/client';
+import { api } from '@/api/client';
+import { useAccess } from '@/lib/access';
 import { useRunningAnalyses } from '@/hooks/useRunningAnalyses';
 import { projectTabPath } from '@/config/projectWorkspace';
 import type { Project, ProjectFormData } from '@/types';
@@ -11,7 +12,7 @@ import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { AiBootstrapProgressDialog } from '@/components/AiBootstrapProgressDialog';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import { ProjectCard, isRunnerReady } from '@/components/project/ProjectCard';
-import { isRequiredEnvMissing } from '@/lib/envVariables';
+import { ENV_ASK_PM, isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { confirmFullRun } from '@/lib/runConfirm';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,19 @@ export function ProjectsPage() {
   const [envProject, setEnvProject] = useState<Project | null>(null);
   const [testLoadingId, setTestLoadingId] = useState<string | null>(null);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  // 프로젝트 등록 · PM 지정은 관리자만 (#106)
+  const access = useAccess();
+  const { admin } = access;
+  const [pmCandidates, setPmCandidates] = useState<{ id: number; label: string }[]>([]);
+
+  useEffect(() => {
+    if (!dialogOpen || !admin) return;
+    api.getUsers()
+      .then((users) => setPmCandidates(users
+        .filter((u) => u.role !== 'ADMIN')
+        .map((u) => ({ id: u.id, label: u.displayName ? `${u.displayName} (${u.username})` : u.username }))))
+      .catch(() => setPmCandidates([]));
+  }, [dialogOpen, admin]);
 
   const loadProjects = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -107,6 +121,10 @@ export function ProjectsPage() {
 
   const handleRunProject = async (project: Project) => {
     if (isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
+      if (!access.canManage(project.projectId)) {
+        alert(ENV_ASK_PM);
+        return;
+      }
       alert('테스트 계정 환경변수가 필요합니다. 환경변수를 먼저 입력하세요.');
       setEnvProject(project);
       return;
@@ -150,7 +168,6 @@ export function ProjectsPage() {
   };
 
   // 팀원은 PM이 초대한 프로젝트만 보이므로, 빈 목록이면 등록 대신 초대를 안내한다.
-  const admin = getStoredAuth()?.role === 'ADMIN';
   const emptyReason = projects.length > 0
     ? { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어를 바꿔보세요.' }
     : admin
@@ -172,10 +189,12 @@ export function ProjectsPage() {
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
             새로고침
           </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" />
-            프로젝트 등록
-          </Button>
+          {admin && (
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+              프로젝트 등록
+            </Button>
+          )}
         </div>
       </div>
 
@@ -221,7 +240,7 @@ export function ProjectsPage() {
               analysis={runningAnalyses[project.projectId]}
               onOpen={() => navigate(projectTabPath(project.projectId, 'dashboard'))}
               onRun={() => handleRunProject(project)}
-              onEnv={() => setEnvProject(project)}
+              onEnv={access.canManage(project.projectId) ? () => setEnvProject(project) : undefined}
               onGo={(tab) => navigate(projectTabPath(project.projectId, tab))}
             />
           ))}
@@ -233,6 +252,7 @@ export function ProjectsPage() {
         onOpenChange={setDialogOpen}
         onSubmit={handleCreate}
         title="프로젝트 등록"
+        pmCandidates={pmCandidates}
       />
 
       {aiBootstrap && (

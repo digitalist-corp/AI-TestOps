@@ -26,6 +26,8 @@ import type {
   ServiceHealth,
   SiteCheckResult,
   User,
+  ProjectMember,
+  UserCandidate,
   RunningAnalysis,
   SiteMap,
   SiteMapNodeDetail,
@@ -163,6 +165,28 @@ export const api = {
       method: 'POST',
       auth: false,
     }),
+
+  /** 내 전역 역할 + 프로젝트별 역할 (lib/access) */
+  getMe: () => request<import('@/lib/access').Me>('/api/auth/me'),
+
+  /** 프로젝트 멤버 (설정 › 팀원) */
+  members: {
+    list: (projectId: string) => request<ProjectMember[]>(`/api/projects/${projectId}/members`),
+    candidates: (projectId: string, q: string) =>
+      request<UserCandidate[]>(`/api/projects/${projectId}/members/candidates?q=${encodeURIComponent(q)}`),
+    add: (projectId: string, userId: number, role: ProjectMember['role']) =>
+      request<ProjectMember>(`/api/projects/${projectId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, role }),
+      }),
+    changeRole: (projectId: string, userId: number, role: ProjectMember['role']) =>
+      request<void>(`/api/projects/${projectId}/members/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      }),
+    remove: (projectId: string, userId: number) =>
+      request<void>(`/api/projects/${projectId}/members/${userId}`, { method: 'DELETE' }),
+  },
 
   getServiceHealth: () =>
     request<ServiceHealth>('/api/health/services', { auth: false }),

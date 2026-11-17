@@ -166,6 +166,8 @@ export interface ServiceHealth {
 }
 
 export interface ProjectFormData {
+  /** 등록할 때만: 이 프로젝트의 PM. 비우면 등록한 관리자가 PM */
+  pmUserId?: number;
   projectId: string;
   projectName: string;
   displayOrder: number;
@@ -380,6 +382,7 @@ export interface ScenarioUsageRequest {
 export interface User {
   id: number;
   username: string;
+  displayName?: string | null;
   role: UserRole;
   createdAt: string;
   updatedAt: string;
@@ -393,6 +396,20 @@ export interface UserAuditLog {
   targetUsername: string | null;
   detail: string | null;
   createdAt: string;
+}
+
+/** 프로젝트 멤버. role: PM · MEMBER(팀원) */
+export interface ProjectMember {
+  userId: number;
+  username: string;
+  displayName: string | null;
+  role: 'PM' | 'MEMBER';
+}
+
+export interface UserCandidate {
+  id: number;
+  username: string;
+  displayName: string | null;
 }
 
 export interface AuthUser {

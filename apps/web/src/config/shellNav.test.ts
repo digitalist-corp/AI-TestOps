@@ -15,7 +15,7 @@ describe('shellNav', () => {
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'input')?.tabs).toEqual(['input']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'plan')?.tabs).toEqual(['plan', 'scenarios', 'recorder', 'structure']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'results', 'schedules']);
-    expect(WORKSPACE_GROUPS.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'source']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members', 'source']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-generate', 'ai-analysis', 'ai-review']);
     expect(tabLabel('structure')).toBe('화면 지도');
   });
@@ -53,5 +53,20 @@ describe('shellNav', () => {
 
   it("레일 메뉴에서 전역 '/ai-jobs' 가 제거되었다", () => {
     expect(RAIL_ITEMS.some((item) => item.to === '/ai-jobs')).toBe(false);
+  });
+});
+
+describe('팀원에게 보이는 탭', () => {
+  it('팀원은 고치는 탭(입력 · 시나리오 · 녹화 · 코드 편집기 · 예약 · AI 생성 · 검토)을 보지 않는다', () => {
+    const groups = visibleWorkspaceGroups(true, false);
+    expect(groups.map((g) => g.id)).toEqual(['plan', 'runs', 'dashboard', 'settings', 'ai']);
+    expect(groups.find((g) => g.id === 'plan')?.tabs).toEqual(['plan', 'structure']);
+    expect(groups.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'results']);
+    expect(groups.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members']);
+    expect(groups.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-analysis']);
+  });
+
+  it('PM · 관리자는 모든 탭을 본다', () => {
+    expect(visibleWorkspaceGroups(true, true)).toEqual(visibleWorkspaceGroups(true));
   });
 });

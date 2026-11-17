@@ -40,11 +40,11 @@ describe('SignupPage', () => {
     expect(api.signup).not.toHaveBeenCalled();
   });
 
-  it('가입하면 바로 로그인해 프로젝트 목록으로 간다', async () => {
+  it('가입하면 바로 로그인해 홈으로 간다', async () => {
     vi.mocked(api.signup).mockResolvedValue({ token: 't', username: 'kim', role: 'USER' });
     fillForm('password123');
 
-    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/projects'));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/home'));
     expect(api.signup).toHaveBeenCalledWith('kim', '김윤재', 'password123');
     expect(setStoredAuth).toHaveBeenCalledWith({ token: 't', username: 'kim', role: 'USER' });
   });

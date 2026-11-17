@@ -93,11 +93,11 @@ describe('ProjectsPage — 실행 확인 · 수정/삭제 위치', () => {
 });
 
 describe('ProjectsPage — 소속 프로젝트가 없는 팀원', () => {
-  it('빈 목록에 PM 초대 안내를 보이고 등록 버튼은 두지 않는다', async () => {
+  it('빈 목록에 PM 초대 안내를 보이고 등록 버튼(위 · 빈 목록)은 두지 않는다', async () => {
     vi.mocked(api.getProjects).mockResolvedValue([]);
     render(<MemoryRouter><ProjectsPage /></MemoryRouter>);
 
     expect(await screen.findByText('PM에게 초대를 요청하세요.')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: /프로젝트 등록/ })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /프로젝트 등록/ })).toBeNull();
   });
 });

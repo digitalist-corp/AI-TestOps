@@ -9,6 +9,8 @@ import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { SourceExplorerTab } from '@/components/project/SourceExplorerTab';
 import { ProjectDashboardTab } from '@/components/project/ProjectDashboardTab';
 import { PlanTab } from '@/components/project/PlanTab';
+import { MembersTab } from '@/components/project/MembersTab';
+import { useAccess } from '@/lib/access';
 import { ScenarioTab, type SelectedCase, type SelectedScenario } from '@/components/project/ScenarioTab';
 import { ExecutionsTab } from '@/components/project/ExecutionsTab';
 import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
@@ -25,6 +27,7 @@ import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import type { ExecutionDetail } from '@/types';
 import {
   configuredEnvCount as countConfiguredEnvVariables,
+  ENV_ASK_PM,
   isRequiredEnvMissing,
   resolveEnvRequirementState,
 } from '@/lib/envVariables';
@@ -140,6 +143,9 @@ export function ProjectDetailPage() {
   const activeTab: ProjectTabId = isValidProjectTab(tabParam) ? tabParam : DEFAULT_PROJECT_TAB;
 
   const { active: aiActive, checked: aiChecked } = useAiEnabled();
+  // 팀원은 보기 · 실행만, 수정은 PM · 관리자, 삭제는 관리자 (#106). 막는 것은 서버다.
+  const access = useAccess();
+  const canManage = access.canManage(projectId);
   const isAiTab = Boolean(groupOfTab(activeTab).aiOnly);
 
   const [project, setProject] = useState<Project | null>(null);
@@ -308,6 +314,10 @@ export function ProjectDetailPage() {
     if (!projectId) return;
     if (!project) return;
     if (project && isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
+      if (!canManage) {
+        alert(ENV_ASK_PM);
+        return;
+      }
       alert('테스트 계정 환경변수가 필요합니다. 환경변수를 먼저 입력하세요.');
       setEnvDialogOpen(true);
       return;
@@ -571,11 +581,13 @@ export function ProjectDetailPage() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           <div className="flex items-center gap-2 min-w-0">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="truncate">테스트 계정 환경변수가 필요합니다.</span>
+            <span className="truncate">{canManage ? '테스트 계정 환경변수가 필요합니다.' : ENV_ASK_PM}</span>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setEnvDialogOpen(true)}>
-            환경변수 입력
-          </Button>
+          {canManage && (
+            <Button size="sm" variant="outline" onClick={() => setEnvDialogOpen(true)}>
+              환경변수 입력
+            </Button>
+          )}
         </div>
       )}
 
@@ -742,7 +754,7 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'structure' && projectId && (
-            <StructureTab projectId={projectId} onOpenEnv={() => setEnvDialogOpen(true)} />
+            <StructureTab projectId={projectId} onOpenEnv={canManage ? () => setEnvDialogOpen(true) : undefined} />
           )}
 
           {activeTab === 'input' && projectId && (
@@ -750,11 +762,15 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'plan' && projectId && (
-            <PlanTab projectId={projectId} onRun={() => handleRun()} />
+            <PlanTab projectId={projectId} onRun={() => handleRun()} readOnly={!canManage} />
           )}
 
           {activeTab === 'schedules' && projectId && (
             <SchedulesTab projectId={projectId} />
+          )}
+
+          {activeTab === 'members' && projectId && (
+            <MembersTab projectId={projectId} role={access.roleIn(projectId)} />
           )}
 
           {activeTab === 'settings' && (
@@ -762,7 +778,7 @@ export function ProjectDetailPage() {
               <div>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <h3 className="font-medium">프로젝트 정보</h3>
-                  <Button
+                  {canManage && <Button
                     size="sm"
                     variant="outline"
                     onClick={() => setEnvDialogOpen(true)}
@@ -775,7 +791,7 @@ export function ProjectDetailPage() {
                   >
                     <KeyRound className="h-4 w-4" />
                     환경변수
-                  </Button>
+                  </Button>}
                 </div>
                 <dl className="grid grid-cols-2 gap-3 text-sm">
                   {[
@@ -803,15 +819,19 @@ export function ProjectDetailPage() {
                   <span className="font-mono"> --project=chromium --retries=0</span>을 기본 적용합니다.
                 </p>
                 <div className="mt-4 flex gap-2">
-                  <Button variant="outline" onClick={() => setEditOpen(true)}>
-                    <Pencil className="h-4 w-4" />
-                    설정 수정
-                  </Button>
-                  <Button variant="outline" onClick={handleDeleteProject}
-                          className="text-destructive hover:border-destructive hover:bg-destructive/10">
-                    <Trash2 className="h-4 w-4" />
-                    프로젝트 삭제
-                  </Button>
+                  {canManage && (
+                    <Button variant="outline" onClick={() => setEditOpen(true)}>
+                      <Pencil className="h-4 w-4" />
+                      설정 수정
+                    </Button>
+                  )}
+                  {access.admin && (
+                    <Button variant="outline" onClick={handleDeleteProject}
+                            className="text-destructive hover:border-destructive hover:bg-destructive/10">
+                      <Trash2 className="h-4 w-4" />
+                      프로젝트 삭제
+                    </Button>
+                  )}
                 </div>
               </div>
               <div>
@@ -844,7 +864,7 @@ export function ProjectDetailPage() {
                       {dockerLoading && !dockerRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                       시작
                     </Button>
-                    <Button size="sm" variant="outline" disabled={dockerLoading || !dockerRunning} onClick={async () => {
+                    {canManage && <Button size="sm" variant="outline" disabled={dockerLoading || !dockerRunning} onClick={async () => {
                       setDockerLoading(true);
                       setRunnerLogOpen(true);
                       setRunnerLog({ projectId, output: '[playops] Docker Runner 중지 요청...', lineCount: 1 });
@@ -861,7 +881,7 @@ export function ProjectDetailPage() {
                     }}>
                       {dockerLoading && dockerRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Square className="h-3 w-3" />}
                       중지
-                    </Button>
+                    </Button>}
                     <Button size="sm" variant="outline" onClick={() => {
                       const nextOpen = !runnerLogOpen;
                       setRunnerLogOpen(nextOpen);
@@ -946,7 +966,7 @@ export function ProjectDetailPage() {
                         <RefreshCw className={cn('h-3.5 w-3.5', authStateLoading && 'animate-spin')} />
                         새로고침
                       </Button>
-                      <Button
+                      {canManage && <Button
                         size="sm"
                         variant="outline"
                         disabled={authStateLoading || !authState?.exists}
@@ -957,7 +977,7 @@ export function ProjectDetailPage() {
                       >
                         <LogIn className="h-3.5 w-3.5" />
                         지금 재생성 (세션 삭제)
-                      </Button>
+                      </Button>}
                     </div>
                   </div>
                 )}

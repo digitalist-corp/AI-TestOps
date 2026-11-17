@@ -26,8 +26,9 @@ const PRIORITY_OPTIONS = ['', 'HIGH', 'MEDIUM', 'LOW'];
 /**
  * 테스트 계획 표(F-1). 케이스 하나 = 계획 항목 하나.
  * 셀을 고치면 바로 저장하고, 저장이 실패하면 원래 값으로 되돌린다. 체크한(사용 중) 항목만 실행된다.
+ * readOnly(팀원): 고치지 못하고 보기 · 실행만 한다.
  */
-export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => void }) {
+export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: string; onRun: () => void; readOnly?: boolean }) {
   const [items, setItems] = useState<PlanItem[] | null>(null);
   const [screens, setScreens] = useState<Map<string, string>>(new Map());
   const [selected, setSelected] = useState<PlanItem[]>([]);
@@ -114,7 +115,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
               type="checkbox"
               aria-label={`${p.data.title} 사용`}
               checked={p.data.enabled}
-              disabled={!p.data.parentEnabled}
+              disabled={readOnly || !p.data.parentEnabled}
               title={p.data.parentEnabled ? undefined : '파일이나 묶음이 꺼져 있어요. 계획 › 테스트에서 먼저 켜 주세요.'}
               onChange={(e) => save(p.data!, { enabled: e.target.checked })}
               className="h-4 w-4 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -124,7 +125,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
       {
         headerName: '순서',
         width: 80,
-        rowDrag: suiteId === '',
+        rowDrag: !readOnly && suiteId === '',
         valueGetter: (p) => (p.node?.rowIndex ?? 0) + 1,
       },
       {
@@ -153,7 +154,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
         headerName: '담당자',
         width: 120,
         filter: true,
-        editable: true,
+        editable: !readOnly,
         valueGetter: (p) => p.data?.assignee ?? '',
         valueSetter: (p) => {
           const v = String(p.newValue ?? '').trim();
@@ -164,7 +165,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
       {
         headerName: '마감일',
         width: 140,
-        editable: true,
+        editable: !readOnly,
         cellEditor: 'agDateStringCellEditor',
         valueGetter: (p) => p.data?.dueDate ?? '',
         valueSetter: (p) => {
@@ -175,7 +176,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
       {
         headerName: '우선순위',
         width: 110,
-        editable: true,
+        editable: !readOnly,
         cellEditor: 'agSelectCellEditor',
         cellEditorParams: { values: PRIORITY_OPTIONS },
         refData: { '': '없음', ...PRIORITY_LABEL },
@@ -197,7 +198,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
     ],
     // save · setItems 는 매번 새로 만들어지지만 최신 상태를 쓰므로 화면 이름이 바뀔 때만 열을 다시 만든다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [screens, projectId, suiteId]
+    [screens, projectId, suiteId, readOnly]
   );
 
   if (!items) {
@@ -226,11 +227,12 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
             테스트 계획
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            사용 중 {enabledCount}건 · 미사용 {items.length - enabledCount}건. 칸을 두 번 눌러 고치고, 순서 칸을 끌어 옮겨요.
+            사용 중 {enabledCount}건 · 미사용 {items.length - enabledCount}건.
+            {readOnly ? ' 계획은 PM이 정해요. 보고 실행할 수 있어요.' : ' 칸을 두 번 눌러 고치고, 순서 칸을 끌어 옮겨요.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {selected.length > 0 && (
+          {!readOnly && selected.length > 0 && (
             <>
               <Button size="sm" variant="outline" onClick={() => setEnabledMany(selected, true)}>
                 선택한 {selected.length}건 사용

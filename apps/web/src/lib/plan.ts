@@ -1,4 +1,4 @@
-import type { PlanItem, PlanPriority, TestRoundCase, TestSuite } from '@/types';
+import type { PlanItem, PlanPriority, RunTestOptions, TestRoundCase, TestSuite } from '@/types';
 import { samePath, type ScreenCases } from '@/lib/rounds';
 
 export const PRIORITY_LABEL: Record<PlanPriority, string> = { HIGH: '높음', MEDIUM: '보통', LOW: '낮음' };
@@ -61,4 +61,35 @@ export function planCounts(items: PlanItem[]): { passed: number; failed: number;
   const passed = on.filter((i) => i.lastStatus === 'PASSED').length;
   const failed = on.filter((i) => i.lastStatus === 'FAILED').length;
   return { passed, failed, notRun: on.length - passed - failed, disabled: items.length - on.length };
+}
+
+const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** 사용 중인 실패 항목만 다시 실행하는 옵션. 파일로 좁히고 케이스 이름을 --grep 정규식으로 묶는다. 실패가 없으면 null. */
+export function failedRerun(items: PlanItem[]): RunTestOptions | null {
+  const failed = items.filter((i) => i.enabled && i.lastStatus === 'FAILED');
+  if (failed.length === 0) return null;
+  return {
+    specPaths: [...new Set(failed.map((i) => i.specPath))],
+    grep: failed.map((i) => escapeRegex(i.grep)).join('|'),
+  };
+}
+
+/** 담당자별 진행 (사용 중 항목만). 담당자가 없으면 '미지정'. */
+export function byAssignee(items: PlanItem[]): { assignee: string; total: number; passed: number; failed: number }[] {
+  const rows = new Map<string, { assignee: string; total: number; passed: number; failed: number }>();
+  for (const i of items.filter((x) => x.enabled)) {
+    const assignee = i.assignee?.trim() || '미지정';
+    const row = rows.get(assignee) ?? { assignee, total: 0, passed: 0, failed: 0 };
+    row.total += 1;
+    if (i.lastStatus === 'PASSED') row.passed += 1;
+    if (i.lastStatus === 'FAILED') row.failed += 1;
+    rows.set(assignee, row);
+  }
+  return [...rows.values()];
+}
+
+/** 마감일(YYYY-MM-DD)이 오늘보다 앞인데 아직 성공하지 못한 사용 중 항목 */
+export function overdue(items: PlanItem[], today: string): PlanItem[] {
+  return items.filter((i) => i.enabled && i.dueDate && i.dueDate < today && i.lastStatus !== 'PASSED');
 }

@@ -10,7 +10,7 @@ import { THEME_LABEL, useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
 import { projectTabPath, type ProjectTabId } from '@/config/projectWorkspace';
-import { groupOfTab, railLabelOf, tabLabel, visibleWorkspaceGroups } from '@/config/shellNav';
+import { groupOfTab, railLabelOf, tabLabel, visibleTabs, visibleWorkspaceGroups } from '@/config/shellNav';
 
 /**
  * 상단바: 프로젝트 전환 + 작업 탭 5개 + 계정.
@@ -23,6 +23,8 @@ export function TopBar({
   currentTab,
   auth,
   projectTab,
+  roleLabel,
+  canManage = true,
   onOpenProjectSwitcher,
   onLogout,
 }: {
@@ -33,6 +35,10 @@ export function TopBar({
   auth: { username: string; role: string } | null;
   /** 프로젝트 안에 있을 때만 — ? 메뉴가 탭별 안내를 고른다. */
   projectTab?: ProjectTabId;
+  /** 이 프로젝트에서 내 역할 (관리자 · PM · 팀원). 프로젝트 칩에 "쇼핑몰 · PM" 처럼 붙는다. */
+  roleLabel?: string;
+  /** false(팀원)면 고치는 탭을 숨긴다 */
+  canManage?: boolean;
   onOpenProjectSwitcher: () => void;
   onLogout: () => void;
 }) {
@@ -58,6 +64,9 @@ export function TopBar({
         title="프로젝트 전환 (Ctrl+K)"
       >
         <span className="min-w-0 truncate font-semibold">{projectLabel ?? '프로젝트 선택'}</span>
+        {inProject && roleLabel && (
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">· {roleLabel}</span>
+        )}
         <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       </button>
 
@@ -65,7 +74,7 @@ export function TopBar({
 
       {inProject && activeProjectId ? (
         <nav className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {visibleWorkspaceGroups(aiActive).map(({ id, label, icon: Icon, tabs, aiOnly }) => {
+          {visibleWorkspaceGroups(aiActive, canManage).map(({ id, label, icon: Icon, tabs, aiOnly }) => {
             const active = activeGroup.id === id;
             return (
               <NavLink
@@ -146,16 +155,18 @@ export function TopBar({
 export function SubTabBar({
   projectId,
   currentTab,
+  canManage = true,
 }: {
   projectId: string;
   currentTab: ProjectTabId;
+  canManage?: boolean;
 }) {
-  const group = groupOfTab(currentTab);
-  if (group.tabs.length < 2) return null;
+  const tabs = visibleTabs(groupOfTab(currentTab).tabs, canManage);
+  if (tabs.length < 2) return null;
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-card/60 px-3">
-      {group.tabs.map((tab) => (
+      {tabs.map((tab) => (
         <NavLink
           key={tab}
           to={projectTabPath(projectId, tab)}

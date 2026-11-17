@@ -43,6 +43,9 @@ export function resolveEnvRequirementState(loginEnvRequired: boolean, json: stri
   return count > 0 ? 'optional-configured' : 'optional-empty';
 }
 
+/** 팀원에게: 환경변수 입력은 프로젝트 수정이라 PM · 관리자만 한다 (#106) */
+export const ENV_ASK_PM = '테스트 계정 환경변수가 필요합니다. PM에게 입력을 요청하세요.';
+
 export function isRequiredEnvMissing(loginEnvRequired: boolean, json: string): boolean {
   return resolveEnvRequirementState(loginEnvRequired, json) === 'required-missing';
 }

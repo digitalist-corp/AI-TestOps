@@ -66,6 +66,10 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
     title: '프로젝트 설정',
     body: '대상 사이트 주소, 환경 변수, Docker 러너 설정을 관리합니다. 값이 바뀌면 다음 실행부터 적용돼요.',
   },
+  members: {
+    title: '팀원',
+    body: '이 프로젝트의 PM과 팀원입니다. PM은 사용자를 찾아 팀원으로 넣거나 빼고, PM 지정은 관리자가 합니다.',
+  },
 };
 
 const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [
