@@ -5,6 +5,7 @@ import {
   Download,
   FileCode,
   Gauge,
+  House,
   LayoutDashboard,
   Play,
   Rows3,
@@ -30,6 +31,7 @@ export type RailItem = {
 };
 
 export const RAIL_ITEMS: RailItem[] = [
+  { to: '/home', label: '홈', icon: House },
   { to: '/projects', label: '프로젝트 목록', icon: Rows3 },
   { to: '/runners', label: 'Runner 컨테이너', icon: Container, adminOnly: true },
   { to: '/templates', label: 'Playwright 템플릿', icon: FileCode },

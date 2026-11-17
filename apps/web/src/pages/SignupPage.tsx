@@ -28,7 +28,7 @@ export function SignupPage() {
     try {
       const res = await api.signup(form.username, form.name, form.password);
       setStoredAuth({ token: res.token, username: res.username, role: res.role });
-      navigate('/projects');
+      navigate('/home');
     } catch (err) {
       setError(err instanceof Error ? err.message : '가입에 실패했습니다.');
     } finally {

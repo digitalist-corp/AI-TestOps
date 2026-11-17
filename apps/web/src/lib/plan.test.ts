@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanItem } from '@/types';
 import type { ScreenCase, ScreenCases } from '@/lib/rounds';
-import { failingScreens, inSuite, planAsResults, planCounts, screenNameByCase } from '@/lib/plan';
+import { byAssignee, failedRerun, failingScreens, inSuite, overdue, planAsResults, planCounts, screenNameByCase } from '@/lib/plan';
 
 const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
@@ -76,5 +76,45 @@ describe('planCounts', () => {
     expect(
       planCounts([item({ lastStatus: 'PASSED' }), item({ lastStatus: null }), item({ enabled: false, lastStatus: 'FAILED' })])
     ).toEqual({ passed: 1, failed: 0, notRun: 1, disabled: 1 });
+  });
+});
+
+describe('역할별 대시보드 집계', () => {
+  const row = (over: Partial<PlanItem>): PlanItem => ({
+    specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
+    sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, ...over,
+  });
+
+  it('failedRerun: 사용 중인 실패 항목만 파일과 이름(정규식 이스케이프)으로 다시 실행한다', () => {
+    const options = failedRerun([
+      row({ specPath: 'a.spec.ts', grep: '결제 (카드)', lastStatus: 'FAILED' }),
+      row({ specPath: 'b.spec.ts', grep: '탈퇴', lastStatus: 'FAILED' }),
+      row({ specPath: 'a.spec.ts', grep: '로그인', lastStatus: 'PASSED' }),
+      row({ specPath: 'c.spec.ts', grep: '꺼짐', lastStatus: 'FAILED', enabled: false }),
+    ]);
+    expect(options).toEqual({ specPaths: ['a.spec.ts', 'b.spec.ts'], grep: '결제 \\(카드\\)|탈퇴' });
+    expect(failedRerun([row({ lastStatus: 'PASSED' })])).toBeNull();
+  });
+
+  it('byAssignee: 담당자별 사용 중 항목 · 성공 · 실패를 세고 담당자 없음은 미지정', () => {
+    expect(byAssignee([
+      row({ assignee: '윤재', lastStatus: 'PASSED' }),
+      row({ assignee: '윤재', lastStatus: 'FAILED' }),
+      row({ assignee: null }),
+      row({ assignee: '윤재', enabled: false }),
+    ])).toEqual([
+      { assignee: '윤재', total: 2, passed: 1, failed: 1 },
+      { assignee: '미지정', total: 1, passed: 0, failed: 0 },
+    ]);
+  });
+
+  it('overdue: 마감일이 지났는데 아직 성공하지 못한 사용 중 항목', () => {
+    const late = row({ grep: '늦음', dueDate: '2026-11-10', lastStatus: 'FAILED' });
+    expect(overdue([
+      late,
+      row({ grep: '끝남', dueDate: '2026-11-10', lastStatus: 'PASSED' }),
+      row({ grep: '오늘', dueDate: '2026-11-17' }),
+      row({ grep: '꺼짐', dueDate: '2026-11-10', enabled: false }),
+    ], '2026-11-17')).toEqual([late]);
   });
 });

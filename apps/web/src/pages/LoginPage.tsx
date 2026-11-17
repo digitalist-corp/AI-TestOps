@@ -164,7 +164,7 @@ export function LoginPage() {
     try {
       const res = await login();
       setStoredAuth({ token: res.token, username: res.username, role: res.role });
-      navigate('/projects');
+      navigate('/home');
     } catch (err) {
       setError(getLoginErrorMessage(err));
     } finally {
