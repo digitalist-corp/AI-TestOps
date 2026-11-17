@@ -115,6 +115,19 @@ public class AiJobController {
         return AiJobResponse.from(aiJobService.reject(id, user.getId(), reason));
     }
 
+    /** 수정 제안(PROPOSED)을 진행해 AI 수정을 시작한다. 결과는 다시 검토 대기로 온다. */
+    @PostMapping("/api/ai-jobs/{id}/proceed")
+    public AiJobResponse proceed(@PathVariable Long id, HttpServletRequest request) {
+        User user = requireAuthenticated(request);
+        return AiJobResponse.from(aiJobService.proceed(id, user.getId()));
+    }
+
+    @PostMapping("/api/ai-jobs/{id}/dismiss")
+    public AiJobResponse dismiss(@PathVariable Long id, HttpServletRequest request) {
+        User user = requireAuthenticated(request);
+        return AiJobResponse.from(aiJobService.dismiss(id, user.getId()));
+    }
+
     public record ApproveAiJobRequest(Long expectedVersion, String baseCommitSha, Boolean riskAcknowledged) {}
     public record RejectAiJobRequest(String reason) {}
 

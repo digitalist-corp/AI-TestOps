@@ -21,6 +21,7 @@ import { useAiChat } from '@/hooks/useAiChat';
 import { cn } from '@/lib/utils';
 
 const aiJobStatusLabel: Record<AiJob['status'], string> = {
+  PROPOSED: '수정 제안',
   PENDING: '대기 중',
   RUNNING: 'AI가 수정 시도 중...',
   DIFF_READY: '결과 처리 중',

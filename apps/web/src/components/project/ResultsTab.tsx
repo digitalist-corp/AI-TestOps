@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { ArtifactFile, ExecutionCaseResult, ExecutionDetail } from '@/types';
 import { api, getStoredAuth } from '@/api/client';
 import { Button } from '@/components/ui/Button';
+import { FixProposals } from '@/components/project/FixProposalCard';
 import {
   Dialog,
   DialogContent,
@@ -164,6 +165,9 @@ export function ResultsTab({ detail, loading }: Props) {
           <div className="flex items-center gap-1.5 mb-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
             <h3 className="font-medium text-foreground">실패한 케이스 ({failedCases.length}건)</h3>
+          </div>
+          <div className="mb-2">
+            <FixProposals projectId={ex.projectId} executionId={ex.id} />
           </div>
           <div className="space-y-2">
             {failedCases.map((c, i) => (

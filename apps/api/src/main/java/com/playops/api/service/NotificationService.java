@@ -84,6 +84,13 @@ public class NotificationService {
                 "/projects/" + project.getProjectId() + "/schedules", project.getProjectId());
     }
 
+    /** 실패한 실행에서 수정 제안을 만들었을 때. 누르면 그 실행의 결과 화면으로 간다. */
+    public void fixProposed(Project project, Long executionId, int count) {
+        notifyAll("FIX_PROPOSED", "INFO", "수정 제안 " + count + "건 · 이렇게 고칠까요?",
+                project.getProjectName() + " · 실행 #" + executionId + " · 결과 화면에서 확인하고 진행할 수 있어요",
+                "/projects/" + project.getProjectId() + "/runs?execution=" + executionId, project.getProjectId());
+    }
+
     private void notifyAll(String kind, String level, String title, String message, String link, String projectId) {
         try {
             List<Notification> rows = new ArrayList<>();

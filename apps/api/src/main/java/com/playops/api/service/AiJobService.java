@@ -6,6 +6,7 @@ import com.playops.api.dto.AiJobFileDiff;
 import com.playops.api.entity.AiJob;
 import com.playops.api.entity.AiJobStatus;
 import com.playops.api.entity.AiJobType;
+import com.playops.api.entity.AiModelProvider;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.User;
 import com.playops.api.entity.UserAuditAction;
@@ -44,6 +45,7 @@ public class AiJobService {
     private final GitCommitService gitCommitService;
     private final LlmGatewayService llmGatewayService;
     private final SiteMapPromptService siteMapPromptService;
+    private final AiProviderSettingsService aiProviderSettingsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -67,8 +69,10 @@ public class AiJobService {
             GitCommitService gitCommitService,
             LlmGatewayService llmGatewayService,
             SiteMapPromptService siteMapPromptService,
+            AiProviderSettingsService aiProviderSettingsService,
             @Lazy AiJobService self
     ) {
+        this.aiProviderSettingsService = aiProviderSettingsService;
         this.aiJobRepository = aiJobRepository;
         this.projectService = projectService;
         this.executionLogService = executionLogService;
@@ -586,6 +590,40 @@ public class AiJobService {
         postApplyVerificationService.triggerVerification(saved, project);
 
         return saved;
+    }
+
+    /**
+     * 수정 제안(PROPOSED)을 진행한다. 이때부터는 사람이 직접 만든 CODE_FIX 와 같은 길을 가고,
+     * 결과는 검토 대기(NEEDS_REVIEW)에서 다시 승인을 기다린다.
+     */
+    public AiJob proceed(Long jobId, Long userId) {
+        AiJob job = getJobOrThrow(jobId);
+        if (job.getStatus() != AiJobStatus.PROPOSED) {
+            throw new ApiException(409, "STATE_CONFLICT", "수정 제안 상태의 작업만 진행할 수 있습니다. 현재 상태: " + job.getStatus());
+        }
+        AiModelProvider provider = llmGatewayService.defaultProvider();
+        if (!aiProviderSettingsService.hasKey(provider)) {
+            throw new ApiException(400, "AI_UNAVAILABLE", "AI 키가 등록되지 않아 자동으로 고칠 수 없습니다. 관리자 메뉴의 AI 설정을 확인하세요.");
+        }
+        job.setStatus(AiJobStatus.PENDING);
+        job.setAiModelProvider(provider);
+        job.setRequestedBy(userId);
+        job.setCallbackToken(UUID.randomUUID().toString());
+        job.setCallbackTokenExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
+        job = aiJobRepository.save(job);
+        self.runAsync(job.getId());
+        return job;
+    }
+
+    /** 수정 제안을 닫는다. 아무것도 바뀌지 않는다. */
+    public AiJob dismiss(Long jobId, Long userId) {
+        AiJob job = getJobOrThrow(jobId);
+        if (job.getStatus() != AiJobStatus.PROPOSED) {
+            throw new ApiException(409, "STATE_CONFLICT", "수정 제안 상태의 작업만 닫을 수 있습니다. 현재 상태: " + job.getStatus());
+        }
+        job.setStatus(AiJobStatus.CANCELED);
+        job.setReviewedBy(userId);
+        return aiJobRepository.save(job);
     }
 
     public AiJob reject(Long jobId, Long rejectedByUserId) {
