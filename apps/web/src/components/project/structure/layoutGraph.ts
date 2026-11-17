@@ -101,6 +101,22 @@ export function mergeEdges(siteMap: Pick<SiteMap, 'nodes' | 'edges'>): MergedEdg
   return [...merged.values()];
 }
 
+/** 화면마다 들어오고 나가는 전환 수. mergeEdges 로 합친 전환을 받으므로 같은 두 화면 사이 전환은 한 번만 센다. */
+export function connectionCounts(edges: Pick<MergedEdge, 'from' | 'to'>[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const { from, to } of edges) {
+    counts.set(from, (counts.get(from) ?? 0) + 1);
+    counts.set(to, (counts.get(to) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** 연결 수를 가장 많이 연결된 화면 대비 0~3 단계 진하기로 바꾼다. 연결이 없으면 0, 최다 연결 화면은 3. */
+export function connectionLevel(count: number, max: number): 0 | 1 | 2 | 3 {
+  if (count <= 0 || max <= 0) return 0;
+  return Math.max(1, Math.ceil((count / max) * 3)) as 1 | 2 | 3;
+}
+
 /**
  * 화면과 전환을 좌→우 계층으로 배치한다. 같은 입력이면 항상 같은 배치가 나온다.
  *

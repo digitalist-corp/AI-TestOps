@@ -41,6 +41,12 @@ export interface ScreenNodeData extends Record<string, unknown> {
   /** 방금 상태가 바뀌었다 (반짝임) */
   changed: boolean;
   play: ScreenPlayback | null;
+  /** 들어오고 나가는 전환 수 */
+  links: number;
+  /** 연결 수 진하기 0~3 (최다 연결 대비) */
+  linkLevel: 0 | 1 | 2 | 3;
+  /** 가장 많이 연결된 화면 */
+  core: boolean;
   onAdd: (routeKey: string) => void;
   onOpen: (routeKey: string) => void;
 }
@@ -105,6 +111,10 @@ export function CoverageBar({ counts, className }: { counts: CoverageNode['count
   );
 }
 
+/** 연결 수 단계별 덧칠 진하기(%). 상태 색 위에 글자색(무채색)을 얹어 상태 색의 빛깔은 그대로 두고 진하게만 한다. */
+export const LINK_TINT = [0, 5, 10, 16] as const;
+export const linkTint = (pct: number) => `color-mix(in oklab, var(--color-foreground) ${pct}%, transparent)`;
+
 const PLAY_RING: Record<ScreenPlayback['tone'], string> = {
   pass: 'ring-[3px] ring-success',
   fail: 'ring-[3px] ring-success',
@@ -135,9 +145,15 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
         data.flash && !data.focused && 'ring-2 ring-primary/50',
         play?.lit && (stopped ? 'ring-[3px] ring-destructive' : PLAY_RING[play.tone]),
         fade,
+        data.core && 'outline-[3px] outline-offset-[3px] outline-foreground',
         data.appeared && 'coverage-appear'
       )}
-      style={{ width: SCREEN_W, height: SCREEN_H }}
+      style={{
+        width: SCREEN_W,
+        height: SCREEN_H,
+        // 배경색(상태)은 클래스가, 연결 수 덧칠은 그 위 배경 이미지가 맡는다
+        backgroundImage: data.linkLevel ? `linear-gradient(${linkTint(LINK_TINT[data.linkLevel])}, ${linkTint(LINK_TINT[data.linkLevel])})` : undefined,
+      }}
       data-status={status}
       data-state={state}
       data-in-path={orders.length > 0}
@@ -147,6 +163,8 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
       data-faded={!data.dimmed && (node.excluded || node.stale)}
       data-testid="structure-screen-node"
       data-route={node.routeKey}
+      data-links={data.links}
+      data-core={data.core}
     >
       <Handle type="target" position={Position.Left} isConnectable={false} className="!h-2 !w-2 !min-w-0 !border-0 !bg-transparent" />
       <Handle type="source" position={Position.Right} isConnectable={false} className="!h-2 !w-2 !min-w-0 !border-0 !bg-transparent" />
@@ -248,6 +266,11 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
             </span>
           )}
           <span className="ml-auto flex shrink-0 gap-1 overflow-hidden">
+            {data.core && (
+              <Badge className="bg-foreground px-1.5 py-0 text-[11px] text-background" title={`가장 많이 연결된 화면 · 연결 ${data.links}개`}>
+                핵심
+              </Badge>
+            )}
             {data.entry && <Badge variant="info" className="px-1.5 py-0 text-[11px]" title="지도를 그리기 시작한 첫 화면">시작</Badge>}
             {node.excluded && (
               <Badge variant="warning" className="px-1.5 py-0 text-[11px]" title="테스트 생성에서 제외됨">
