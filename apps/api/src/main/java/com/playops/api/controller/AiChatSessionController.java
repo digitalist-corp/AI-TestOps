@@ -25,17 +25,25 @@ public class AiChatSessionController {
 
     private final ChatSessionService sessionService;
     private final ChatAgentService agentService;
+    private final com.playops.api.service.ProjectService projectService;
 
-    public AiChatSessionController(ChatSessionService sessionService, ChatAgentService agentService) {
+    public AiChatSessionController(ChatSessionService sessionService, ChatAgentService agentService,
+                                   com.playops.api.service.ProjectService projectService) {
         this.sessionService = sessionService;
         this.agentService = agentService;
+        this.projectService = projectService;
     }
 
     @PostMapping
     public ChatDtos.SessionResponse create(@RequestBody(required = false) ChatDtos.CreateSessionRequest body,
                                            HttpServletRequest request) {
         User user = requireAuthenticated(request);
-        return ChatDtos.SessionResponse.from(sessionService.create(user.getId(), body == null ? null : body.projectId()));
+        String projectId = body == null ? null : body.projectId();
+        if (projectId != null && !projectId.isBlank()) {
+            // 채팅 도구는 대화 중인 프로젝트만 다루므로, 그 프로젝트의 멤버여야 대화를 연다 (#105)
+            projectService.getProjectForUser(projectId, user);
+        }
+        return ChatDtos.SessionResponse.from(sessionService.create(user.getId(), projectId));
     }
 
     @GetMapping

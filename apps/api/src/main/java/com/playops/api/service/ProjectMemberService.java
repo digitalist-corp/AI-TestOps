@@ -42,6 +42,15 @@ public class ProjectMemberService {
         return memberRepository.findByProjectIdAndUserId(projectId, user.getId()).map(ProjectMember::getRole);
     }
 
+    /** 이 사용자가 멤버(PM · 팀원)인 프로젝트와 역할 */
+    public Map<String, ProjectRole> projectsOf(User user) {
+        if (user == null || user.getId() == null) {
+            return Map.of();
+        }
+        return memberRepository.findByUserId(user.getId()).stream()
+                .collect(Collectors.toMap(ProjectMember::getProjectId, ProjectMember::getRole));
+    }
+
     public List<Member> list(String projectId) {
         List<ProjectMember> members = memberRepository.findByProjectId(projectId);
         Map<Long, User> users = userRepository.findAllById(members.stream().map(ProjectMember::getUserId).toList())
