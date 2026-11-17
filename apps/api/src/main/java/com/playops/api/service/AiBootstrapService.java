@@ -397,6 +397,12 @@ public class AiBootstrapService {
         return resolved;
     }
 
+    /** 프로젝트 없는 별칭 경로(/api/ai/bootstrap/{id})의 권한 검사용 */
+    public java.util.Optional<String> projectIdOf(String bootstrapId) {
+        State state = bootstrapId != null ? states.get(bootstrapId) : null;
+        return java.util.Optional.ofNullable(state).map(s -> s.projectId);
+    }
+
     private State findState(String projectId, String bootstrapId) {
         State state = bootstrapId != null ? states.get(bootstrapId) : null;
         if (state == null || (projectId != null && !state.projectId.equals(projectId))) {

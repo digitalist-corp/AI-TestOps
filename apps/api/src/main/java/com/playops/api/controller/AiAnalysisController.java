@@ -5,7 +5,9 @@ import com.playops.api.dto.AiAnalysisResponse;
 import com.playops.api.dto.AiChatRequest;
 import com.playops.api.dto.AiChatResponse;
 import com.playops.api.entity.User;
+import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.service.AiAnalysisService;
+import com.playops.api.service.ProjectService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,13 +17,25 @@ import org.springframework.web.bind.annotation.*;
 public class AiAnalysisController {
 
     private final AiAnalysisService aiAnalysisService;
+    private final ExecutionRepository executionRepository;
+    private final ProjectService projectService;
 
-    public AiAnalysisController(AiAnalysisService aiAnalysisService) {
+    public AiAnalysisController(AiAnalysisService aiAnalysisService, ExecutionRepository executionRepository,
+                                ProjectService projectService) {
         this.aiAnalysisService = aiAnalysisService;
+        this.executionRepository = executionRepository;
+        this.projectService = projectService;
     }
 
+    /** 실행 id 는 본문에 있어 경로 검사(ProjectAccessInterceptor)로 못 막는다. 그 실행의 프로젝트 멤버인지 여기서 본다. */
     @PostMapping("/analyze")
-    public ResponseEntity<AiAnalysisResponse> analyze(@RequestBody AiAnalysisRequest request) {
+    public ResponseEntity<AiAnalysisResponse> analyze(@RequestBody AiAnalysisRequest request,
+                                                      HttpServletRequest servletRequest) {
+        User user = (User) servletRequest.getAttribute("currentUser");
+        if (request.getExecutionId() != null) {
+            executionRepository.findById(request.getExecutionId())
+                    .ifPresent(execution -> projectService.getProjectForUser(execution.getProjectId(), user));
+        }
         AiAnalysisResponse response = aiAnalysisService.analyze(request);
         return ResponseEntity.ok(response);
     }

@@ -45,6 +45,13 @@ class RolePermissionIntegrationTest {
     @Autowired
     ObjectMapper json;
 
+    @Autowired
+    com.playops.api.repository.ExecutionRepository executions;
+
+    @Autowired
+    com.playops.api.repository.SiteAnalysisRunRepository analysisRuns;
+
+    private static int signups;
     private String admin;
     private String member;
     private long memberId;
@@ -67,7 +74,8 @@ class RolePermissionIntegrationTest {
         admin = call(post("/api/auth/login").content("{\"username\":\"admin\",\"password\":\"admin\"}"), null, 200)
                 .get("token").asText();
         String name = "m" + UUID.randomUUID().toString().substring(0, 8);
-        JsonNode signup = call(post("/api/auth/signup")
+        // 가입은 IP당 분당 5회라 테스트마다 다른 주소에서 가입한다
+        JsonNode signup = call(post("/api/auth/signup").header("X-Forwarded-For", "10.9.0." + (++signups))
                 .content("{\"username\":\"" + name + "\",\"name\":\"팀원\",\"password\":\"password123\"}"), null, 200);
         member = signup.get("token").asText();
         memberId = signup.get("user").get("id").asLong();
@@ -124,5 +132,35 @@ class RolePermissionIntegrationTest {
         assertThat(me.get("role").asText()).isEqualTo("USER");
         assertThat(me.get("projects").get(0).get("projectId").asText()).isEqualTo("example.com");
         assertThat(me.get("projects").get(0).get("role").asText()).isEqualTo("MEMBER");
+    }
+
+    @Test
+    void pathParametersCannotSlipPastTheChecks() throws Exception {
+        assertThat(status(get("/api;x/users"), member)).isEqualTo(400);
+        assertThat(status(get("/api;x/projects/google.com/plan"), member)).isEqualTo(400);
+        assertThat(status(get("/api/projects;x/google.com"), member)).isEqualTo(400);
+    }
+
+    @Test
+    void teamMemberCannotAnalyzeAnotherProjectsExecution() throws Exception {
+        com.playops.api.entity.Execution other = new com.playops.api.entity.Execution();
+        other.setProjectId("google.com");
+        other.setStatus(com.playops.api.entity.ExecutionStatus.FAILED);
+        long id = executions.saveAndFlush(other).getId();
+
+        assertThat(status(post("/api/ai/analyze").content("{\"executionId\":" + id + "}"), member)).isEqualTo(403);
+    }
+
+    @Test
+    void runningAnalysesShowOnlyMyProjects() throws Exception {
+        for (String projectId : new String[] {"example.com", "google.com"}) {
+            com.playops.api.entity.SiteAnalysisRun run = new com.playops.api.entity.SiteAnalysisRun();
+            run.setProjectId(projectId);
+            analysisRuns.saveAndFlush(run);
+        }
+        List<String> ids = new ArrayList<>();
+        call(get("/api/sitemap/running"), member, 200).forEach(r -> ids.add(r.get("projectId").asText()));
+
+        assertThat(ids).contains("example.com").doesNotContain("google.com");
     }
 }

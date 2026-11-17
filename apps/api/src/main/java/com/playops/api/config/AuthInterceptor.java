@@ -43,6 +43,12 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         String path = request.getRequestURI();
+        // 경로 매개변수(';')는 스프링이 주소를 맞출 때 떼어 내지만 권한 검사는 원래 주소로 한다.
+        // '/api;x/users' 처럼 검사를 건너뛰지 못하게 아예 받지 않는다.
+        if (path.indexOf(';') >= 0) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            return false;
+        }
         // 가입은 토큰 없이 열려 있어 IP 기준으로 분당 5회까지만 받는다 (로그인과 같은 IP 판단).
         if (path.equals("/api/auth/signup")
                 && !allowRequest(signupRateWindows, clientIp(request), SIGNUP_LIMIT_PER_MIN)) {

@@ -7,6 +7,7 @@ import com.playops.api.entity.User;
 import com.playops.api.entity.UserRole;
 import com.playops.api.repository.AiJobRepository;
 import com.playops.api.repository.ExecutionRepository;
+import com.playops.api.service.AiBootstrapService;
 import com.playops.api.service.ProjectMemberService;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,7 +26,7 @@ import java.util.regex.Pattern;
  *
  * - 관리자: 모두 통과
  * - 관리자 전용: 사용자 관리 · 러너 · 리소스 · 템플릿 변경 · 프로젝트 생성/삭제
- * - 프로젝트 하위 경로(/api/projects/{id}/**, 실행 · AI 작업 id 경로 포함): 멤버가 아니면 403.
+ * - 프로젝트 하위 경로(/api/projects/{id}/**, 실행 · AI 작업 · 첫 테스트 생성 id 경로 포함): 멤버가 아니면 403.
  *   조회(GET)는 멤버 모두, 쓰기는 PM. 팀원은 MEMBER_WRITES(실행 · 재실행 · 취소)만.
  *
  * 쓰기는 허용 목록 방식이라 새 API 를 만들고 깜빡해도 팀원에게는 막힌다.
@@ -36,6 +37,7 @@ public class ProjectAccessInterceptor implements HandlerInterceptor {
     private static final Pattern PROJECT_PATH = Pattern.compile("^/api/projects/([^/]+)(/.*)?$");
     private static final Pattern EXECUTION_PATH = Pattern.compile("^/api/executions/(\\d+)(/.*)?$");
     private static final Pattern AI_JOB_PATH = Pattern.compile("^/api/ai-jobs/(\\d+)(/.*)?$");
+    private static final Pattern BOOTSTRAP_PATH = Pattern.compile("^/api/ai/bootstrap/([^/]+)(/.*)?$");
     /** /api/projects/ 바로 아래지만 프로젝트 id 가 아닌 경로 */
     private static final Set<String> NOT_PROJECT_IDS = Set.of("docker", "site-check");
     /** 팀원이 할 수 있는 쓰기 (프로젝트 기준 상대 경로): 실행 · 실패 재실행 · 러너 켜기 · 실행 취소 */
@@ -49,12 +51,14 @@ public class ProjectAccessInterceptor implements HandlerInterceptor {
     private final ProjectMemberService memberService;
     private final ExecutionRepository executionRepository;
     private final AiJobRepository aiJobRepository;
+    private final AiBootstrapService bootstrapService;
 
     public ProjectAccessInterceptor(ProjectMemberService memberService, ExecutionRepository executionRepository,
-                                    AiJobRepository aiJobRepository) {
+                                    AiJobRepository aiJobRepository, AiBootstrapService bootstrapService) {
         this.memberService = memberService;
         this.executionRepository = executionRepository;
         this.aiJobRepository = aiJobRepository;
+        this.bootstrapService = bootstrapService;
     }
 
     private record Target(String projectId, String action) {}
@@ -120,6 +124,13 @@ public class ProjectAccessInterceptor implements HandlerInterceptor {
             return aiJobRepository.findById(Long.parseLong(job.group(1)))
                     .map(AiJob::getProjectId)
                     .map(projectId -> new Target(projectId, "/ai-job/" + job.group(1) + rest))
+                    .orElse(null);
+        }
+        Matcher boot = BOOTSTRAP_PATH.matcher(path);
+        if (boot.matches()) {
+            String rest = boot.group(2) == null ? "" : boot.group(2);
+            return bootstrapService.projectIdOf(boot.group(1))
+                    .map(projectId -> new Target(projectId, "/ai-bootstrap/" + boot.group(1) + rest))
                     .orElse(null);
         }
         return null;
