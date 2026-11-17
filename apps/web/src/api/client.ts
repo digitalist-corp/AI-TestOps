@@ -149,6 +149,21 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
 
+  /** 회원가입: 가입 즉시 팀원으로 로그인된다 */
+  signup: (username: string, name: string, password: string) =>
+    request<{ token: string; username: string; role: AuthUser['role'] }>('/api/auth/signup', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ username, name, password }),
+    }),
+
+  /** "게스트로 시작": 서버의 게스트 팀원 계정으로 들어간다 (비밀번호는 서버만 안다) */
+  guestLogin: () =>
+    request<{ token: string; username: string; role: AuthUser['role'] }>('/api/auth/guest', {
+      method: 'POST',
+      auth: false,
+    }),
+
   getServiceHealth: () =>
     request<ServiceHealth>('/api/health/services', { auth: false }),
 

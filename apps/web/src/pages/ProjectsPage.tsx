@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderKanban, Loader2, Plus, RefreshCw, Search } from 'lucide-react';
-import { api } from '@/api/client';
+import { api, getStoredAuth } from '@/api/client';
 import { useRunningAnalyses } from '@/hooks/useRunningAnalyses';
 import { projectTabPath } from '@/config/projectWorkspace';
 import type { Project, ProjectFormData } from '@/types';
@@ -149,9 +149,13 @@ export function ProjectsPage() {
     }
   };
 
-  const emptyReason = projects.length === 0
-    ? { title: '등록된 프로젝트가 없습니다', desc: '사이트 주소만 있으면 바로 시작할 수 있습니다.' }
-    : { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어를 바꿔보세요.' };
+  // 팀원은 PM이 초대한 프로젝트만 보이므로, 빈 목록이면 등록 대신 초대를 안내한다.
+  const admin = getStoredAuth()?.role === 'ADMIN';
+  const emptyReason = projects.length > 0
+    ? { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어를 바꿔보세요.' }
+    : admin
+      ? { title: '등록된 프로젝트가 없습니다', desc: '사이트 주소만 있으면 바로 시작할 수 있습니다.' }
+      : { title: '소속된 프로젝트가 없습니다', desc: 'PM에게 초대를 요청하세요.' };
 
   return (
     <div className="@container space-y-5 p-6">
@@ -198,7 +202,7 @@ export function ProjectsPage() {
             <FolderKanban className="mx-auto h-10 w-10 text-muted-foreground" />
             <h3 className="mt-4 text-[19px] font-bold text-foreground">{emptyReason.title}</h3>
             <p className="mt-2 text-[15px] text-muted-foreground">{emptyReason.desc}</p>
-            {projects.length === 0 && (
+            {projects.length === 0 && admin && (
               <Button className="mt-4" onClick={() => setDialogOpen(true)}>
                 <Plus className="h-4 w-4" />
                 프로젝트 등록

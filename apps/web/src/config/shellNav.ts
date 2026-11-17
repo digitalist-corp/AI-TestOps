@@ -31,7 +31,7 @@ export type RailItem = {
 
 export const RAIL_ITEMS: RailItem[] = [
   { to: '/projects', label: '프로젝트 목록', icon: Rows3 },
-  { to: '/runners', label: 'Runner 컨테이너', icon: Container },
+  { to: '/runners', label: 'Runner 컨테이너', icon: Container, adminOnly: true },
   { to: '/templates', label: 'Playwright 템플릿', icon: FileCode },
   { to: '/ai-settings', label: 'AI 설정 · 사용량', icon: Gauge },
   { to: '/users', label: '사용자 관리', icon: Users, adminOnly: true },

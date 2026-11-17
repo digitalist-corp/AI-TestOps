@@ -41,7 +41,8 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         String path = request.getRequestURI();
-        if (path.startsWith("/actuator") || path.equals("/api/auth/login") || path.startsWith("/api/health")) {
+        if (path.startsWith("/actuator") || path.equals("/api/auth/login")
+                || path.equals("/api/auth/signup") || path.equals("/api/auth/guest") || path.startsWith("/api/health")) {
             return true;
         }
         // /internal/** 은 사용자 로그인 토큰이 아니라 AiJob별 콜백 토큰으로 자체 인증한다

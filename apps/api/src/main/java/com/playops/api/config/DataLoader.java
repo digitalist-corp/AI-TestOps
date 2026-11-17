@@ -27,6 +27,8 @@ public class DataLoader implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
     private final String loginUsername;
     private final String loginPassword;
+    private final String guestUsername;
+    private final String guestPassword;
     private final String webPort;
 
     public DataLoader(
@@ -36,6 +38,8 @@ public class DataLoader implements CommandLineRunner {
             PasswordEncoder passwordEncoder,
             @Value("${LOGIN_USERNAME:admin}") String loginUsername,
             @Value("${LOGIN_PASSWORD:admin}") String loginPassword,
+            @Value("${GUEST_USERNAME:guest}") String guestUsername,
+            @Value("${GUEST_PASSWORD:}") String guestPassword,
             @Value("${WEB_PORT:3000}") String webPort
     ) {
         this.userRepository = userRepository;
@@ -44,6 +48,8 @@ public class DataLoader implements CommandLineRunner {
         this.passwordEncoder = passwordEncoder;
         this.loginUsername = loginUsername;
         this.loginPassword = loginPassword;
+        this.guestUsername = guestUsername;
+        this.guestPassword = guestPassword;
         this.webPort = webPort;
     }
 
@@ -62,6 +68,7 @@ public class DataLoader implements CommandLineRunner {
             userRepository.save(existingAdmin);
         }
 
+        seedGuest();
         removeObsoleteDemoProject("kakao.com");
         normalizeExistingRuntimeVersions();
 
@@ -80,6 +87,24 @@ public class DataLoader implements CommandLineRunner {
                 "AI-TestOps 배포 후 자체 회귀 테스트 (CI/CD 게이트)", true);
 
         seedSelfTestSuite();
+    }
+
+    /**
+     * "게스트로 시작"용 팀원 계정. 관리자와 분리한다 (#103).
+     * GUEST_PASSWORD 가 비어 있으면 아무도 모르는 임의 값으로 두어 게스트 버튼으로만 들어가게 한다.
+     */
+    private void seedGuest() {
+        if (guestUsername.isBlank() || guestUsername.equals(loginUsername)
+                || userRepository.findByUsername(guestUsername).isPresent()) {
+            return;
+        }
+        User guest = new User();
+        guest.setUsername(guestUsername);
+        guest.setDisplayName("게스트");
+        String password = guestPassword.isBlank() ? java.util.UUID.randomUUID().toString() : guestPassword;
+        guest.setPassword(passwordEncoder.encode(password));
+        guest.setRole(UserRole.USER);
+        userRepository.save(guest);
     }
 
     private void seedSelfTestSuite() {

@@ -8,6 +8,7 @@ import java.time.Instant;
 public record UserResponse(
         Long id,
         String username,
+        String displayName,
         UserRole role,
         boolean enabled,
         Instant createdAt,
@@ -18,6 +19,7 @@ public record UserResponse(
         return new UserResponse(
                 user.getId(),
                 user.getUsername(),
+                user.getDisplayName(),
                 user.getRole(),
                 user.isEnabled(),
                 user.getCreatedAt(),
