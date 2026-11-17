@@ -53,3 +53,26 @@ describe('ProjectFormDialog — PM 고르기', () => {
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ pmUserId: 7 });
   });
 });
+
+describe('ProjectFormDialog — 기간 · 상태 (#117)', () => {
+  it('상태 · 시작일 · 종료일을 함께 보내고, 종료일이 시작일보다 앞서면 막는다', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<ProjectFormDialog open onOpenChange={() => {}} onSubmit={onSubmit} title="프로젝트 등록" />);
+
+    fireEvent.change(screen.getByLabelText(/사이트/), { target: { value: 'https://shop.example.com' } });
+    fireEvent.change(screen.getByLabelText(/프로젝트 이름/), { target: { value: 'shop' } });
+    expect(screen.queryByRole('option', { name: 'PLANNED' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('상태'), { target: { value: 'RUNNING' } });
+    fireEvent.change(screen.getByLabelText('시작일'), { target: { value: '2026-12-01' } });
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-11-01' } });
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
+
+    expect(await screen.findByText('종료일이 시작일보다 앞설 수 없습니다.')).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-12-31' } });
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ status: 'RUNNING', startDate: '2026-12-01', endDate: '2026-12-31' });
+  });
+});

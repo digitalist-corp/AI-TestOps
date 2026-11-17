@@ -22,7 +22,8 @@ vi.mock('@/api/client', () => ({
   },
 }));
 
-const project = (projectId: string, projectName: string) => ({ projectId, projectName, dockerStatus: 'RUNNING' } as Project);
+const project = (projectId: string, projectName: string) =>
+  ({ projectId, projectName, dockerStatus: 'RUNNING', status: 'RUNNING', startDate: '2026-11-01', endDate: null } as Project);
 const row = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
   sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null, ...over,
@@ -79,6 +80,8 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
 
     expect(await screen.findByRole('heading', { name: '내가 맡은 프로젝트' })).toBeTruthy();
     expect(screen.getByText('진척률 33%')).toBeTruthy();
+    expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
+    expect(screen.getByText('2026-11-01 ~')).toBeTruthy();
     expect(screen.getByText('윤재')).toBeTruthy();
     expect(screen.getByText('민지')).toBeTruthy();
     expect(screen.getByText(/기한 지남 1건/)).toBeTruthy();
@@ -93,6 +96,7 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     expect(await screen.findByText('프로젝트 1개')).toBeTruthy();
     expect(screen.getByText('사용자 2명')).toBeTruthy();
     expect(screen.getByText('러너 1 / 2 실행 중')).toBeTruthy();
+    expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
   });
 
   it('모든 역할: 최근 공지 3개', async () => {

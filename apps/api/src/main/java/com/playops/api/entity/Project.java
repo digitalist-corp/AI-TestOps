@@ -3,6 +3,7 @@ package com.playops.api.entity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "projects")
@@ -21,6 +22,16 @@ public class Project {
     @Enumerated(EnumType.STRING)
     @Column(name = "server_type", length = 20)
     private ProjectServerType serverType = ProjectServerType.DEV;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 10)
+    private ProjectStatus status = ProjectStatus.PLANNED;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
@@ -172,6 +183,15 @@ public class Project {
 
     public ProjectServerType getServerType() { return serverType; }
     public void setServerType(ProjectServerType serverType) { this.serverType = serverType; }
+
+    public ProjectStatus getStatus() { return status; }
+    public void setStatus(ProjectStatus status) { this.status = status; }
+
+    public LocalDate getStartDate() { return startDate; }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+
+    public LocalDate getEndDate() { return endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

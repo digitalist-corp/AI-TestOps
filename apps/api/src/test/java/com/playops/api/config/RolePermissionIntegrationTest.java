@@ -180,4 +180,25 @@ class RolePermissionIntegrationTest {
         call(get("/api/notifications"), member, 200).forEach(n -> links.add(n.get("link").asText()));
         assertThat(links).contains("/notices/" + id);
     }
+
+    @Test
+    void pmSetsProjectPeriodAndStatusButTeamMemberCannot() throws Exception {
+        assertThat(call(get("/api/projects/example.com"), member, 200).get("status").asText()).isEqualTo("PLANNED");
+        assertThat(status(put("/api/projects/example.com").content("{\"status\":\"RUNNING\"}"), member)).isEqualTo(403);
+
+        call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
+        JsonNode saved = call(put("/api/projects/example.com")
+                .content("{\"status\":\"RUNNING\",\"startDate\":\"2026-11-01\",\"endDate\":\"2026-12-01\"}"), member, 200);
+        assertThat(saved.get("status").asText()).isEqualTo("RUNNING");
+        assertThat(saved.get("startDate").asText()).isEqualTo("2026-11-01");
+        assertThat(saved.get("endDate").asText()).isEqualTo("2026-12-01");
+
+        // 시작일만 바꿔도 남아 있는 종료일과 비교한다
+        assertThat(status(put("/api/projects/example.com").content("{\"startDate\":\"2026-12-02\"}"), member)).isEqualTo(400);
+        assertThat(status(put("/api/projects/example.com").content("{\"endDate\":\"12월\"}"), member)).isEqualTo(400);
+
+        JsonNode cleared = call(put("/api/projects/example.com").content("{\"endDate\":\"\"}"), member, 200);
+        assertThat(cleared.get("endDate").isNull()).isTrue();
+        assertThat(cleared.get("startDate").asText()).isEqualTo("2026-11-01");
+    }
 }

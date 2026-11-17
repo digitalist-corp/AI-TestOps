@@ -5,7 +5,7 @@ import { api } from '@/api/client';
 import type { Notice, PlanItem, Project } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
-import { isRunnerReady } from '@/components/project/ProjectCard';
+import { ProjectStatusChip, isRunnerReady, projectPeriod } from '@/components/project/ProjectCard';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { useAccess } from '@/lib/access';
 import { byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
@@ -30,6 +30,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Tile({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-border bg-card px-5 py-4 text-[17px] font-bold text-foreground">{children}</div>;
+}
+
+/** 상태 배지 + 기간 (#117) */
+function StatusAndPeriod({ project }: { project: Project }) {
+  return (
+    <span className="flex shrink-0 items-center gap-2 text-[13px] text-muted-foreground">
+      <ProjectStatusChip status={project.status ?? 'PLANNED'} />
+      {projectPeriod(project) && <span>{projectPeriod(project)}</span>}
+    </span>
+  );
 }
 
 function ProgressBar({ value }: { value: number }) {
@@ -157,9 +167,12 @@ export function HomePage() {
               const items = plans[p.projectId];
               return (
                 <li key={p.projectId} className="grid grid-cols-[minmax(0,1fr)_200px_80px] items-center gap-4 px-5 py-3">
-                  <Link to={projectTabPath(p.projectId, 'dashboard')} className="truncate font-medium text-foreground hover:underline">
-                    {p.projectName}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Link to={projectTabPath(p.projectId, 'dashboard')} className="truncate font-medium text-foreground hover:underline">
+                      {p.projectName}
+                    </Link>
+                    <StatusAndPeriod project={p} />
+                  </div>
                   <ProgressBar value={items ? progressOf(items) : 0} />
                   <span className="text-right text-sm text-muted-foreground">{items ? `${progressOf(items)}%` : '-'}</span>
                 </li>
@@ -177,9 +190,12 @@ export function HomePage() {
             return (
               <div key={p.projectId} className="space-y-4 rounded-xl border border-border bg-card p-5">
                 <div className="flex items-center justify-between gap-4">
-                  <Link to={projectTabPath(p.projectId, 'plan')} className="text-[17px] font-bold text-foreground hover:underline">
-                    {p.projectName}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Link to={projectTabPath(p.projectId, 'plan')} className="truncate text-[17px] font-bold text-foreground hover:underline">
+                      {p.projectName}
+                    </Link>
+                    <StatusAndPeriod project={p} />
+                  </div>
                   <span className="text-sm font-medium text-foreground">진척률 {progressOf(items)}%</span>
                 </div>
                 <ProgressBar value={progressOf(items)} />
@@ -232,9 +248,10 @@ export function HomePage() {
               const counts = planCounts(items);
               return (
                 <li key={p.projectId} className="flex items-center gap-4 px-5 py-3">
-                  <Link to={projectTabPath(p.projectId, 'plan')} className="min-w-0 flex-1 truncate font-medium text-foreground hover:underline">
+                  <Link to={projectTabPath(p.projectId, 'plan')} className="min-w-0 truncate font-medium text-foreground hover:underline">
                     {p.projectName}
                   </Link>
+                  <span className="flex-1"><StatusAndPeriod project={p} /></span>
                   <span className="text-sm text-muted-foreground">
                     성공 {counts.passed} · 실패 {counts.failed} · 미수행 {counts.notRun}
                   </span>

@@ -2,6 +2,7 @@ package com.playops.api.dto;
 
 import com.playops.api.entity.PackageManager;
 import com.playops.api.entity.ProjectServerType;
+import com.playops.api.entity.ProjectStatus;
 import com.playops.api.entity.RunnerLifecycle;
 
 public record ProjectRequest(
@@ -41,5 +42,9 @@ public record ProjectRequest(
         String sourceRepositoryToken,
         Long version,
         // 등록할 때만 쓴다: 이 프로젝트의 PM. 비우면 등록한 관리자가 PM 이 된다 (#104).
-        Long pmUserId
+        Long pmUserId,
+        // 기간 · 상태(#117). 날짜는 "YYYY-MM-DD", null 이면 값 유지, ""(빈 문자열)이면 비움.
+        ProjectStatus status,
+        String startDate,
+        String endDate
 ) {}

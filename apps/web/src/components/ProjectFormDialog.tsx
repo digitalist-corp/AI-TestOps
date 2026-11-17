@@ -17,7 +17,7 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
-import type { PlaywrightTemplate, Project, ProjectFormData, SiteCheckResult } from '@/types';
+import type { PlaywrightTemplate, Project, ProjectFormData, ProjectStatus, SiteCheckResult } from '@/types';
 import { DEFAULT_PROJECT_FORM } from '@/types';
 import { api } from '@/api/client';
 import { useAiEnabled } from '@/lib/aiEnabled';
@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
-import { cn } from '@/lib/utils';
+import { cn, projectStatusLabel } from '@/lib/utils';
 import {
   EnvEntry,
   isSecretEnvKey,
@@ -283,6 +283,9 @@ export function ProjectFormDialog({
         projectName: initial.projectName,
         displayOrder: initial.displayOrder ?? 0,
         serverType: initial.serverType ?? 'DEV',
+        status: initial.status ?? 'PLANNED',
+        startDate: initial.startDate ?? '',
+        endDate: initial.endDate ?? '',
         description: initial.description ?? '',
         testPurpose: initial.testPurpose ?? '',
         managerName: initial.managerName ?? '',
@@ -430,6 +433,11 @@ export function ProjectFormDialog({
       setLoading(false);
       return;
     }
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      setError('종료일이 시작일보다 앞설 수 없습니다.');
+      setLoading(false);
+      return;
+    }
     const executionEnvError = validateExecutionEnvironment(form);
     if (executionEnvError) {
       setError(executionEnvError);
@@ -560,6 +568,30 @@ export function ProjectFormDialog({
                   onChange={(e) => update('managerName', e.target.value)}
                   placeholder="이름"
                 />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="projectStatus">상태</Label>
+                  <select
+                    id="projectStatus"
+                    className={selectClass}
+                    value={form.status}
+                    onChange={(e) => update('status', e.target.value as ProjectStatus)}
+                  >
+                    {(Object.keys(projectStatusLabel) as ProjectStatus[]).map((s) => (
+                      <option key={s} value={s}>{projectStatusLabel[s]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">시작일</Label>
+                  <Input id="startDate" type="date" value={form.startDate} onChange={(e) => update('startDate', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">종료일</Label>
+                  <Input id="endDate" type="date" value={form.endDate} onChange={(e) => update('endDate', e.target.value)} />
+                </div>
               </div>
 
               {!initial && pmCandidates && (

@@ -29,6 +29,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -554,6 +556,19 @@ public class ProjectService {
         if (request.serverType() != null) {
             project.setServerType(request.serverType());
         }
+        if (request.status() != null) {
+            project.setStatus(request.status());
+        }
+        if (request.startDate() != null) {
+            project.setStartDate(parseDate(request.startDate()));
+        }
+        if (request.endDate() != null) {
+            project.setEndDate(parseDate(request.endDate()));
+        }
+        if (project.getStartDate() != null && project.getEndDate() != null
+                && project.getEndDate().isBefore(project.getStartDate())) {
+            throw new ApiException(400, "VALIDATION_ERROR", "종료일이 시작일보다 앞설 수 없습니다.");
+        }
         if (request.description() != null) {
             project.setDescription(request.description());
         }
@@ -738,6 +753,18 @@ public class ProjectService {
             }
         } catch (URISyntaxException e) {
             throw new ApiException(400, "Base URL is invalid");
+        }
+    }
+
+    /** "" 이면 비움 */
+    private static LocalDate parseDate(String value) {
+        if (value.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(value.trim());
+        } catch (DateTimeParseException e) {
+            throw new ApiException(400, "VALIDATION_ERROR", "날짜는 YYYY-MM-DD 형식이어야 합니다.");
         }
     }
 

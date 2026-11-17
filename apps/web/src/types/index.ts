@@ -4,12 +4,18 @@ export type RunnerActivity = 'IDLE' | 'TESTING' | 'UNAVAILABLE';
 export type RunnerLifecycle = 'PERSISTENT' | 'EPHEMERAL';
 export type UserRole = 'ADMIN' | 'USER';
 export type ProjectServerType = 'DEV' | 'TEST' | 'PROD';
+/** 프로젝트 상태 (#117): 계획 · 실행 · 종료 */
+export type ProjectStatus = 'PLANNED' | 'RUNNING' | 'CLOSED';
 
 export interface Project {
   projectId: string;
   projectName: string;
   displayOrder: number;
   serverType: ProjectServerType;
+  status: ProjectStatus;
+  /** YYYY-MM-DD */
+  startDate: string | null;
+  endDate: string | null;
   description: string | null;
   testPurpose: string | null;
   managerName: string | null;
@@ -187,6 +193,10 @@ export interface ProjectFormData {
   projectName: string;
   displayOrder: number;
   serverType: ProjectServerType;
+  status: ProjectStatus;
+  /** YYYY-MM-DD, 비우면 서버에서도 비운다 */
+  startDate: string;
+  endDate: string;
   description: string;
   testPurpose: string;
   managerName: string;
@@ -497,6 +507,9 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   projectName: '',
   displayOrder: 0,
   serverType: 'DEV',
+  status: 'PLANNED',
+  startDate: '',
+  endDate: '',
   description: '',
   testPurpose: '',
   managerName: '',

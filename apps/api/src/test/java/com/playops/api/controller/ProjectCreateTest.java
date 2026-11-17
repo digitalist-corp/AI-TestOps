@@ -47,7 +47,7 @@ class ProjectCreateTest {
     private static ProjectRequest request(Long pmUserId) {
         return new ProjectRequest("shop", "쇼핑몰", null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, false, null, null, null,
-                null, null, null, null, pmUserId);
+                null, null, null, null, pmUserId, null, null, null);
     }
 
     @Test

@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { ExecutionStatus } from '@/types';
+import type { ExecutionStatus, ProjectStatus } from '@/types';
 
 export const executionStatusLabel: Record<ExecutionStatus, string> = {
   SCHEDULED: '예약됨',
@@ -11,6 +11,12 @@ export const executionStatusLabel: Record<ExecutionStatus, string> = {
   PASSED: '성공',
   FAILED: '실패',
   ERROR: '오류',
+};
+
+export const projectStatusLabel: Record<ProjectStatus, string> = {
+  PLANNED: '계획',
+  RUNNING: '실행',
+  CLOSED: '종료',
 };
 
 /** 실행에 걸린 시간. "2분 44초", 1분 미만은 "44초". 값이 없으면 빈 문자열. */

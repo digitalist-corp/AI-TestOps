@@ -6,17 +6,22 @@ import com.playops.api.entity.ExecutionStatus;
 import com.playops.api.entity.PackageManager;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.ProjectServerType;
+import com.playops.api.entity.ProjectStatus;
 import com.playops.api.entity.RunnerActivity;
 import com.playops.api.entity.RunnerLifecycle;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 public record ProjectResponse(
         String projectId,
         String projectName,
         Integer displayOrder,
         ProjectServerType serverType,
+        ProjectStatus status,
+        LocalDate startDate,
+        LocalDate endDate,
         String description,
         String testPurpose,
         String managerName,
@@ -84,6 +89,9 @@ public record ProjectResponse(
                 project.getProjectName(),
                 project.getDisplayOrder(),
                 project.getServerType(),
+                project.getStatus(),
+                project.getStartDate(),
+                project.getEndDate(),
                 project.getDescription(),
                 project.getTestPurpose(),
                 project.getManagerName(),
