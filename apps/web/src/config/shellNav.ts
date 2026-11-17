@@ -1,11 +1,11 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  ClipboardList,
   Container,
+  Download,
   FileCode,
   Gauge,
-  GitBranch,
   LayoutDashboard,
-  Network,
   Play,
   Rows3,
   Settings,
@@ -37,7 +37,7 @@ export const RAIL_ITEMS: RailItem[] = [
   { to: '/users', label: '사용자 관리', icon: Users, adminOnly: true },
 ];
 
-export type WorkspaceGroupId = 'dashboard' | 'structure' | 'scenarios' | 'runs' | 'settings' | 'ai';
+export type WorkspaceGroupId = 'input' | 'plan' | 'runs' | 'dashboard' | 'settings' | 'ai';
 
 export type WorkspaceGroup = {
   id: WorkspaceGroupId;
@@ -50,11 +50,11 @@ export type WorkspaceGroup = {
 };
 
 export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
+  { id: 'input', label: '입력', icon: Download, tabs: ['input'] },
+  { id: 'plan', label: '계획', icon: ClipboardList, tabs: ['plan', 'scenarios', 'recorder', 'structure'] },
+  { id: 'runs', label: '실행', icon: Play, tabs: ['runs', 'results', 'schedules'] },
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, tabs: ['dashboard'] },
-  { id: 'structure', label: '구조', icon: Network, tabs: ['structure'] },
-  { id: 'scenarios', label: '테스트', icon: GitBranch, tabs: ['scenarios', 'recorder'] },
-  { id: 'runs', label: '실행', icon: Play, tabs: ['runs', 'results'] },
-  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'schedules', 'source'] },
+  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'source'] },
   { id: 'ai', label: 'AI', icon: Sparkles, tabs: ['ai-generate', 'ai-analysis', 'ai-review'], aiOnly: true },
 ];
 

@@ -1,6 +1,8 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
+  ClipboardList,
+  Download,
   CalendarClock,
   Container,
   LayoutDashboard,
@@ -14,6 +16,8 @@ import {
 } from 'lucide-react';
 
 export type ProjectTabId =
+  | 'input'
+  | 'plan'
   | 'dashboard'
   | 'source'
   | 'structure'
@@ -34,6 +38,18 @@ export const PROJECT_WORKSPACE_TABS: {
   icon: LucideIcon;
 }[] = [
   {
+    id: 'input',
+    label: '입력',
+    description: '저장소를 연결하고 코드·사이트에서 화면을 찾기',
+    icon: Download,
+  },
+  {
+    id: 'plan',
+    label: '계획',
+    description: '테스트 계획 표 — 담당자·마감일·우선순위·실행 대상',
+    icon: ClipboardList,
+  },
+  {
     id: 'dashboard',
     label: '대시보드',
     description: '요약 · 추이 · 최근 실행',
@@ -47,8 +63,8 @@ export const PROJECT_WORKSPACE_TABS: {
   },
   {
     id: 'structure',
-    label: '구조',
-    description: '저장소 코드에서 찾은 화면',
+    label: '맵 보기',
+    description: '찾은 화면과 테스트가 지나는 길',
     icon: Network,
   },
   {
