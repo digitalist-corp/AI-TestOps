@@ -1,12 +1,16 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 
 /**
  * 관리자가 등록하는 플랫폼 공용 AI 공급자 키. 항상 단일 row(id=1)만 존재한다.
  */
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "ai_provider_settings")
 public class AiProviderSettings {
 
@@ -55,6 +59,10 @@ public class AiProviderSettings {
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -106,4 +114,5 @@ public class AiProviderSettings {
     public void setVersion(Long version) { this.version = version != null ? version : 0L; }
 
     public Instant getUpdatedAt() { return updatedAt; }
+    public Long getUpdatedBy() { return updatedBy; }
 }

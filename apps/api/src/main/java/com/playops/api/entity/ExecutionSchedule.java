@@ -1,6 +1,9 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 
 /**
@@ -9,6 +12,7 @@ import java.time.Instant;
  * 코드 접근 권한도 필요 없는 훨씬 작은 신뢰 경계다 (docs/ai-integration-architecture.md의 결정과 동일 원칙).
  */
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "execution_schedules")
 public class ExecutionSchedule {
 
@@ -63,8 +67,13 @@ public class ExecutionSchedule {
     @Column(name = "last_triggered_at")
     private Instant lastTriggeredAt;
 
+    @CreatedBy
     @Column(name = "created_by")
     private Long createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -136,6 +145,7 @@ public class ExecutionSchedule {
     public void setLastTriggeredAt(Instant lastTriggeredAt) { this.lastTriggeredAt = lastTriggeredAt; }
 
     public Long getCreatedBy() { return createdBy; }
+    public Long getUpdatedBy() { return updatedBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 
     public Long getVersion() { return version != null ? version : 0L; }

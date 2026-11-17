@@ -1,17 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Container, RefreshCw, Save, Server, Settings2, Trash2, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
-import type { DockerHostResource, DockerStatus, Project, RunnerCapacity, RunnerCapacityFormData, RunnerContainer } from '@/types';
+import type { DockerHostResource, DockerStatus, RunnerCapacity, RunnerCapacityFormData, RunnerContainer } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { cn } from '@/lib/utils';
+import { cn, dockerStatusLabel, projectStatusLabel } from '@/lib/utils';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
-
-const dockerStatusLabel: Record<DockerStatus, string> = {
-  RUNNING: '실행 중',
-  STOPPED: '중지',
-  ERROR: '오류',
-  NOT_CONFIGURED: '미설정',
-};
 
 const dockerStatusColor: Record<DockerStatus, string> = {
   RUNNING: 'bg-success/10 text-success',
@@ -20,18 +13,12 @@ const dockerStatusColor: Record<DockerStatus, string> = {
   NOT_CONFIGURED: 'bg-muted text-muted-foreground',
 };
 
-const serverTypeLabel: Record<Project['serverType'], string> = {
-  DEV: '개발',
-  TEST: '테스트',
-  PROD: '운영',
-};
-
 const containerTypeLabel: Record<string, string> = {
   DB: 'DB',
   PLAYOPS: 'AI-TestOps',
-  RUNNER: 'Runner',
-  BUILD: 'Build',
-  OTHER: 'Other',
+  RUNNER: '러너',
+  BUILD: '빌드',
+  OTHER: '기타',
 };
 
 const containerTypeColor: Record<string, string> = {
@@ -448,15 +435,15 @@ export function RunnerContainersPage() {
           <thead className="bg-muted text-muted-foreground">
             <tr>
               <th className="w-10 px-3 py-2"></th>
-              <th className="px-3 py-2">Container</th>
-              <th className="px-3 py-2">Type</th>
-              <th className="px-3 py-2">Project</th>
+              <th className="px-3 py-2">컨테이너</th>
+              <th className="px-3 py-2">종류</th>
+              <th className="px-3 py-2">프로젝트</th>
               <th className="px-3 py-2">상태</th>
               <th className="px-3 py-2">CPU</th>
-              <th className="px-3 py-2">Memory</th>
+              <th className="px-3 py-2">메모리</th>
               <th className="px-3 py-2">I/O</th>
               <th className="px-3 py-2">생성 / 사용시간</th>
-              <th className="px-3 py-2">Image</th>
+              <th className="px-3 py-2">이미지</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -491,7 +478,7 @@ export function RunnerContainersPage() {
                 </td>
                 <td className="px-3 py-2">
                   <div className="font-mono">{container.projectId || '-'}</div>
-                  <div className="text-[11px] text-muted-foreground">{container.serverType ? serverTypeLabel[container.serverType] : ''}</div>
+                  <div className="text-[11px] text-muted-foreground">{container.projectStatus ? projectStatusLabel[container.projectStatus] : ''}</div>
                 </td>
                 <td className="px-3 py-2">
                   <span className={cn('inline-flex whitespace-nowrap rounded-full px-2 py-0.5 font-medium', dockerStatusColor[container.dockerStatus])}>

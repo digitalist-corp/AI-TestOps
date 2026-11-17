@@ -91,6 +91,11 @@ public class NotificationService {
                 "/projects/" + project.getProjectId() + "/runs?execution=" + executionId, project.getProjectId());
     }
 
+    /** 관리자가 새 공지를 올렸을 때 (#116). 누르면 그 공지로 간다. */
+    public void noticePosted(Long noticeId, String title) {
+        notifyAll("NOTICE", "INFO", "새 공지", title, "/notices/" + noticeId, null);
+    }
+
     private void notifyAll(String kind, String level, String title, String message, String link, String projectId) {
         try {
             List<Notification> rows = new ArrayList<>();

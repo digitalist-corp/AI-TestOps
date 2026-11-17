@@ -16,13 +16,13 @@ vi.mock('@/api/client', () => ({
     getScenarios: vi.fn(),
     runTests: vi.fn(),
     startDocker: vi.fn(),
+    plan: { get: vi.fn() },
   },
 }));
 
 const project = {
   projectId: 'shop',
   projectName: '쇼핑몰',
-  serverType: 'DEV',
   dockerStatus: 'RUNNING',
   dockerEnabled: true,
   runnerLifecycle: 'PERSISTENT',
@@ -32,6 +32,9 @@ const project = {
   envVariables: '{}',
   loginEnvRequired: false,
   latestExecutionStatus: null,
+  status: 'RUNNING',
+  startDate: '2026-11-01',
+  endDate: '2026-12-01',
 } as unknown as Project;
 
 const tree: ScenarioTree = {
@@ -55,6 +58,7 @@ beforeEach(() => {
   vi.mocked(api.getProjects).mockResolvedValue([project]);
   vi.mocked(api.getRunningAnalyses).mockResolvedValue([]);
   vi.mocked(api.getScenarios).mockResolvedValue(tree);
+  vi.mocked(api.plan.get).mockResolvedValue({ items: [], summary: { completionRate: 0.4 } } as never);
   vi.mocked(api.runTests).mockReset();
   vi.mocked(confirmPlaywrightVersion).mockResolvedValue(true);
 });
@@ -99,5 +103,32 @@ describe('ProjectsPage — 소속 프로젝트가 없는 팀원', () => {
 
     expect(await screen.findByText('PM에게 초대를 요청하세요.')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /프로젝트 등록/ })).toBeNull();
+  });
+});
+
+describe('ProjectsPage — 상태 · 기간 · 진척률 (#117)', () => {
+  it('카드에 상태 · 기간 · 진척률을 한글로 보인다', async () => {
+    await renderPage();
+
+    expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
+    expect(screen.getByText('2026-11-01 ~ 2026-12-01')).toBeTruthy();
+    expect(await screen.findByText('진척률 40%')).toBeTruthy();
+    expect(screen.queryByText('RUNNING')).toBeNull();
+  });
+
+  it('종료된 프로젝트는 기본으로 숨기고, 상태로 거를 수 있다', async () => {
+    vi.mocked(api.getProjects).mockResolvedValue([
+      project,
+      { ...project, projectId: 'old', projectName: '지난 사업', status: 'CLOSED' } as Project,
+      { ...project, projectId: 'next', projectName: '다음 사업', status: 'PLANNED' } as Project,
+    ]);
+    await renderPage();
+
+    expect(screen.queryByRole('heading', { name: '지난 사업' })).toBeNull();
+    expect(screen.getByRole('heading', { name: '다음 사업' })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('상태로 거르기'), { target: { value: 'CLOSED' } });
+    expect(screen.getByRole('heading', { name: '지난 사업' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: '쇼핑몰' })).toBeNull();
   });
 });

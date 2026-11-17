@@ -188,6 +188,16 @@ export const api = {
       request<void>(`/api/projects/${projectId}/members/${userId}`, { method: 'DELETE' }),
   },
 
+  /** 공지사항 (#116). 읽기는 누구나, 쓰기는 관리자 */
+  notices: {
+    list: () => request<import('@/types').Notice[]>('/api/notices'),
+    create: (data: import('@/types').NoticeRequest) =>
+      request<import('@/types').Notice>('/api/notices', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: number, data: import('@/types').NoticeRequest) =>
+      request<import('@/types').Notice>(`/api/notices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: number) => request<void>(`/api/notices/${id}`, { method: 'DELETE' }),
+  },
+
   getServiceHealth: () =>
     request<ServiceHealth>('/api/health/services', { auth: false }),
 

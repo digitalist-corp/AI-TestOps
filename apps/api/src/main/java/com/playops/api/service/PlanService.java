@@ -1,5 +1,6 @@
 package com.playops.api.service;
 
+import com.playops.api.dto.MemberDtos.Member;
 import com.playops.api.dto.PlanDtos.ItemKey;
 import com.playops.api.dto.PlanDtos.ItemPatch;
 import com.playops.api.dto.PlanDtos.PlanItem;
@@ -37,15 +38,18 @@ public class PlanService {
     private final ScenarioCaseSettingRepository settingRepository;
     private final ExecutionCaseResultRepository caseResultRepository;
     private final ProjectService projectService;
+    private final ProjectMemberService memberService;
 
     public PlanService(PlaywrightScenarioService scenarioService,
                        ScenarioCaseSettingRepository settingRepository,
                        ExecutionCaseResultRepository caseResultRepository,
-                       ProjectService projectService) {
+                       ProjectService projectService,
+                       ProjectMemberService memberService) {
         this.scenarioService = scenarioService;
         this.settingRepository = settingRepository;
         this.caseResultRepository = caseResultRepository;
         this.projectService = projectService;
+        this.memberService = memberService;
     }
 
     public PlanResponse get(String projectId) {
@@ -54,6 +58,7 @@ public class PlanService {
             if (TEST.equals(s.getNodeType())) settings.put(key(s.getSpecPath(), s.getGrepFilter()), s);
         }
         // ponytail: 프로젝트의 모든 케이스 결과를 읽는다. 이력이 수만 건이 되면 케이스별 마지막 결과만 고르는 쿼리로 바꾼다.
+        Map<Long, String> names = memberService.namesOf(settings.values().stream().map(ScenarioCaseSetting::getUpdatedBy).toList());
         Map<String, List<ExecutionCaseResult>> results =
                 byLeaf(caseResultRepository.findEarlierInProject(projectId, Long.MAX_VALUE));
 
@@ -64,10 +69,13 @@ public class PlanService {
                     item.enabled(), item.parentEnabled(),
                     s != null ? s.getSortOrder() : null,
                     s != null ? s.getAssignee() : null,
+                    s != null ? s.getAssigneeUserId() : null,
                     s != null ? s.getDueDate() : null,
                     s != null ? s.getPriority() : null,
                     r != null ? r.getStatus() : null,
-                    r != null ? r.getCreatedAt() : null);
+                    r != null ? r.getCreatedAt() : null,
+                    s != null && s.getUpdatedBy() != null ? names.get(s.getUpdatedBy()) : null,
+                    s != null ? s.getUpdatedAt() : null);
         }).toList();
         items = sort(items);
         return new PlanResponse(items, summarize(items));
@@ -83,8 +91,15 @@ public class PlanService {
             throw new ApiException(400, "담당자는 100자까지 쓸 수 있습니다.");
         }
         projectService.getProject(projectId);
+        if (patch.assigneeUserId() != null) {
+            Member member = memberService.list(projectId).stream()
+                    .filter(m -> m.userId().equals(patch.assigneeUserId())).findFirst()
+                    .orElseThrow(() -> new ApiException(400, "VALIDATION_ERROR", "담당자는 이 프로젝트의 멤버 중에서 고르세요."));
+            assignee = member.displayName() != null && !member.displayName().isBlank() ? member.displayName() : member.username();
+        }
         ScenarioCaseSetting s = row(projectId, patch.specPath(), patch.grep());
         if (patch.enabled() != null) s.setEnabled(patch.enabled());
+        s.setAssigneeUserId(patch.assigneeUserId());
         s.setAssignee(assignee);
         s.setDueDate(patch.dueDate());
         s.setPriority(priority);
@@ -154,7 +169,7 @@ public class PlanService {
             boolean on = enabled && n.enabled();
             if (TEST.equals(n.type())) {
                 out.add(new PlanItem(spec, n.grep(), n.title(), String.join(" > ", describes), n.line(), on, enabled,
-                        null, null, null, null, null, null));
+                        null, null, null, null, null, null, null, null, null));
             } else {
                 List<String> next = new ArrayList<>(describes);
                 next.add(n.title());

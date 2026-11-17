@@ -1,6 +1,9 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 
 /**
@@ -8,6 +11,7 @@ import java.time.Instant;
  * (AiProviderSettings와 동일 패턴 — 단일 조직 내부 툴 전제, 프로젝트/사용자별 채널 분리 없음).
  */
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "slack_settings")
 public class SlackSettings {
 
@@ -16,6 +20,10 @@ public class SlackSettings {
 
     @Column(name = "webhook_url_encrypted", columnDefinition = "TEXT")
     private String webhookUrlEncrypted;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
@@ -32,4 +40,5 @@ public class SlackSettings {
     public void setWebhookUrlEncrypted(String webhookUrlEncrypted) { this.webhookUrlEncrypted = webhookUrlEncrypted; }
 
     public Instant getUpdatedAt() { return updatedAt; }
+    public Long getUpdatedBy() { return updatedBy; }
 }

@@ -34,7 +34,7 @@ import {
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { confirmFullRun } from '@/lib/runConfirm';
 import { useAiEnabled } from '@/lib/aiEnabled';
-import { cn } from '@/lib/utils';
+import { cn, executionStatusLabel, formatRelative } from '@/lib/utils';
 import {
   DEFAULT_PROJECT_TAB,
   isValidProjectTab,
@@ -725,7 +725,7 @@ export function ProjectDetailPage() {
                   >
                     {executions.map((ex) => (
                       <option key={ex.id} value={ex.id}>
-                        #{ex.id} · {ex.caseTitle ?? ex.grepFilter ?? '전체'} · {ex.status}
+                        #{ex.id} · {ex.caseTitle ?? ex.grepFilter ?? '전체'} · {executionStatusLabel[ex.status]}
                       </option>
                     ))}
                   </select>
@@ -802,11 +802,12 @@ export function ProjectDetailPage() {
                     ['연락처', project.managerContact ?? '-'],
                     ['Node', project.nodeVersion],
                     ['Playwright', project.playwrightVersion],
-                    ['PM', project.packageManager],
-                    ['Test', project.testCommand],
+                    ['패키지 관리자', project.packageManager.toLowerCase()],
+                    ['테스트 명령', project.testCommand],
                     ['사이트', project.baseUrl ?? '-'],
-                    ['Runner lifecycle', project.runnerLifecycle === 'EPHEMERAL' ? 'Ephemeral' : 'Persistent'],
-                    ['테스트 계정 env', project.loginEnvRequired ? '필수' : '선택'],
+                    ['러너 방식', project.runnerLifecycle === 'EPHEMERAL' ? '일회용' : '상주'],
+                    ['테스트 계정 환경변수', project.loginEnvRequired ? '필수' : '선택'],
+                    ['최근 수정', [project.updatedByName, formatRelative(project.updatedAt)].filter(Boolean).join(' · ') || '-'],
                   ].map(([k, v]) => (
                     <div key={k}>
                       <dt className="text-muted-foreground text-xs">{k}</dt>

@@ -51,6 +51,9 @@ class RolePermissionIntegrationTest {
     @Autowired
     com.playops.api.repository.SiteAnalysisRunRepository analysisRuns;
 
+    @Autowired
+    com.playops.api.repository.ScenarioCaseSettingRepository planRows;
+
     private static int signups;
     private String admin;
     private String member;
@@ -60,7 +63,7 @@ class RolePermissionIntegrationTest {
         if (token != null) req.header("Authorization", "Bearer " + token);
         var res = mvc.perform(req.contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse();
         assertThat(res.getStatus()).as(res.getContentAsString()).isEqualTo(expectStatus);
-        String body = res.getContentAsString();
+        String body = res.getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
         return body.isBlank() ? null : json.readTree(body);
     }
 
@@ -162,5 +165,76 @@ class RolePermissionIntegrationTest {
         call(get("/api/sitemap/running"), member, 200).forEach(r -> ids.add(r.get("projectId").asText()));
 
         assertThat(ids).contains("example.com").doesNotContain("google.com");
+    }
+
+    @Test
+    void onlyAdminsWriteNoticesAndEveryoneIsNotified() throws Exception {
+        assertThat(status(post("/api/notices").content("{\"title\":\"팀원 공지\",\"content\":\"x\"}"), member)).isEqualTo(403);
+
+        JsonNode notice = call(post("/api/notices").content("{\"title\":\"점검 안내\",\"content\":\"11/20 점검\"}"), admin, 200);
+        long id = notice.get("id").asLong();
+
+        assertThat(status(put("/api/notices/" + id).content("{\"title\":\"x\",\"content\":\"y\"}"), member)).isEqualTo(403);
+        assertThat(status(delete("/api/notices/" + id), member)).isEqualTo(403);
+        List<String> titles = new ArrayList<>();
+        call(get("/api/notices"), member, 200).forEach(n -> titles.add(n.get("title").asText()));
+        assertThat(titles).contains("점검 안내");
+        List<String> links = new ArrayList<>();
+        call(get("/api/notifications"), member, 200).forEach(n -> links.add(n.get("link").asText()));
+        assertThat(links).contains("/notices/" + id);
+    }
+
+    @Test
+    void pmSetsProjectPeriodAndStatusButTeamMemberCannot() throws Exception {
+        assertThat(call(get("/api/projects/example.com"), member, 200).get("status").asText()).isEqualTo("PLANNED");
+        assertThat(status(put("/api/projects/example.com").content("{\"status\":\"RUNNING\"}"), member)).isEqualTo(403);
+
+        call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
+        JsonNode saved = call(put("/api/projects/example.com")
+                .content("{\"status\":\"RUNNING\",\"startDate\":\"2026-11-01\",\"endDate\":\"2026-12-01\"}"), member, 200);
+        assertThat(saved.get("status").asText()).isEqualTo("RUNNING");
+        assertThat(saved.get("startDate").asText()).isEqualTo("2026-11-01");
+        assertThat(saved.get("endDate").asText()).isEqualTo("2026-12-01");
+
+        // 시작일만 바꿔도 남아 있는 종료일과 비교한다
+        assertThat(status(put("/api/projects/example.com").content("{\"startDate\":\"2026-12-02\"}"), member)).isEqualTo(400);
+        assertThat(status(put("/api/projects/example.com").content("{\"endDate\":\"12월\"}"), member)).isEqualTo(400);
+
+        JsonNode cleared = call(put("/api/projects/example.com").content("{\"endDate\":\"\"}"), member, 200);
+        assertThat(cleared.get("endDate").isNull()).isTrue();
+        assertThat(cleared.get("startDate").asText()).isEqualTo("2026-11-01");
+    }
+
+    @Test
+    void planRowAndProjectRememberWhoChangedThemLast() throws Exception {
+        call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
+        String row = "{\"specPath\":\"tests/audit.spec.ts\",\"grep\":\"감사\",\"assignee\":\"나\"}";
+        assertThat(status(patch("/api/projects/example.com/plan/items").content(row), member)).isEqualTo(204);
+
+        var saved = planRows.findByProjectIdAndNodeTypeAndSpecPathAndGrepFilter("example.com", "TEST", "tests/audit.spec.ts", "감사").orElseThrow();
+        assertThat(saved.getCreatedBy()).isEqualTo(memberId);
+        assertThat(saved.getUpdatedBy()).isEqualTo(memberId);
+
+        long adminId = call(get("/api/auth/me"), admin, 200).get("id").asLong();
+        assertThat(status(patch("/api/projects/example.com/plan/items").content(row.replace("나", "관리자")), admin)).isEqualTo(204);
+        saved = planRows.findById(saved.getId()).orElseThrow();
+        assertThat(saved.getCreatedBy()).isEqualTo(memberId);
+        assertThat(saved.getUpdatedBy()).isEqualTo(adminId);
+
+        JsonNode project = call(put("/api/projects/example.com").content("{\"description\":\"감사 확인\"}"), member, 200);
+        assertThat(project.get("updatedBy").asLong()).isEqualTo(memberId);
+        assertThat(project.get("updatedByName").asText()).isEqualTo("팀원");
+    }
+
+    @Test
+    void newProjectsGetASequentialIdUnrelatedToTheirName() throws Exception {
+        String body = "{\"projectId\":\"shop\",\"projectName\":\"%s\",\"baseUrl\":\"https://shop.example.com\",\"scaffoldOnCreate\":false}";
+        String first = call(post("/api/projects").content(body.formatted("쇼핑몰 결제")), admin, 200).get("projectId").asText();
+        String second = call(post("/api/projects").content(body.formatted("shop")), admin, 200).get("projectId").asText();
+
+        assertThat(first).matches("P\\d{4,}");
+        assertThat(second).matches("P\\d{4,}");
+        assertThat(Integer.parseInt(second.substring(1))).isEqualTo(Integer.parseInt(first.substring(1)) + 1);
+        assertThat(projectIds(admin)).contains(first, second).doesNotContain("shop");
     }
 }

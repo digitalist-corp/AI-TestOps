@@ -6,20 +6,13 @@ import {
   SlidersHorizontal,
   TriangleAlert,
 } from 'lucide-react';
-import type { DockerStatus, ExecutionStatus, Project, RunnerActivity, RunningAnalysis } from '@/types';
+import type { ExecutionStatus, Project, ProjectStatus, RunnerActivity, RunningAnalysis } from '@/types';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
-import { cn, executionStatusLabel, formatDuration, formatRelative } from '@/lib/utils';
+import { cn, dockerStatusLabel, executionStatusLabel, formatDuration, formatRelative, projectStatusLabel } from '@/lib/utils';
 import { resolveEnvRequirementState, ENV_ASK_PM } from '@/lib/envVariables';
 import { parseRunProgress } from '@/lib/runProgress';
 import { useExecutionLogStream } from '@/components/project/ExecutionLogPanel';
-
-const dockerStatusLabel: Record<DockerStatus, string> = {
-  RUNNING: '실행 중',
-  STOPPED: '중지',
-  ERROR: '오류',
-  NOT_CONFIGURED: '미설정',
-};
 
 const runnerActivityLabel: Record<RunnerActivity, string> = {
   IDLE: '대기',
@@ -65,6 +58,22 @@ export function projectHealth(project: Project): ProjectHealth {
   }
   if (!status) return 'READY';
   return status === 'PASSED' ? 'OK' : 'READY';
+}
+
+const projectStatusTone: Record<ProjectStatus, string> = {
+  PLANNED: 'border-border bg-muted text-muted-foreground',
+  RUNNING: 'border-primary/30 bg-primary/10 text-primary',
+  CLOSED: 'border-border bg-background text-muted-foreground',
+};
+
+/** 프로젝트 상태 배지 (#117). 홈 화면에서도 쓴다. */
+export function ProjectStatusChip({ status }: { status: ProjectStatus }) {
+  return <Chip tone={projectStatusTone[status]}>{projectStatusLabel[status]}</Chip>;
+}
+
+/** "2026-11-01 ~ 2026-12-01". 둘 다 없으면 빈 문자열 */
+export function projectPeriod(project: Pick<Project, 'startDate' | 'endDate'>) {
+  return project.startDate || project.endDate ? `${project.startDate ?? ''} ~ ${project.endDate ?? ''}`.trim() : '';
 }
 
 export function isRunnerReady(project: Project) {
@@ -115,7 +124,7 @@ function IconButton({
  * 프로젝트 한 개를 카드로 보여준다.
  *
  * 표 10칸을 가로로 훑는 대신, 카드 안에서 위에서 아래로 읽히게 묶었다.
- *   이름  →  최근 실행 결과  →  실행 환경 · 러너  →  할 수 있는 일
+ *   이름  →  상태 · 기간 · 진척률  →  최근 실행 결과  →  실행 환경 · 러너  →  할 수 있는 일
  */
 export function ProjectCard({
   project,
@@ -126,8 +135,11 @@ export function ProjectCard({
   onRun,
   onEnv,
   onGo,
+  planProgress,
 }: {
   project: Project;
+  /** 계획 완료율(0~100). 계획을 아직 못 불러왔으면 없음 */
+  planProgress?: number;
   running: boolean;
   justCreated: boolean;
   /** 이 프로젝트의 구조 분석이 돌고 있으면 그 진행 상황 */
@@ -174,6 +186,13 @@ export function ProjectCard({
           {justCreated && <Chip tone="border-primary/30 bg-primary/10 text-primary">방금 등록됨</Chip>}
           <Chip tone={healthTone[projectHealth(project)]}>{healthLabel[projectHealth(project)]}</Chip>
         </div>
+      </div>
+
+      {/* 상태 · 기간 · 진척률 (#117) */}
+      <div className="mx-4 mt-2 flex items-center gap-2 text-[12px] text-muted-foreground">
+        <ProjectStatusChip status={project.status ?? 'PLANNED'} />
+        {projectPeriod(project) && <span className="truncate">{projectPeriod(project)}</span>}
+        {planProgress != null && <span className="ml-auto shrink-0 font-bold text-foreground">진척률 {planProgress}%</span>}
       </div>
 
       {analysis && (

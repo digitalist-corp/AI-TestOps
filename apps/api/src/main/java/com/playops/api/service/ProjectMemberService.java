@@ -13,9 +13,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -63,6 +65,14 @@ public class ProjectMemberService {
                 })
                 .sorted(Comparator.comparing(Member::role).thenComparing(Member::username))
                 .toList();
+    }
+
+    /** 화면에 보일 이름(표시 이름, 없으면 아이디). "최근 수정: 이름"에 쓴다 (#118). 없는 사용자는 빠진다. */
+    public Map<Long, String> namesOf(Collection<Long> userIds) {
+        List<Long> ids = userIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return Map.of();
+        return userRepository.findAllById(ids).stream().collect(Collectors.toMap(User::getId,
+                u -> u.getDisplayName() != null && !u.getDisplayName().isBlank() ? u.getDisplayName() : u.getUsername()));
     }
 
     public List<UserCandidate> search(String projectId, String query, User actor) {

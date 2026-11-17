@@ -22,7 +22,7 @@ public final class AiRoViews {
 
     public static final List<View> ALL = List.of(
             new View("projects", "프로젝트 설정", List.of(
-                    "project_id", "project_name", "display_order", "server_type", "description", "test_purpose",
+                    "project_id", "project_name", "display_order", "status", "start_date", "end_date", "description", "test_purpose",
                     "manager_name", "node_version", "playwright_version", "package_manager", "install_command",
                     "test_command", "working_directory", "login_env_required", "login_setup_spec_path",
                     "storage_state_max_age_minutes", "timeout", "parallel_limit", "base_url", "repository_url",

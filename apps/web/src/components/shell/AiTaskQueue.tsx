@@ -5,7 +5,7 @@ import { api } from '@/api/client';
 import type { AiJob, AiJobStatus } from '@/types';
 import { FixProposalCard } from '@/components/project/FixProposalCard';
 import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
-import { cn } from '@/lib/utils';
+import { aiJobStatusLabel, cn } from '@/lib/utils';
 
 const WORKING: AiJobStatus[] = ['PENDING', 'RUNNING', 'DIFF_READY'];
 const DONE_LABEL: Partial<Record<AiJobStatus, string>> = {
@@ -104,7 +104,7 @@ function DoneList({ jobs }: { jobs: AiJob[] }) {
   return (
     <Section title="최근 끝남">
       {jobs.map((job) => (
-        <Row key={job.id} job={job} label={DONE_LABEL[job.status] ?? job.status} />
+        <Row key={job.id} job={job} label={DONE_LABEL[job.status] ?? aiJobStatusLabel[job.status]} />
       ))}
     </Section>
   );

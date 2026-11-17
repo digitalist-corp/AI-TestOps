@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * V7 마이그레이션의 뷰와 코드의 AiRoViews 상수가 어긋나지 않는지 본다.
+ * V7 마이그레이션의 뷰(뒤 마이그레이션이 다시 만든 뷰는 그것으로)와 코드의 AiRoViews 상수가 어긋나지 않는지 본다.
  * 어긋나면 도구 설명이 없는 열을 알려 주거나, 새 열을 모델이 모르게 된다.
  * (SQL 의 동작 자체는 개발 DB 에서 트랜잭션으로 실행해 확인한다 — 작업 보고 참고)
  */
@@ -45,7 +45,20 @@ class AiRoViewsMigrationTest {
         }
         viewColumns = new LinkedHashMap<>();
         viewTail = new LinkedHashMap<>();
-        Matcher matcher = VIEW.matcher(sql);
+        readViews(sql);
+        for (String later : VIEW_MIGRATIONS) {
+            try (InputStream in = AiRoViewsMigrationTest.class.getResourceAsStream(later)) {
+                assertThat(in).as(later).isNotNull();
+                readViews(new String(in.readAllBytes(), StandardCharsets.UTF_8).replaceAll("--[^\\n]*", ""));
+            }
+        }
+    }
+
+    /** V7 뒤에 뷰를 다시 만든 마이그레이션. 같은 이름이면 뒤의 정의가 이긴다 (순서는 V7 그대로). */
+    private static final List<String> VIEW_MIGRATIONS = List.of("/db/migration/V19__drop_project_server_type.sql");
+
+    private static void readViews(String script) {
+        Matcher matcher = VIEW.matcher(script);
         while (matcher.find()) {
             viewColumns.put(matcher.group(1), columnNames(matcher.group(2)));
             viewTail.put(matcher.group(1), matcher.group(3));

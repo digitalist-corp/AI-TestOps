@@ -3,14 +3,16 @@ import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, type ColDef, type ICellRendererParams } from 'ag-grid-community';
 import { ClipboardList, Loader2, Play, X } from 'lucide-react';
 import { api } from '@/api/client';
-import type { PlanItem, PlanItemKey, PlanPriority, TestSuite } from '@/types';
+import type { PlanItem, PlanItemKey, PlanPriority, ProjectMember, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { casesByScreen } from '@/lib/rounds';
-import { PRIORITY_LABEL, inSuite, planCounts, planKey, screenNameByCase } from '@/lib/plan';
+import { PRIORITY_LABEL, assigneeLabel, inSuite, planCounts, planKey, screenNameByCase } from '@/lib/plan';
+import { useAccess } from '@/lib/access';
+import { formatRelative } from '@/lib/utils';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-type Change = Partial<Pick<PlanItem, 'enabled' | 'assignee' | 'dueDate' | 'priority'>>;
+type Change = Partial<Pick<PlanItem, 'enabled' | 'assignee' | 'assigneeUserId' | 'dueDate' | 'priority'>>;
 
 const rowId = (i: PlanItemKey) => `${i.specPath}\n${i.grep}`;
 const keyOf = (i: PlanItem): PlanItemKey => ({ specPath: i.specPath, grep: i.grep });
@@ -24,16 +26,25 @@ const RESULT_VIEW: Record<'PASSED' | 'FAILED' | 'NONE', { label: string; classNa
 const PRIORITY_OPTIONS = ['', 'HIGH', 'MEDIUM', 'LOW'];
 
 /**
+ * 담당자 칸 값: '' = 미지정, 't:이름' = 계정과 잇지 못한 옛 이름 그대로, 그 밖은 멤버 사용자 id.
+ * 고르기 목록은 행 없이 값만으로 이름을 그리므로 옛 이름을 값 안에 담는다.
+ */
+const TEXT_PREFIX = 't:';
+const memberName = (m: ProjectMember) => m.displayName || m.username;
+
+/**
  * 테스트 계획 표(F-1). 케이스 하나 = 계획 항목 하나.
  * 셀을 고치면 바로 저장하고, 저장이 실패하면 원래 값으로 되돌린다. 체크한(사용 중) 항목만 실행된다.
  * readOnly(팀원): 고치지 못하고 보기 · 실행만 한다.
  */
 export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: string; onRun: () => void; readOnly?: boolean }) {
+  const { me } = useAccess();
   const [items, setItems] = useState<PlanItem[] | null>(null);
   const [screens, setScreens] = useState<Map<string, string>>(new Map());
   const [selected, setSelected] = useState<PlanItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [suites, setSuites] = useState<TestSuite[]>([]);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
   // '' = 전체. 스위트를 고르면 그 스위트 항목만 보이고, 순서 끌어 옮기기는 끈다(일부만 다시 번호 매기지 않도록).
   const [suiteId, setSuiteId] = useState('');
 
@@ -46,6 +57,10 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
     api.testSuites
       .listByProject(projectId)
       .then((list) => alive && setSuites(list))
+      .catch(() => {});
+    api.members
+      .list(projectId)
+      .then((list) => alive && setMembers(list))
       .catch(() => {});
     Promise.all([
       api.getScenarios(projectId),
@@ -72,7 +87,8 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
     setItems((list) => list?.map((i) => (rowId(i) === rowId(next) ? next : i)) ?? list);
 
   const save = (before: PlanItem, change: Change) => {
-    const after = { ...before, ...change };
+    // 최근 수정은 저장하면 서버도 나로 바뀌므로 화면에서 먼저 바꿔 둔다.
+    const after = { ...before, ...change, updatedByName: me?.displayName || me?.username || null, updatedAt: new Date().toISOString() };
     replace(after);
     setNotice(null);
     api.plan
@@ -80,6 +96,7 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
         ...keyOf(after),
         ...('enabled' in change ? { enabled: after.enabled } : {}),
         assignee: after.assignee,
+        assigneeUserId: after.assigneeUserId,
         dueDate: after.dueDate,
         priority: after.priority,
       })
@@ -152,13 +169,30 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
       },
       {
         headerName: '담당자',
-        width: 120,
+        width: 140,
         filter: true,
         editable: !readOnly,
-        valueGetter: (p) => p.data?.assignee ?? '',
+        // 프로젝트 멤버 중에서 고른다 (#119). 옛 이름 행은 그 이름을 그대로 두는 선택지도 남긴다.
+        cellEditor: 'agSelectCellEditor',
+        cellEditorParams: (p: { data?: PlanItem }) => ({
+          values: ['', ...members.map((m) => String(m.userId)),
+            ...(p.data?.assigneeUserId == null && p.data?.assignee ? [TEXT_PREFIX + p.data.assignee] : [])],
+        }),
+        valueGetter: (p) =>
+          p.data?.assigneeUserId != null ? String(p.data.assigneeUserId) : p.data?.assignee ? TEXT_PREFIX + p.data.assignee : '',
+        filterValueGetter: (p) => (p.data ? assigneeLabel(p.data) || '미지정' : ''),
+        valueFormatter: (p) => {
+          const v = String(p.value ?? '');
+          if (!v) return '미지정';
+          if (v.startsWith(TEXT_PREFIX)) return assigneeLabel({ assignee: v.slice(TEXT_PREFIX.length), assigneeUserId: null });
+          const m = members.find((x) => String(x.userId) === v);
+          return m ? memberName(m) : p.data?.assignee ?? '';
+        },
         valueSetter: (p) => {
-          const v = String(p.newValue ?? '').trim();
-          save(p.data, { assignee: v || null });
+          const v = String(p.newValue ?? '');
+          if (v.startsWith(TEXT_PREFIX)) return false;
+          const m = members.find((x) => String(x.userId) === v);
+          save(p.data, m ? { assigneeUserId: m.userId, assignee: memberName(m) } : { assigneeUserId: null, assignee: null });
           return false;
         },
       },
@@ -195,10 +229,16 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
           return <span className={`rounded px-2 py-0.5 text-xs font-medium ${view.className}`}>{view.label}</span>;
         },
       },
+      {
+        headerName: '최근 수정',
+        width: 150,
+        valueGetter: (p) =>
+          p.data?.updatedAt ? [p.data.updatedByName, formatRelative(p.data.updatedAt)].filter(Boolean).join(' · ') : '',
+      },
     ],
     // save · setItems 는 매번 새로 만들어지지만 최신 상태를 쓰므로 화면 이름이 바뀔 때만 열을 다시 만든다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [screens, projectId, suiteId, readOnly]
+    [screens, members, projectId, suiteId, readOnly]
   );
 
   if (!items) {

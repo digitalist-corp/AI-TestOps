@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertCircle, Loader2, MousePointerClick } from 'lucide-react';
+import { Loader2, MousePointerClick } from 'lucide-react';
 import type { Project, RecorderStartRequest } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -106,13 +106,6 @@ export function RecorderStartPanel({
                 </span>
               </span>
             </label>
-          )}
-
-          {project.serverType === 'PROD' && (
-            <p className="flex items-center gap-1.5 text-xs text-warning">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              운영 서버예요. 누르고 입력한 내용이 실제 사이트에서 그대로 실행돼요.
-            </p>
           )}
 
           {error && (

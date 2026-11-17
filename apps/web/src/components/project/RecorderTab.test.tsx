@@ -44,7 +44,6 @@ const project = {
   projectId: 'p1',
   baseUrl: 'https://demo.example.com',
   loginSetupSpecPath: null,
-  serverType: 'DEV',
 } as Project;
 
 function step(id: string, patch: Partial<RecordedStep> = {}): RecordedStep {
