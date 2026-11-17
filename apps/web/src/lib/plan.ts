@@ -1,5 +1,5 @@
-import type { PlanItem, PlanPriority, TestRoundCase } from '@/types';
-import type { ScreenCases } from '@/lib/rounds';
+import type { PlanItem, PlanPriority, TestRoundCase, TestSuite } from '@/types';
+import { samePath, type ScreenCases } from '@/lib/rounds';
 
 export const PRIORITY_LABEL: Record<PlanPriority, string> = { HIGH: '높음', MEDIUM: '보통', LOW: '낮음' };
 
@@ -38,4 +38,27 @@ export function failingScreens(groups: ScreenCases[]): { name: string; failed: n
     .filter((g) => g.counts.failed > 0)
     .map((g) => ({ name: g.name, failed: g.counts.failed }))
     .sort((a, b) => b.failed - a.failed || a.name.localeCompare(b.name, 'ko'));
+}
+
+/**
+ * 계획 항목이 스위트에 들어가는지. Playwright 처럼 파일이 스위트 목록에 있고,
+ * 필터(grep)가 있으면 "파일 묶음 제목"이 그 정규식에 맞아야 한다. 잘못된 정규식이면 글자 포함으로 본다.
+ */
+export function inSuite(suite: Pick<TestSuite, 'specPaths' | 'grep'>, item: PlanItem): boolean {
+  if (!suite.specPaths.some((p) => samePath(p, item.specPath))) return false;
+  if (!suite.grep) return true;
+  const full = [item.specPath, item.describePath, item.title].filter(Boolean).join(' ');
+  try {
+    return new RegExp(suite.grep).test(full);
+  } catch {
+    return full.includes(suite.grep);
+  }
+}
+
+/** 성공 · 실패 · 미수행은 사용 중 항목만, 미사용은 따로 센다. */
+export function planCounts(items: PlanItem[]): { passed: number; failed: number; notRun: number; disabled: number } {
+  const on = items.filter((i) => i.enabled);
+  const passed = on.filter((i) => i.lastStatus === 'PASSED').length;
+  const failed = on.filter((i) => i.lastStatus === 'FAILED').length;
+  return { passed, failed, notRun: on.length - passed - failed, disabled: items.length - on.length };
 }

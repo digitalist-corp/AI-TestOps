@@ -8,6 +8,7 @@ vi.mock('@/api/client', () => ({
   api: {
     plan: { get: vi.fn(), patch: vi.fn(), reorder: vi.fn(), setEnabled: vi.fn() },
     getScenarios: vi.fn(),
+    testSuites: { listByProject: vi.fn() },
     getSiteMap: vi.fn(),
     getSiteMapCoverage: vi.fn(),
   },
@@ -34,6 +35,7 @@ beforeEach(() => {
   vi.mocked(api.getScenarios).mockResolvedValue({ projectId: 'p1', totalSpecs: 0, totalCases: 0, specs: [] });
   vi.mocked(api.getSiteMap).mockRejectedValue(new Error('없음'));
   vi.mocked(api.getSiteMapCoverage).mockRejectedValue(new Error('없음'));
+  vi.mocked(api.testSuites.listByProject).mockResolvedValue([]);
 });
 afterEach(() => {
   cleanup();
@@ -84,5 +86,23 @@ describe('PlanTab', () => {
     render(<PlanTab projectId="p1" onRun={onRun} />);
     fireEvent.click(await screen.findByRole('button', { name: '체크한 2건 실행' }));
     expect(onRun).toHaveBeenCalled();
+  });
+
+  it('스위트가 없으면 스위트 선택을 보이지 않는다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    await screen.findByText('로그아웃된다');
+    expect(screen.queryByLabelText('스위트')).toBeNull();
+  });
+
+  it('스위트를 고르면 그 항목만 남고 건수를 보여 준다', async () => {
+    vi.mocked(api.testSuites.listByProject).mockResolvedValue([
+      { id: 7, projectId: 'p1', name: '로그인 묶음', specPaths: ['tests/login.spec.ts'], grep: '로그인|탈퇴', caseCount: 2, sequential: false, createdAt: '' },
+    ]);
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    const picker = await screen.findByLabelText('스위트');
+    fireEvent.change(picker, { target: { value: '7' } });
+    await waitFor(() => expect(screen.queryByText('로그아웃된다')).toBeNull());
+    expect(screen.getByText('로그인된다')).toBeTruthy();
+    expect(screen.getByText('성공 1 · 실패 0 · 미수행 0 · 미사용 1')).toBeTruthy();
   });
 });
