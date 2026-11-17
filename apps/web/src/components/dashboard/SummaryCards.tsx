@@ -1,24 +1,23 @@
 import { Link } from 'react-router-dom';
-import { CalendarClock, ClipboardList, Map as MapIcon, Network } from 'lucide-react';
-import type { Coverage, ExecutionSchedule, ScenarioTree, TestRound } from '@/types';
+import { CalendarClock, Map as MapIcon, Network } from 'lucide-react';
+import type { Coverage, ExecutionSchedule, TestRound } from '@/types';
 import { NODE_STATE_META, progressSegments, summarySentence, timeAgo } from '@/lib/coverage';
 import { mappingStats, nextScheduledRun, type ScreenCases } from '@/lib/rounds';
 import { cn } from '@/lib/utils';
 
 /**
- * 대시보드 맨 위 요약 4칸. 계획(무엇을) · 매핑(어느 화면에) · 맵(어디까지) · 언제(최근 · 다음 실행).
+ * 품질 현황 아래 요약 3칸. 매핑(어느 화면에) · 맵(어디까지) · 언제(최근 · 다음 실행).
+ * 무엇을(계획)은 PlanMetrics 가 보여 준다.
  * 값을 못 불러온 칸은 무엇을 하면 채워지는지 안내한다.
  */
 export function SummaryCards({
   projectId,
-  scenarios,
   screens,
   coverage,
   latestRound,
   schedules,
 }: {
   projectId: string;
-  scenarios: ScenarioTree | null;
   screens: ScreenCases[] | null;
   coverage: Coverage | null;
   latestRound: TestRound | null;
@@ -30,19 +29,8 @@ export function SummaryCards({
   const hasMap = Boolean(coverage && coverage.summary.screens > 0);
 
   return (
-    <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-2 @7xl:grid-cols-4">
-      <Card icon={ClipboardList} title="계획" to={`${base}/scenarios`} linkLabel="테스트 보기">
-        {scenarios ? (
-          <>
-            <Big>테스트 {scenarios.totalCases}개</Big>
-            <Sub>파일 {scenarios.totalSpecs}개에 나눠 준비되어 있어요</Sub>
-          </>
-        ) : (
-          <Sub>테스트 목록을 불러오는 중이에요</Sub>
-        )}
-      </Card>
-
-      <Card icon={Network} title="매핑" to={`${base}/structure`} linkLabel="구조에서 보기">
+    <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-2 @7xl:grid-cols-3">
+      <Card icon={Network} title="매핑" to={`${base}/structure`} linkLabel="맵 보기">
         {mapping && mapping.screens > 0 ? (
           <>
             <Big>
@@ -52,7 +40,7 @@ export function SummaryCards({
             <Sub>테스트가 지나가는 화면이에요</Sub>
           </>
         ) : (
-          <Sub>구조 탭에서 화면을 찾으면 테스트가 어느 화면을 지나는지 보여 줘요</Sub>
+          <Sub>입력 단계에서 화면을 찾으면 테스트가 어느 화면을 지나는지 보여 줘요</Sub>
         )}
       </Card>
 
@@ -78,7 +66,7 @@ export function SummaryCards({
             <Sub>{summarySentence(coverage.summary)}</Sub>
           </>
         ) : (
-          <Sub>아직 지도에 화면이 없어요. 구조 탭에서 사이트를 분석해 보세요</Sub>
+          <Sub>아직 지도에 화면이 없어요. 입력 단계에서 사이트를 분석해 보세요</Sub>
         )}
       </Card>
 
@@ -120,7 +108,7 @@ function Card({
   linkLabel,
   children,
 }: {
-  icon: typeof ClipboardList;
+  icon: typeof Network;
   title: string;
   to: string;
   linkLabel: string;

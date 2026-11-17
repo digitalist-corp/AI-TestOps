@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanItem } from '@/types';
 import type { ScreenCase, ScreenCases } from '@/lib/rounds';
-import { planAsResults, screenNameByCase } from '@/lib/plan';
+import { failingScreens, planAsResults, screenNameByCase } from '@/lib/plan';
 
 const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
@@ -30,5 +30,23 @@ describe('planAsResults', () => {
     expect(planAsResults([item({ lastStatus: null }), item({ title: '탈퇴', lastStatus: 'FAILED' })])).toEqual([
       { specPath: 'a.spec.ts', caseTitle: '탈퇴', status: 'FAILED', errorMessage: null, change: 'FIRST_RUN', previousRound: null },
     ]);
+  });
+});
+
+describe('failingScreens', () => {
+  const g = (name: string, failed: number, routeKey: string | null = `/${name}`): ScreenCases => ({
+    routeKey, name, cases: [], counts: { ...counts, failed },
+  });
+
+  it('실패가 있는 화면만 많은 순으로, 같으면 이름순', () => {
+    expect(failingScreens([g('홈', 1), g('로그인', 3), g('설정', 0), g('결제', 1)])).toEqual([
+      { name: '로그인', failed: 3 },
+      { name: '결제', failed: 1 },
+      { name: '홈', failed: 1 },
+    ]);
+  });
+
+  it('화면을 모르는 묶음도 실패가 있으면 넣는다', () => {
+    expect(failingScreens([g('화면을 모르는 테스트', 2, null)])).toEqual([{ name: '화면을 모르는 테스트', failed: 2 }]);
   });
 });

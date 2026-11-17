@@ -31,3 +31,11 @@ export function screenNameByCase(groups: ScreenCases[]): Map<string, string> {
   }
   return new Map([...names].map(([k, v]) => [k, v.length > 1 ? `${v[0]} 외 ${v.length - 1}` : v[0]]));
 }
+
+/** 실패가 있는 화면만, 실패 많은 순 → 이름순. 화면을 모르는 묶음도 포함. */
+export function failingScreens(groups: ScreenCases[]): { name: string; failed: number }[] {
+  return groups
+    .filter((g) => g.counts.failed > 0)
+    .map((g) => ({ name: g.name, failed: g.counts.failed }))
+    .sort((a, b) => b.failed - a.failed || a.name.localeCompare(b.name, 'ko'));
+}
