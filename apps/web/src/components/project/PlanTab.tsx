@@ -3,10 +3,10 @@ import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, type ColDef, type ICellRendererParams } from 'ag-grid-community';
 import { ClipboardList, Loader2, Play, X } from 'lucide-react';
 import { api } from '@/api/client';
-import type { PlanItem, PlanItemKey, PlanPriority } from '@/types';
+import type { PlanItem, PlanItemKey, PlanPriority, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { casesByScreen } from '@/lib/rounds';
-import { PRIORITY_LABEL, planKey, screenNameByCase } from '@/lib/plan';
+import { PRIORITY_LABEL, inSuite, planCounts, planKey, screenNameByCase } from '@/lib/plan';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -32,6 +32,9 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
   const [screens, setScreens] = useState<Map<string, string>>(new Map());
   const [selected, setSelected] = useState<PlanItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [suites, setSuites] = useState<TestSuite[]>([]);
+  // '' = 전체. 스위트를 고르면 그 스위트 항목만 보이고, 순서 끌어 옮기기는 끈다(일부만 다시 번호 매기지 않도록).
+  const [suiteId, setSuiteId] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -39,6 +42,10 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
       .get(projectId)
       .then((p) => alive && setItems(p.items))
       .catch(() => alive && setNotice('계획 표를 불러오지 못했어요.'));
+    api.testSuites
+      .listByProject(projectId)
+      .then((list) => alive && setSuites(list))
+      .catch(() => {});
     Promise.all([
       api.getScenarios(projectId),
       api.getSiteMap(projectId).catch(() => null),
@@ -117,7 +124,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
       {
         headerName: '순서',
         width: 80,
-        rowDrag: true,
+        rowDrag: suiteId === '',
         valueGetter: (p) => (p.node?.rowIndex ?? 0) + 1,
       },
       {
@@ -190,7 +197,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
     ],
     // save · setItems 는 매번 새로 만들어지지만 최신 상태를 쓰므로 화면 이름이 바뀔 때만 열을 다시 만든다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [screens, projectId]
+    [screens, projectId, suiteId]
   );
 
   if (!items) {
@@ -206,6 +213,9 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
   }
 
   const enabledCount = items.filter((i) => i.enabled).length;
+  const suite = suites.find((x) => String(x.id) === suiteId) ?? null;
+  const shown = suite ? items.filter((i) => inSuite(suite, i)) : items;
+  const counts = planCounts(shown);
 
   return (
     <div className="space-y-4">
@@ -237,6 +247,28 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
         </div>
       </div>
 
+      {suites.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            aria-label="스위트"
+            value={suiteId}
+            onChange={(e) => setSuiteId(e.target.value)}
+            className="h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground hover:border-border-strong"
+          >
+            <option value="">스위트: 전체</option>
+            {suites.map((x) => (
+              <option key={x.id} value={x.id}>
+                스위트: {x.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-sm text-muted-foreground">
+            성공 {counts.passed} · 실패 {counts.failed} · 미수행 {counts.notRun} · 미사용 {counts.disabled}
+          </span>
+          {suite && <span className="text-xs text-muted-foreground">스위트를 고른 동안에는 순서를 옮길 수 없어요.</span>}
+        </div>
+      )}
+
       {notice && (
         <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2 text-sm text-destructive">
           <span className="flex-1">{notice}</span>
@@ -249,7 +281,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
       <div className="ag-theme-playops overflow-hidden rounded-xl border border-border" style={{ height: 560 }}>
         <AgGridReact<PlanItem>
           theme="legacy"
-          rowData={items}
+          rowData={shown}
           columnDefs={columnDefs}
           defaultColDef={{ sortable: false, resizable: true }}
           getRowId={(p) => rowId(p.data)}
@@ -257,6 +289,7 @@ export function PlanTab({ projectId, onRun }: { projectId: string; onRun: () => 
           rowSelection={{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }}
           onSelectionChanged={(e) => setSelected(e.api.getSelectedRows())}
           onRowDragEnd={(e) => {
+            if (suite) return;
             const ordered: PlanItem[] = [];
             e.api.forEachNode((n) => n.data && ordered.push(n.data));
             setItems(ordered);

@@ -467,6 +467,7 @@ function GraphCanvas({
         className: 'rounded-lg',
         ariaLabel: `${node.title ?? node.routeKey} 화면 · ${NODE_STATE_META[cov.state].label}`,
         data: {
+          projectId,
           node,
           status: nodeStatus(node),
           state: cov.state,
