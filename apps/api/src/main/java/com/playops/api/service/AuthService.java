@@ -40,6 +40,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final String loginUsername;
     private final String loginPassword;
+    private final String guestUsername;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, LoginAttemptWindow> loginAttempts = new ConcurrentHashMap<>();
 
@@ -48,13 +49,15 @@ public class AuthService {
             UserSessionRepository userSessionRepository,
             PasswordEncoder passwordEncoder,
             @Value("${LOGIN_USERNAME:" + DEFAULT_LOGIN_USERNAME + "}") String loginUsername,
-            @Value("${LOGIN_PASSWORD:" + DEFAULT_LOGIN_PASSWORD + "}") String loginPassword
+            @Value("${LOGIN_PASSWORD:" + DEFAULT_LOGIN_PASSWORD + "}") String loginPassword,
+            @Value("${GUEST_USERNAME:guest}") String guestUsername
     ) {
         this.userRepository = userRepository;
         this.userSessionRepository = userSessionRepository;
         this.passwordEncoder = passwordEncoder;
         this.loginUsername = loginUsername;
         this.loginPassword = loginPassword;
+        this.guestUsername = guestUsername;
     }
 
     @Transactional
@@ -92,6 +95,24 @@ public class AuthService {
             throw new ApiException(403, "ACCOUNT_DISABLED", "비활성화된 계정입니다.");
         }
 
+        return issueSession(user, userAgent);
+    }
+
+    /** "게스트로 시작": 시드(DataLoader)의 게스트 팀원 계정으로 비밀번호 없이 들어간다. 관리자 계정이면 거절한다. */
+    @Transactional
+    public LoginResponse guestLogin(String userAgent) {
+        User guest = userRepository.findByUsername(guestUsername)
+                .filter(User::isEnabled)
+                .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "게스트 계정이 없습니다."));
+        if (guest.getRole() != com.playops.api.entity.UserRole.USER) {
+            throw new ApiException(403, "FORBIDDEN", "게스트 계정은 팀원 계정이어야 합니다.");
+        }
+        return issueSession(guest, userAgent);
+    }
+
+    /** 로그인 · 회원가입 · 게스트 입장이 같이 쓰는 토큰 발급. */
+    @Transactional
+    public LoginResponse issueSession(User user, String userAgent) {
         Instant now = Instant.now();
         user.setLastLoginAt(now);
         userRepository.save(user);
