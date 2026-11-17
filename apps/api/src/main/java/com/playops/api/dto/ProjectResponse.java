@@ -5,7 +5,6 @@ import com.playops.api.entity.Execution;
 import com.playops.api.entity.ExecutionStatus;
 import com.playops.api.entity.PackageManager;
 import com.playops.api.entity.Project;
-import com.playops.api.entity.ProjectServerType;
 import com.playops.api.entity.ProjectStatus;
 import com.playops.api.entity.RunnerActivity;
 import com.playops.api.entity.RunnerLifecycle;
@@ -18,7 +17,6 @@ public record ProjectResponse(
         String projectId,
         String projectName,
         Integer displayOrder,
-        ProjectServerType serverType,
         ProjectStatus status,
         LocalDate startDate,
         LocalDate endDate,
@@ -101,7 +99,6 @@ public record ProjectResponse(
                 project.getProjectId(),
                 project.getProjectName(),
                 project.getDisplayOrder(),
-                project.getServerType(),
                 project.getStatus(),
                 project.getStartDate(),
                 project.getEndDate(),

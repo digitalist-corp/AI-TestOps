@@ -3,7 +3,6 @@ export type DockerStatus = 'STOPPED' | 'RUNNING' | 'ERROR' | 'NOT_CONFIGURED';
 export type RunnerActivity = 'IDLE' | 'TESTING' | 'UNAVAILABLE';
 export type RunnerLifecycle = 'PERSISTENT' | 'EPHEMERAL';
 export type UserRole = 'ADMIN' | 'USER';
-export type ProjectServerType = 'DEV' | 'TEST' | 'PROD';
 /** 프로젝트 상태 (#117): 계획 · 실행 · 종료 */
 export type ProjectStatus = 'PLANNED' | 'RUNNING' | 'CLOSED';
 
@@ -11,7 +10,6 @@ export interface Project {
   projectId: string;
   projectName: string;
   displayOrder: number;
-  serverType: ProjectServerType;
   status: ProjectStatus;
   /** YYYY-MM-DD */
   startDate: string | null;
@@ -61,7 +59,8 @@ export interface RunnerContainer {
   projectId: string;
   knownProject: boolean;
   dockerEnabled: boolean;
-  serverType: ProjectServerType | null;
+  /** 프로젝트 상태 (러너가 프로젝트 것일 때) */
+  projectStatus: ProjectStatus | null;
   activeExecution: boolean;
   reconnectable: boolean;
   removable: boolean;
@@ -195,7 +194,6 @@ export interface ProjectFormData {
   projectId: string;
   projectName: string;
   displayOrder: number;
-  serverType: ProjectServerType;
   status: ProjectStatus;
   /** YYYY-MM-DD, 비우면 서버에서도 비운다 */
   startDate: string;
@@ -509,7 +507,6 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   projectId: '',
   projectName: '',
   displayOrder: 0,
-  serverType: 'DEV',
   status: 'PLANNED',
   startDate: '',
   endDate: '',

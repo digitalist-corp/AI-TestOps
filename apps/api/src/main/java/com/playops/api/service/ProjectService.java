@@ -127,13 +127,14 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse create(ProjectRequest request, User currentUser) {
-        validateProjectId(request.projectId());
-        if (projectRepository.existsByProjectId(request.projectId())) {
-            throw new ApiException(409, "PROJECT_ID_EXISTS", "Project already exists: " + request.projectId());
+        // 아이디는 이름과 무관하게 서버가 붙인다(#120). 요청의 projectId 는 쓰지 않는다.
+        String projectId = nextProjectId();
+        if (projectRepository.existsByProjectId(projectId)) {
+            throw new ApiException(409, "PROJECT_ID_EXISTS", "다른 등록과 겹쳤습니다. 다시 등록해 주세요.");
         }
 
         Project project = new Project();
-        project.setProjectId(request.projectId());
+        project.setProjectId(projectId);
         if (currentUser != null) {
             project.setOwnerUserId(currentUser.getId());
         }
@@ -492,7 +493,7 @@ public class ProjectService {
                 container.projectId(),
                 known,
                 dockerEnabled,
-                known ? project.getServerType() : null,
+                known ? project.getStatus() : null,
                 active,
                 reconnectable,
                 (container.name().startsWith("playops-runner-") || isBuildIntermediateContainer(container))
@@ -553,9 +554,6 @@ public class ProjectService {
         }
         if (request.displayOrder() != null) {
             project.setDisplayOrder(request.displayOrder());
-        }
-        if (request.serverType() != null) {
-            project.setServerType(request.serverType());
         }
         if (request.status() != null) {
             project.setStatus(request.status());
@@ -769,10 +767,17 @@ public class ProjectService {
         }
     }
 
-    private void validateProjectId(String projectId) {
-        if (projectId == null || !projectId.matches("[a-z0-9][a-z0-9-]{1,98}[a-z0-9]")) {
-            throw new ApiException(400, "Project ID must be 3-100 chars, lowercase alphanumeric and hyphens");
-        }
+    /**
+     * 새 프로젝트 아이디: P0001, P0002 … (#120). 플레이라이트 폴더 · 러너 컨테이너 이름에 그대로 쓰이므로 영문 · 숫자만.
+     * 기존 프로젝트 아이디(이름에서 만든 것)는 외래키 · 폴더가 걸려 있어 바꾸지 않는다.
+     */
+    private String nextProjectId() {
+        // ponytail: 가장 큰 번호 + 1. 관리자 둘이 같은 순간 등록하면 한쪽이 409 — 잦아지면 DB 시퀀스로.
+        int max = projectRepository.findProjectIdsStartingWithP().stream()
+                .filter(id -> id.matches("P\\d{4,9}"))
+                .mapToInt(id -> Integer.parseInt(id.substring(1)))
+                .max().orElse(0);
+        return String.format("P%04d", max + 1);
     }
 
     private void deleteRecursively(Path path) throws IOException {

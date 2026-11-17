@@ -6,20 +6,13 @@ import {
   SlidersHorizontal,
   TriangleAlert,
 } from 'lucide-react';
-import type { DockerStatus, ExecutionStatus, Project, ProjectStatus, RunnerActivity, RunningAnalysis } from '@/types';
+import type { ExecutionStatus, Project, ProjectStatus, RunnerActivity, RunningAnalysis } from '@/types';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
-import { cn, executionStatusLabel, formatDuration, formatRelative, projectStatusLabel } from '@/lib/utils';
+import { cn, dockerStatusLabel, executionStatusLabel, formatDuration, formatRelative, projectStatusLabel } from '@/lib/utils';
 import { resolveEnvRequirementState, ENV_ASK_PM } from '@/lib/envVariables';
 import { parseRunProgress } from '@/lib/runProgress';
 import { useExecutionLogStream } from '@/components/project/ExecutionLogPanel';
-
-const dockerStatusLabel: Record<DockerStatus, string> = {
-  RUNNING: '실행 중',
-  STOPPED: '중지',
-  ERROR: '오류',
-  NOT_CONFIGURED: '미설정',
-};
 
 const runnerActivityLabel: Record<RunnerActivity, string> = {
   IDLE: '대기',

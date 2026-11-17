@@ -24,10 +24,6 @@ public class Project {
     private Integer displayOrder = 0;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "server_type", length = 20)
-    private ProjectServerType serverType = ProjectServerType.DEV;
-
-    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 10)
     private ProjectStatus status = ProjectStatus.PLANNED;
 
@@ -192,9 +188,6 @@ public class Project {
 
     public Integer getDisplayOrder() { return displayOrder; }
     public void setDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
-
-    public ProjectServerType getServerType() { return serverType; }
-    public void setServerType(ProjectServerType serverType) { this.serverType = serverType; }
 
     public ProjectStatus getStatus() { return status; }
     public void setStatus(ProjectStatus status) { this.status = status; }

@@ -225,4 +225,16 @@ class RolePermissionIntegrationTest {
         assertThat(project.get("updatedBy").asLong()).isEqualTo(memberId);
         assertThat(project.get("updatedByName").asText()).isEqualTo("팀원");
     }
+
+    @Test
+    void newProjectsGetASequentialIdUnrelatedToTheirName() throws Exception {
+        String body = "{\"projectId\":\"shop\",\"projectName\":\"%s\",\"baseUrl\":\"https://shop.example.com\",\"scaffoldOnCreate\":false}";
+        String first = call(post("/api/projects").content(body.formatted("쇼핑몰 결제")), admin, 200).get("projectId").asText();
+        String second = call(post("/api/projects").content(body.formatted("shop")), admin, 200).get("projectId").asText();
+
+        assertThat(first).matches("P\\d{4,}");
+        assertThat(second).matches("P\\d{4,}");
+        assertThat(Integer.parseInt(second.substring(1))).isEqualTo(Integer.parseInt(first.substring(1)) + 1);
+        assertThat(projectIds(admin)).contains(first, second).doesNotContain("shop");
+    }
 }

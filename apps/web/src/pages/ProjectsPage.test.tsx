@@ -23,7 +23,6 @@ vi.mock('@/api/client', () => ({
 const project = {
   projectId: 'shop',
   projectName: '쇼핑몰',
-  serverType: 'DEV',
   dockerStatus: 'RUNNING',
   dockerEnabled: true,
   runnerLifecycle: 'PERSISTENT',

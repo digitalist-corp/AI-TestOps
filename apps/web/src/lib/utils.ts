@@ -1,6 +1,11 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import type { ExecutionStatus, ProjectStatus } from '@/types';
+import type { AiJobStatus, DockerStatus, ExecutionStatus, ProjectStatus, UserRole } from '@/types';
+
+/*
+ * 코드값 → 화면 이름 (#120). 화면에는 코드값(PASSED, PLANNED, ADMIN …)을 그대로 보이지 않고 여기 이름을 쓴다.
+ * 같은 상태라도 문맥에 맞춘 긴 문장(예: "AI가 테스트 코드를 만드는 중...")은 그 화면에 둔다.
+ */
 
 export const executionStatusLabel: Record<ExecutionStatus, string> = {
   SCHEDULED: '예약됨',
@@ -17,6 +22,33 @@ export const projectStatusLabel: Record<ProjectStatus, string> = {
   PLANNED: '계획',
   RUNNING: '실행',
   CLOSED: '종료',
+};
+
+export const aiJobStatusLabel: Record<AiJobStatus, string> = {
+  PROPOSED: '수정 제안',
+  PENDING: '대기 중',
+  RUNNING: '실행 중',
+  DIFF_READY: '결과 처리 중',
+  NEEDS_REVIEW: '검토 대기',
+  APPLIED: '적용됨',
+  REJECTED: '거부됨',
+  FAILED: '실패',
+  ERROR: '오류',
+  CANCELED: '취소됨',
+  TIMEOUT: '시간 초과',
+};
+
+/** 전역 역할. 프로젝트 안 역할(PM · 팀원)은 lib/access 의 ROLE_LABEL */
+export const userRoleLabel: Record<UserRole, string> = {
+  ADMIN: '관리자',
+  USER: '팀원',
+};
+
+export const dockerStatusLabel: Record<DockerStatus, string> = {
+  RUNNING: '실행 중',
+  STOPPED: '중지',
+  ERROR: '오류',
+  NOT_CONFIGURED: '미설정',
 };
 
 /** 실행에 걸린 시간. "2분 44초", 1분 미만은 "44초". 값이 없으면 빈 문자열. */

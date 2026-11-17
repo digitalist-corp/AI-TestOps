@@ -3,22 +3,8 @@ import { Check, FileCode2, Loader2, RefreshCw, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AiJob, AiJobFileDiff } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { cn } from '@/lib/utils';
+import { aiJobStatusLabel, cn } from '@/lib/utils';
 import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
-
-const statusLabel: Record<AiJob['status'], string> = {
-  PROPOSED: '수정 제안',
-  PENDING: '대기 중',
-  RUNNING: '실행 중',
-  DIFF_READY: '결과 처리 중',
-  NEEDS_REVIEW: '검토 대기',
-  APPLIED: '적용됨',
-  REJECTED: '거부됨',
-  FAILED: '실패',
-  ERROR: '오류',
-  CANCELED: '취소됨',
-  TIMEOUT: '시간 초과',
-};
 
 const statusBadgeClass: Record<AiJob['status'], string> = {
   PROPOSED: 'bg-primary/15 text-primary',
@@ -122,7 +108,7 @@ function JobCard({
             statusBadgeClass[job.status]
           )}
         >
-          {statusLabel[job.status]}
+          {aiJobStatusLabel[job.status]}
         </span>
       </div>
 

@@ -14,7 +14,6 @@ const cardProject = {
   projectId: 'shop',
   projectName: '쇼핑몰',
   baseUrl: 'https://shop.example.com',
-  serverType: 'PROD',
   managerName: '홍길동',
   dockerStatus: 'RUNNING',
   dockerEnabled: true,

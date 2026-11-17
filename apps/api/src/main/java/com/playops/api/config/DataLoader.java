@@ -6,7 +6,6 @@ import com.playops.api.entity.Project;
 import com.playops.api.entity.PackageManager;
 import com.playops.api.entity.ProjectMember;
 import com.playops.api.entity.ProjectRole;
-import com.playops.api.entity.ProjectServerType;
 import com.playops.api.entity.RunnerLifecycle;
 import com.playops.api.entity.TestSuite;
 import com.playops.api.repository.ProjectMemberRepository;
@@ -81,15 +80,15 @@ public class DataLoader implements CommandLineRunner {
         removeObsoleteDemoProject("kakao.com");
         normalizeExistingRuntimeVersions();
 
-        seedDemoProject(10, "example.com", "Example.com Demo", ProjectServerType.DEV, "https://example.com", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.EPHEMERAL, "정적 샘플 사이트로 기본 접속, 링크 이동, 콘텐츠 확인을 검증합니다.", "AI-TestOps 기본 데모와 시나리오 파싱 검증", false);
-        seedDemoProject(20, "google.com", "Google Demo", ProjectServerType.TEST, "https://www.google.com", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.EPHEMERAL, "검색 포털 데모 프로젝트입니다.", "검색 입력과 기본 화면 요소 검증", false);
-        seedDemoProject(40, "naver.com", "Naver Demo", ProjectServerType.PROD, "https://www.naver.com", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.EPHEMERAL, "운영 포털 성격의 데모 프로젝트입니다.", "검색 입력, 메뉴 이동, 콘텐츠 확인 검증", false);
-        seedDemoProject(50, "npims-stg.skax.co.kr", "NPIMS STG", ProjectServerType.TEST, "https://npims-stg.skax.co.kr", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.PERSISTENT, "NPIMS 스테이징 환경 프로젝트입니다.", "스테이징 환경의 주요 화면 접속과 기본 동작 검증", false);
+        seedDemoProject(10, "example.com", "Example.com Demo", "https://example.com", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.EPHEMERAL, "정적 샘플 사이트로 기본 접속, 링크 이동, 콘텐츠 확인을 검증합니다.", "AI-TestOps 기본 데모와 시나리오 파싱 검증", false);
+        seedDemoProject(20, "google.com", "Google Demo", "https://www.google.com", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.EPHEMERAL, "검색 포털 데모 프로젝트입니다.", "검색 입력과 기본 화면 요소 검증", false);
+        seedDemoProject(40, "naver.com", "Naver Demo", "https://www.naver.com", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.EPHEMERAL, "운영 포털 성격의 데모 프로젝트입니다.", "검색 입력, 메뉴 이동, 콘텐츠 확인 검증", false);
+        seedDemoProject(50, "npims-stg.skax.co.kr", "NPIMS STG", "https://npims-stg.skax.co.kr", RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION, RunnerLifecycle.PERSISTENT, "NPIMS 스테이징 환경 프로젝트입니다.", "스테이징 환경의 주요 화면 접속과 기본 동작 검증", false);
 
         // AI-TestOps가 자기 자신을 테스트하는 dogfooding 프로젝트 — CI/CD 배포 후 self-test 게이트로 실행된다.
         // 러너 컨테이너 안에서 host-gateway를 통해 이 서버 자신의 web 컨테이너 포트에 접근한다
         // (DockerRunnerService.startRunner()의 --add-host host.docker.internal:host-gateway 참고).
-        seedDemoProject(60, "playops-self", "AI-TestOps Self Regression", ProjectServerType.DEV,
+        seedDemoProject(60, "playops-self", "AI-TestOps Self Regression",
                 "http://host.docker.internal:" + webPort, RuntimeVersions.NODE_VERSION, RuntimeVersions.PLAYWRIGHT_VERSION,
                 RunnerLifecycle.EPHEMERAL,
                 "AI-TestOps가 자기 자신(로그인·프로젝트 등록·소스 탐색기·시나리오·실행·결과·알림)을 테스트하는 dogfooding 프로젝트입니다.",
@@ -168,7 +167,6 @@ public class DataLoader implements CommandLineRunner {
             Integer displayOrder,
             String projectId,
             String projectName,
-            ProjectServerType serverType,
             String baseUrl,
             String nodeVersion,
             String playwrightVersion,
@@ -187,7 +185,6 @@ public class DataLoader implements CommandLineRunner {
         project.setProjectId(projectId);
         project.setProjectName(projectName);
         project.setDisplayOrder(displayOrder);
-        project.setServerType(serverType);
         project.setDescription(description);
         project.setTestPurpose(testPurpose);
         project.setManagerName("AI-TestOps 관리자");

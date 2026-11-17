@@ -1,7 +1,6 @@
 package com.playops.api.dto;
 
 import com.playops.api.entity.PackageManager;
-import com.playops.api.entity.ProjectServerType;
 import com.playops.api.entity.ProjectStatus;
 import com.playops.api.entity.RunnerLifecycle;
 
@@ -9,7 +8,6 @@ public record ProjectRequest(
         String projectId,
         String projectName,
         Integer displayOrder,
-        ProjectServerType serverType,
         String description,
         String testPurpose,
         String managerName,

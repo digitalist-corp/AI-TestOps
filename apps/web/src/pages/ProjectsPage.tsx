@@ -122,13 +122,14 @@ export function ProjectsPage() {
     }), [projects, query, statusFilter, justCreatedId]);
 
   const handleCreate = async (data: ProjectFormData, aiBootstrapInstruction?: string) => {
-    await api.createProject(data);
+    // 아이디는 서버가 붙인다(#120). 돌려받은 아이디로 강조 · 첫 테스트 생성을 잇는다.
+    const created = await api.createProject(data);
     setDialogOpen(false);
-    setJustCreatedId(data.projectId);
+    setJustCreatedId(created.projectId);
     setQuery('');
     loadProjects();
     if (aiBootstrapInstruction) {
-      setAiBootstrap({ projectId: data.projectId, instruction: aiBootstrapInstruction });
+      setAiBootstrap({ projectId: created.projectId, instruction: aiBootstrapInstruction });
     }
   };
 
