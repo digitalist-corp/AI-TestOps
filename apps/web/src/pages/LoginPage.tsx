@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Activity, ArrowDown, Check, Info, Loader2, RefreshCw } from 'lucide-react';
 import { api, clearStoredAuth, setStoredAuth } from '@/api/client';
 import { Button } from '@/components/ui/Button';
@@ -12,9 +12,6 @@ import { BrandLogo } from '@/components/BrandLogo';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const ENV_FILE_PRESENT = import.meta.env.VITE_PLAYOPS_ENV_FILE_PRESENT === 'true';
-
-/** 기본 계정 — 시드 데이터(DataLoader)가 만드는 관리자 계정. */
-const DEFAULT_ACCOUNT = { username: 'admin', password: 'admin' };
 
 const HIGHLIGHTS = [
   '말로 설명하면 테스트 시나리오가 만들어집니다.',
@@ -161,13 +158,13 @@ export function LoginPage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const signIn = async (id: string, pw: string) => {
+  const signIn = async (login: () => ReturnType<typeof api.login>) => {
     setError('');
     setLoading(true);
     try {
-      const res = await api.login(id, pw);
+      const res = await login();
       setStoredAuth({ token: res.token, username: res.username, role: res.role });
-      navigate('/projects');
+      navigate('/home');
     } catch (err) {
       setError(getLoginErrorMessage(err));
     } finally {
@@ -177,14 +174,11 @@ export function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    void signIn(username, password);
+    void signIn(() => api.login(username, password));
   };
 
-  const handleDefaultAccount = () => {
-    setUsername(DEFAULT_ACCOUNT.username);
-    setPassword(DEFAULT_ACCOUNT.password);
-    void signIn(DEFAULT_ACCOUNT.username, DEFAULT_ACCOUNT.password);
-  };
+  // 게스트는 관리자가 아닌 별도 팀원 계정이다 (서버 시드 DataLoader).
+  const handleGuest = () => void signIn(api.guestLogin);
 
   // 좁은 화면에서는 설명 아래 버튼으로 로그인 칸까지 내려간다.
   const scrollToForm = () => {
@@ -342,13 +336,19 @@ export function LoginPage() {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={handleDefaultAccount}
+                onClick={handleGuest}
                 disabled={loading}
               >
-                기본 계정으로 시작
+                게스트로 시작
               </Button>
               <p className="mt-2 text-center text-[13px] text-muted-foreground">
-                admin / admin 계정으로 바로 들어갑니다.
+                계정 없이 바로 들어가 둘러봅니다.
+              </p>
+              <p className="mt-4 text-center text-[15px] text-muted-foreground">
+                계정이 없나요?{' '}
+                <Link to="/signup" className="font-bold text-primary hover:underline">
+                  회원가입
+                </Link>
               </p>
             </div>
           </div>

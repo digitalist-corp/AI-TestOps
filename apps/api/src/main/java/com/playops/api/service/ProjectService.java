@@ -49,6 +49,7 @@ public class ProjectService {
     private final PlaywrightTemplateService templateService;
     private final GitRepositoryService gitRepositoryService;
     private final SecretCipherService secretCipherService;
+    private final ProjectMemberService memberService;
 
     public ProjectService(
             ProjectRepository projectRepository,
@@ -57,7 +58,8 @@ public class ProjectService {
             DockerRunnerService dockerRunnerService,
             PlaywrightTemplateService templateService,
             GitRepositoryService gitRepositoryService,
-            SecretCipherService secretCipherService
+            SecretCipherService secretCipherService,
+            ProjectMemberService memberService
     ) {
         this.projectRepository = projectRepository;
         this.executionRepository = executionRepository;
@@ -66,6 +68,7 @@ public class ProjectService {
         this.templateService = templateService;
         this.gitRepositoryService = gitRepositoryService;
         this.secretCipherService = secretCipherService;
+        this.memberService = memberService;
     }
 
     public List<ProjectResponse> findAll() {
@@ -73,8 +76,12 @@ public class ProjectService {
     }
 
     public List<ProjectResponse> findAll(User currentUser) {
+        // 관리자는 전체, 그 밖에는 멤버(PM · 팀원)인 프로젝트만 (#105)
+        Set<String> mine = currentUser == null || currentUser.getRole() == UserRole.ADMIN
+                ? null
+                : memberService.projectsOf(currentUser).keySet();
         return projectRepository.findAll().stream()
-                .filter(p -> canAccess(p, currentUser))
+                .filter(p -> mine == null || mine.contains(p.getProjectId()))
                 .sorted((a, b) -> {
                     int orderA = a.getDisplayOrder() != null ? a.getDisplayOrder() : 0;
                     int orderB = b.getDisplayOrder() != null ? b.getDisplayOrder() : 0;
@@ -100,7 +107,7 @@ public class ProjectService {
         if (user == null || user.getRole() == UserRole.ADMIN) {
             return true;
         }
-        return project.getOwnerUserId() == null || project.getOwnerUserId().equals(user.getId());
+        return memberService.roleOf(project.getProjectId(), user).isPresent();
     }
 
     public Project getProjectForUser(String projectId, User user) {

@@ -232,7 +232,7 @@ describe('getToolLabel', () => {
     expect(getToolLabel('list_executions')).toBe('실행 목록');
     expect(getToolLabel('get_execution_detail')).toBe('실행 상세');
     expect(getToolLabel('get_case_history')).toBe('케이스 이력');
-    expect(getToolLabel('get_sitemap')).toBe('화면 구조');
+    expect(getToolLabel('get_sitemap')).toBe('화면 지도');
     expect(getToolLabel('get_job_status')).toBe('작업 상태');
     expect(getToolLabel('run_tests')).toBe('테스트 실행');
     expect(getToolLabel('fix_test')).toBe('테스트 수정');

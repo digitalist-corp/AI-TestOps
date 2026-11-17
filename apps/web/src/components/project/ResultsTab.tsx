@@ -3,6 +3,8 @@ import { useState } from 'react';
 import type { ArtifactFile, ExecutionCaseResult, ExecutionDetail } from '@/types';
 import { api, getStoredAuth } from '@/api/client';
 import { Button } from '@/components/ui/Button';
+import { FixProposals } from '@/components/project/FixProposalCard';
+import { executionStatusLabel, formatDuration } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -36,17 +38,6 @@ const textArtifactExtensions = new Set([
   'yml',
 ]);
 
-const statusLabel: Record<string, string> = {
-  SCHEDULED: '예약됨',
-  PENDING: '대기',
-  RUNNING: '실행 중',
-  CANCEL_REQUESTED: '중단 중',
-  CANCELLED: '중단됨',
-  PASSED: '성공',
-  FAILED: '실패',
-  ERROR: '오류',
-};
-
 function FailedCaseCard({ result }: { result: ExecutionCaseResult }) {
   return (
     <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
@@ -60,7 +51,7 @@ function FailedCaseCard({ result }: { result: ExecutionCaseResult }) {
           )}
         </div>
         {result.durationMs != null && (
-          <span className="shrink-0 text-xs text-destructive/60">{(result.durationMs / 1000).toFixed(1)}s</span>
+          <span className="shrink-0 text-xs text-destructive/60">{formatDuration(result.durationMs)}</span>
         )}
       </div>
       {result.errorMessage && (
@@ -147,7 +138,7 @@ export function ResultsTab({ detail, loading }: Props) {
 
       <div className="grid grid-cols-2 @3xl:grid-cols-4 gap-4">
         {[
-          ['상태', statusLabel[ex.status] ?? ex.status],
+          ['상태', executionStatusLabel[ex.status]],
           ['통과', `${ex.passedTests} / ${ex.totalTests}`],
           ['실패', String(ex.failedTests)],
           ['스킵', String(ex.skippedTests)],
@@ -164,6 +155,9 @@ export function ResultsTab({ detail, loading }: Props) {
           <div className="flex items-center gap-1.5 mb-2">
             <AlertTriangle className="h-4 w-4 text-destructive" />
             <h3 className="font-medium text-foreground">실패한 케이스 ({failedCases.length}건)</h3>
+          </div>
+          <div className="mb-2">
+            <FixProposals projectId={ex.projectId} executionId={ex.id} />
           </div>
           <div className="space-y-2">
             {failedCases.map((c, i) => (

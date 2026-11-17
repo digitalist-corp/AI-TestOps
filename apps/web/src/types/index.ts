@@ -166,6 +166,8 @@ export interface ServiceHealth {
 }
 
 export interface ProjectFormData {
+  /** 등록할 때만: 이 프로젝트의 PM. 비우면 등록한 관리자가 PM */
+  pmUserId?: number;
   projectId: string;
   projectName: string;
   displayOrder: number;
@@ -297,6 +299,41 @@ export interface Execution {
   createdAt: string;
 }
 
+/** N차 테스트. 사용자가 돌린 실행을 순서대로 센 것 (실행 이력에서 계산). */
+export interface TestRound {
+  round: number;
+  executionId: number;
+  status: ExecutionStatus;
+  title: string;
+  source: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  total: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+}
+
+/** 케이스가 그 케이스를 마지막으로 돌린 앞 차수와 비교해 어떻게 바뀌었나 */
+export type RoundChange = 'NEW_FAIL' | 'STILL_FAIL' | 'FIXED' | 'STILL_PASS' | 'FIRST_RUN' | 'SKIPPED';
+
+export interface TestRoundCase {
+  specPath: string | null;
+  caseTitle: string | null;
+  status: 'PASSED' | 'FAILED' | 'SKIPPED';
+  errorMessage: string | null;
+  change: RoundChange;
+  previousRound: number | null;
+}
+
+export interface TestRoundDetail {
+  round: TestRound;
+  previousRound: number | null;
+  changes: Record<RoundChange, number>;
+  cases: TestRoundCase[];
+}
+
 export interface ArtifactFile {
   path: string;
   name: string;
@@ -345,6 +382,7 @@ export interface ScenarioUsageRequest {
 export interface User {
   id: number;
   username: string;
+  displayName?: string | null;
   role: UserRole;
   createdAt: string;
   updatedAt: string;
@@ -358,6 +396,20 @@ export interface UserAuditLog {
   targetUsername: string | null;
   detail: string | null;
   createdAt: string;
+}
+
+/** 프로젝트 멤버. role: PM · MEMBER(팀원) */
+export interface ProjectMember {
+  userId: number;
+  username: string;
+  displayName: string | null;
+  role: 'PM' | 'MEMBER';
+}
+
+export interface UserCandidate {
+  id: number;
+  username: string;
+  displayName: string | null;
 }
 
 export interface AuthUser {
@@ -645,7 +697,7 @@ export interface ExecutionScheduleRequest {
 
 export type AiJobType = 'CODE_FIX' | 'TEMPLATE_GENERATE' | 'TEST_ANALYSIS';
 export type AiJobStatus =
-  | 'PENDING' | 'RUNNING' | 'DIFF_READY' | 'NEEDS_REVIEW'
+  | 'PROPOSED' | 'PENDING' | 'RUNNING' | 'DIFF_READY' | 'NEEDS_REVIEW'
   | 'APPLIED' | 'REJECTED' | 'FAILED' | 'ERROR' | 'CANCELED' | 'TIMEOUT';
 
 export type PostApplyVerificationStatus = 'PENDING' | 'PASSED' | 'REGRESSED' | 'SKIPPED';
@@ -1083,4 +1135,53 @@ export interface RecorderStartRequest {
 export interface RecorderCode {
   specPath: string;
   code: string;
+}
+
+/** 테스트 계획 표(F-1). 계획 항목 = 테스트 케이스 하나 (파일 경로 + grep). */
+export type PlanPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface PlanItem {
+  specPath: string;
+  grep: string;
+  title: string;
+  describePath: string;
+  line: number;
+  enabled: boolean;
+  /** 파일 · 상위 묶음이 모두 사용 중인지. false 면 이 행만 켜도 실행되지 않는다. */
+  parentEnabled: boolean;
+  sortOrder: number | null;
+  assignee: string | null;
+  /** YYYY-MM-DD */
+  dueDate: string | null;
+  priority: PlanPriority | null;
+  lastStatus: 'PASSED' | 'FAILED' | null;
+  lastRunAt: string | null;
+}
+
+/** passed · failed · notRun 은 사용 중 항목만. completionRate 0~1 */
+export interface PlanSummary {
+  total: number;
+  enabled: number;
+  disabled: number;
+  passed: number;
+  failed: number;
+  notRun: number;
+  completionRate: number;
+}
+
+export interface PlanResponse {
+  items: PlanItem[];
+  summary: PlanSummary;
+}
+
+export interface PlanItemKey {
+  specPath: string;
+  grep: string;
+}
+
+export interface PlanItemPatch extends PlanItemKey {
+  enabled?: boolean;
+  assignee: string | null;
+  dueDate: string | null;
+  priority: PlanPriority | null;
 }

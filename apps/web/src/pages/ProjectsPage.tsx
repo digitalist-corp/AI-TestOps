@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FolderKanban, Loader2, Plus, RefreshCw, Search } from 'lucide-react';
 import { api } from '@/api/client';
+import { useAccess } from '@/lib/access';
 import { useRunningAnalyses } from '@/hooks/useRunningAnalyses';
 import { projectTabPath } from '@/config/projectWorkspace';
 import type { Project, ProjectFormData } from '@/types';
@@ -10,20 +11,12 @@ import { Input } from '@/components/ui/Input';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { AiBootstrapProgressDialog } from '@/components/AiBootstrapProgressDialog';
 import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
-import { ProjectCard, healthLabel, isRunnerReady, projectHealth, type ProjectHealth } from '@/components/project/ProjectCard';
-import { isRequiredEnvMissing } from '@/lib/envVariables';
+import { ProjectCard, isRunnerReady } from '@/components/project/ProjectCard';
+import { ENV_ASK_PM, isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
+import { confirmFullRun } from '@/lib/runConfirm';
 import { cn } from '@/lib/utils';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
-
-type EnvFilter = 'ALL' | Project['serverType'];
-type HealthFilter = 'ALL' | ProjectHealth;
-
-const ENV_LABEL: Record<Exclude<EnvFilter, 'ALL'>, string> = {
-  DEV: '개발',
-  TEST: '테스트',
-  PROD: '운영',
-};
 
 /** 등록 직후 카드를 강조해 두는 시간 */
 const JUST_CREATED_MS = 60_000;
@@ -31,14 +24,7 @@ const JUST_CREATED_MS = 60_000;
 function matchesQuery(project: Project, query: string) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return true;
-  return [
-    project.projectId,
-    project.projectName,
-    project.managerName,
-    project.managerContact,
-    project.baseUrl,
-    project.testPurpose,
-  ].some((value) => value?.toLowerCase().includes(normalized));
+  return [project.projectId, project.projectName].some((value) => value.toLowerCase().includes(normalized));
 }
 
 export function ProjectsPage() {
@@ -47,14 +33,24 @@ export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
-  const [envFilter, setEnvFilter] = useState<EnvFilter>('ALL');
-  const [healthFilter, setHealthFilter] = useState<HealthFilter>('ALL');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [aiBootstrap, setAiBootstrap] = useState<{ projectId: string; instruction: string } | null>(null);
-  const [editProject, setEditProject] = useState<Project | null>(null);
   const [envProject, setEnvProject] = useState<Project | null>(null);
   const [testLoadingId, setTestLoadingId] = useState<string | null>(null);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
+  // 프로젝트 등록 · PM 지정은 관리자만 (#106)
+  const access = useAccess();
+  const { admin } = access;
+  const [pmCandidates, setPmCandidates] = useState<{ id: number; label: string }[]>([]);
+
+  useEffect(() => {
+    if (!dialogOpen || !admin) return;
+    api.getUsers()
+      .then((users) => setPmCandidates(users
+        .filter((u) => u.role !== 'ADMIN')
+        .map((u) => ({ id: u.id, label: u.displayName ? `${u.displayName} (${u.username})` : u.username }))))
+      .catch(() => setPmCandidates([]));
+  }, [dialogOpen, admin]);
 
   const loadProjects = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
@@ -91,51 +87,25 @@ export function ProjectsPage() {
     return () => clearTimeout(timer);
   }, [justCreatedId]);
 
-  // 환경은 사람이 고른 값, 상태는 실행 이력에서 자동으로 판정한 값이다.
-  const counts = useMemo(() => {
-    const env: Record<string, number> = { DEV: 0, TEST: 0, PROD: 0 };
-    const health: Record<string, number> = { READY: 0, RUNNING: 0, OK: 0, ATTENTION: 0 };
-    projects.forEach((project) => {
-      env[project.serverType] = (env[project.serverType] ?? 0) + 1;
-      const state = projectHealth(project);
-      health[state] = (health[state] ?? 0) + 1;
-    });
-    return { total: projects.length, env, health };
-  }, [projects]);
-
   const filteredProjects = useMemo(() => projects
-    .filter((project) => {
-      if (!matchesQuery(project, query)) return false;
-      if (envFilter !== 'ALL' && project.serverType !== envFilter) return false;
-      if (healthFilter !== 'ALL' && projectHealth(project) !== healthFilter) return false;
-      return true;
-    })
+    .filter((project) => matchesQuery(project, query))
     // 방금 등록한 프로젝트를 맨 앞에, 그다음은 지정한 순서대로
     .sort((a, b) => {
       if (a.projectId === justCreatedId) return -1;
       if (b.projectId === justCreatedId) return 1;
       return (a.displayOrder ?? 0) - (b.displayOrder ?? 0)
         || a.projectName.localeCompare(b.projectName, 'ko');
-    }), [projects, query, envFilter, healthFilter, justCreatedId]);
+    }), [projects, query, justCreatedId]);
 
   const handleCreate = async (data: ProjectFormData, aiBootstrapInstruction?: string) => {
     await api.createProject(data);
     setDialogOpen(false);
     setJustCreatedId(data.projectId);
-    setEnvFilter('ALL');
-    setHealthFilter('ALL');
     setQuery('');
     loadProjects();
     if (aiBootstrapInstruction) {
       setAiBootstrap({ projectId: data.projectId, instruction: aiBootstrapInstruction });
     }
-  };
-
-  const handleUpdate = async (data: ProjectFormData) => {
-    if (!editProject) return;
-    await api.updateProject(editProject.projectId, data);
-    setEditProject(null);
-    loadProjects();
   };
 
   const replaceProject = (updated: Project) => {
@@ -149,19 +119,12 @@ export function ProjectsPage() {
     setEnvProject(updated);
   };
 
-  const handleDelete = async (projectId: string) => {
-    const ok = confirm([
-      `프로젝트 "${projectId}"를 삭제하시겠습니까?`,
-      '',
-      '프로젝트 설정, 테스트 파일, 실행 이력과 리포트가 함께 삭제됩니다.',
-    ].join('\n'));
-    if (!ok) return;
-    await api.deleteProject(projectId);
-    loadProjects();
-  };
-
   const handleRunProject = async (project: Project) => {
     if (isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
+      if (!access.canManage(project.projectId)) {
+        alert(ENV_ASK_PM);
+        return;
+      }
       alert('테스트 계정 환경변수가 필요합니다. 환경변수를 먼저 입력하세요.');
       setEnvProject(project);
       return;
@@ -169,6 +132,7 @@ export function ProjectsPage() {
 
     setTestLoadingId(project.projectId);
     try {
+      if (!(await confirmFullRun(project.projectName, () => api.getScenarios(project.projectId)))) return;
       if (!(await confirmPlaywrightVersion(project, '테스트 실행'))) {
         return;
       }
@@ -203,29 +167,12 @@ export function ProjectsPage() {
     }
   };
 
-  const envButtons: Array<{ id: EnvFilter; label: string; count: number }> = [
-    { id: 'ALL', label: '전체', count: counts.total },
-    { id: 'DEV', label: ENV_LABEL.DEV, count: counts.env.DEV },
-    { id: 'TEST', label: ENV_LABEL.TEST, count: counts.env.TEST },
-    { id: 'PROD', label: ENV_LABEL.PROD, count: counts.env.PROD },
-  ];
-
-  const healthButtons: Array<{ id: HealthFilter; label: string; count: number }> = [
-    { id: 'ALL', label: '전체', count: counts.total },
-    { id: 'READY', label: healthLabel.READY, count: counts.health.READY },
-    { id: 'RUNNING', label: healthLabel.RUNNING, count: counts.health.RUNNING },
-    { id: 'OK', label: healthLabel.OK, count: counts.health.OK },
-    { id: 'ATTENTION', label: healthLabel.ATTENTION, count: counts.health.ATTENTION },
-  ];
-
-  const chipClass = (active: boolean) => cn(
-    'h-8 rounded-sm px-3 text-[13px] font-bold transition-colors',
-    active ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-card hover:text-foreground'
-  );
-
-  const emptyReason = projects.length === 0
-    ? { title: '등록된 프로젝트가 없습니다', desc: '테스트할 사이트 주소만 있으면 바로 시작할 수 있습니다.' }
-    : { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어나 필터를 바꿔보세요.' };
+  // 팀원은 PM이 초대한 프로젝트만 보이므로, 빈 목록이면 등록 대신 초대를 안내한다.
+  const emptyReason = projects.length > 0
+    ? { title: '조건에 맞는 프로젝트가 없습니다', desc: '검색어를 바꿔보세요.' }
+    : admin
+      ? { title: '등록된 프로젝트가 없습니다', desc: '사이트 주소만 있으면 바로 시작할 수 있습니다.' }
+      : { title: '소속된 프로젝트가 없습니다', desc: 'PM에게 초대를 요청하세요.' };
 
   return (
     <div className="@container space-y-5 p-6">
@@ -234,7 +181,7 @@ export function ProjectsPage() {
           <ConsoleEyebrow>WORKSPACE // PROJECTS</ConsoleEyebrow>
           <h2 className="text-[24px] font-bold leading-tight text-foreground">프로젝트</h2>
           <p className="mt-1 text-[15px] text-muted-foreground">
-            테스트할 사이트마다 프로젝트를 하나씩 둡니다. 카드를 열면 작업 화면으로 들어갑니다.
+            사이트마다 프로젝트를 하나씩 둡니다. 카드를 열면 작업 화면으로 들어갑니다.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -242,47 +189,25 @@ export function ProjectsPage() {
             <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
             새로고침
           </Button>
-          <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-4 w-4" />
-            프로젝트 등록
-          </Button>
+          {admin && (
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
+              <Plus className="h-4 w-4" />
+              프로젝트 등록
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* 검색 + 필터 — 개수는 필터 칩에만 두어 같은 숫자를 두 번 보여주지 않는다 */}
+      {/* 이름 검색 */}
       <div className="flex flex-col gap-3 @min-[52rem]:flex-row @min-[52rem]:items-center @min-[52rem]:justify-between">
         <div className="relative w-full @min-[52rem]:max-w-md">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="프로젝트명, 주소, 담당자 검색"
+            placeholder="프로젝트 이름 검색"
             className="h-10 pl-9"
           />
-        </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex items-center gap-2">
-            <span className="shrink-0 text-[13px] font-bold text-muted-foreground">환경</span>
-            <div className="flex flex-wrap gap-1 rounded-sm border border-border bg-muted p-1">
-              {envButtons.map((item) => (
-                <button key={item.id} type="button" onClick={() => setEnvFilter(item.id)}
-                        className={chipClass(envFilter === item.id)}>
-                  {item.label} {item.count}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="shrink-0 text-[13px] font-bold text-muted-foreground">상태</span>
-            <div className="flex flex-wrap gap-1 rounded-sm border border-border bg-muted p-1">
-              {healthButtons.map((item) => (
-                <button key={item.id} type="button" onClick={() => setHealthFilter(item.id)}
-                        className={chipClass(healthFilter === item.id)}>
-                  {item.label} {item.count}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
@@ -296,7 +221,7 @@ export function ProjectsPage() {
             <FolderKanban className="mx-auto h-10 w-10 text-muted-foreground" />
             <h3 className="mt-4 text-[19px] font-bold text-foreground">{emptyReason.title}</h3>
             <p className="mt-2 text-[15px] text-muted-foreground">{emptyReason.desc}</p>
-            {projects.length === 0 && (
+            {projects.length === 0 && admin && (
               <Button className="mt-4" onClick={() => setDialogOpen(true)}>
                 <Plus className="h-4 w-4" />
                 프로젝트 등록
@@ -315,9 +240,7 @@ export function ProjectsPage() {
               analysis={runningAnalyses[project.projectId]}
               onOpen={() => navigate(projectTabPath(project.projectId, 'dashboard'))}
               onRun={() => handleRunProject(project)}
-              onEnv={() => setEnvProject(project)}
-              onEdit={() => setEditProject(project)}
-              onDelete={() => handleDelete(project.projectId)}
+              onEnv={access.canManage(project.projectId) ? () => setEnvProject(project) : undefined}
               onGo={(tab) => navigate(projectTabPath(project.projectId, tab))}
             />
           ))}
@@ -329,6 +252,7 @@ export function ProjectsPage() {
         onOpenChange={setDialogOpen}
         onSubmit={handleCreate}
         title="프로젝트 등록"
+        pmCandidates={pmCandidates}
       />
 
       {aiBootstrap && (
@@ -345,16 +269,6 @@ export function ProjectsPage() {
             setAiBootstrap(null);
             navigate(projectTabPath(target, 'source'));
           }}
-        />
-      )}
-
-      {editProject && (
-        <ProjectFormDialog
-          open={!!editProject}
-          onOpenChange={(open) => !open && setEditProject(null)}
-          onSubmit={handleUpdate}
-          title="프로젝트 수정"
-          initial={editProject}
         />
       )}
 

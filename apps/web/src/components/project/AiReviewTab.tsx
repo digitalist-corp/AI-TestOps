@@ -4,8 +4,10 @@ import { api } from '@/api/client';
 import type { AiJob, AiJobFileDiff } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 
 const statusLabel: Record<AiJob['status'], string> = {
+  PROPOSED: '수정 제안',
   PENDING: '대기 중',
   RUNNING: '실행 중',
   DIFF_READY: '결과 처리 중',
@@ -19,6 +21,7 @@ const statusLabel: Record<AiJob['status'], string> = {
 };
 
 const statusBadgeClass: Record<AiJob['status'], string> = {
+  PROPOSED: 'bg-primary/15 text-primary',
   PENDING: 'bg-muted text-muted-foreground',
   RUNNING: 'bg-primary/15 text-primary',
   DIFF_READY: 'bg-warning/15 text-warning',
@@ -205,6 +208,10 @@ export function AiReviewTab({ projectId }: { projectId: string }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useAiTaskEvents((event) => {
+    if (event.type === 'ready' || event.projectId === projectId) void load();
+  });
 
   const needsReviewJobs = jobs.filter((job) => job.status === 'NEEDS_REVIEW');
   const recentJobs = jobs.filter((job) => job.status !== 'NEEDS_REVIEW').slice(0, 20);

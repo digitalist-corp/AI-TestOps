@@ -4,7 +4,7 @@ import { Info, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-react';
 import type { Execution, ExecutionStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
-import { cn } from '@/lib/utils';
+import { cn, executionStatusLabel, formatDuration } from '@/lib/utils';
 
 const statusStyle: Record<ExecutionStatus, string> = {
   SCHEDULED: 'bg-ai-accent/10 text-ai-accent',
@@ -15,17 +15,6 @@ const statusStyle: Record<ExecutionStatus, string> = {
   PASSED: 'bg-success/10 text-success',
   FAILED: 'bg-destructive/10 text-destructive',
   ERROR: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
-};
-
-const statusLabel: Record<ExecutionStatus, string> = {
-  SCHEDULED: '예약됨',
-  PENDING: '대기',
-  RUNNING: '실행 중',
-  CANCEL_REQUESTED: '중단 중',
-  CANCELLED: '중단됨',
-  PASSED: '성공',
-  FAILED: '실패',
-  ERROR: '오류',
 };
 
 interface Props {
@@ -59,7 +48,7 @@ export function ExecutionsTab({
   const selectedDeletable = selectedExecution ? isDeletable(selectedExecution.status) : false;
 
   const columnDefs: ColDef<Execution>[] = [
-    { field: 'id', headerName: 'ID', width: 70 },
+    { field: 'id', headerName: '번호', width: 70 },
     {
       field: 'status',
       headerName: '상태',
@@ -67,7 +56,7 @@ export function ExecutionsTab({
       cellRenderer: (p: ICellRendererParams<Execution>) =>
         p.value ? (
           <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusStyle[p.value as ExecutionStatus])}>
-            {statusLabel[p.value as ExecutionStatus]}
+            {executionStatusLabel[p.value as ExecutionStatus]}
           </span>
         ) : null,
     },
@@ -87,7 +76,7 @@ export function ExecutionsTab({
       field: 'durationMs',
       headerName: '소요',
       width: 90,
-      valueFormatter: (p) => (p.value ? `${(p.value / 1000).toFixed(1)}s` : '-'),
+      valueFormatter: (p) => formatDuration(p.value) || '-',
     },
     {
       field: 'createdAt',

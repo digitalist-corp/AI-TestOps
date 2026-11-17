@@ -7,12 +7,6 @@ import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
 import { PROJECT_WORKSPACE_TABS, type ProjectTabId } from '@/config/projectWorkspace';
 
-const serverTypeLabel: Record<Project['serverType'], string> = {
-  DEV: '개발',
-  TEST: '테스트',
-  PROD: '운영',
-};
-
 function matchesProject(project: Project, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
@@ -101,9 +95,6 @@ export function ProjectSwitcherDialog({
                           <span className="block truncate font-mono text-xs text-muted-foreground">
                             {project.projectId}
                           </span>
-                        </span>
-                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          {serverTypeLabel[project.serverType]}
                         </span>
                       </button>
                     </li>

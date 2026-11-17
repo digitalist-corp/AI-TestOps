@@ -9,7 +9,7 @@ export function formatEta(etaSeconds: number | null): string {
 }
 
 export function analysisProgressLabel(screenCount: number, processedCount: number): string {
-  return screenCount > 0 ? `구조 분석 중 ${processedCount}/${screenCount}` : '구조 분석 중 · 저장소 받는 중';
+  return screenCount > 0 ? `화면 지도 만드는 중 ${processedCount}/${screenCount}` : '화면 지도 만드는 중 · 저장소 받는 중';
 }
 
 /** 구조 분석이 뒤에서 돌고 있음을 알리는 작은 배지. */

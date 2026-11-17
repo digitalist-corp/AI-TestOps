@@ -26,6 +26,8 @@ import type {
   ServiceHealth,
   SiteCheckResult,
   User,
+  ProjectMember,
+  UserCandidate,
   RunningAnalysis,
   SiteMap,
   SiteMapNodeDetail,
@@ -148,6 +150,43 @@ export const api = {
       auth: false,
       body: JSON.stringify({ username, password }),
     }),
+
+  /** 회원가입: 가입 즉시 팀원으로 로그인된다 */
+  signup: (username: string, name: string, password: string) =>
+    request<{ token: string; username: string; role: AuthUser['role'] }>('/api/auth/signup', {
+      method: 'POST',
+      auth: false,
+      body: JSON.stringify({ username, name, password }),
+    }),
+
+  /** "게스트로 시작": 서버의 게스트 팀원 계정으로 들어간다 (비밀번호는 서버만 안다) */
+  guestLogin: () =>
+    request<{ token: string; username: string; role: AuthUser['role'] }>('/api/auth/guest', {
+      method: 'POST',
+      auth: false,
+    }),
+
+  /** 내 전역 역할 + 프로젝트별 역할 (lib/access) */
+  getMe: () => request<import('@/lib/access').Me>('/api/auth/me'),
+
+  /** 프로젝트 멤버 (설정 › 팀원) */
+  members: {
+    list: (projectId: string) => request<ProjectMember[]>(`/api/projects/${projectId}/members`),
+    candidates: (projectId: string, q: string) =>
+      request<UserCandidate[]>(`/api/projects/${projectId}/members/candidates?q=${encodeURIComponent(q)}`),
+    add: (projectId: string, userId: number, role: ProjectMember['role']) =>
+      request<ProjectMember>(`/api/projects/${projectId}/members`, {
+        method: 'POST',
+        body: JSON.stringify({ userId, role }),
+      }),
+    changeRole: (projectId: string, userId: number, role: ProjectMember['role']) =>
+      request<void>(`/api/projects/${projectId}/members/${userId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      }),
+    remove: (projectId: string, userId: number) =>
+      request<void>(`/api/projects/${projectId}/members/${userId}`, { method: 'DELETE' }),
+  },
 
   getServiceHealth: () =>
     request<ServiceHealth>('/api/health/services', { auth: false }),
@@ -472,6 +511,26 @@ export const api = {
   getExecutions: (projectId: string) =>
     request<Execution[]>(`/api/projects/${projectId}/executions`),
 
+  plan: {
+    get: (projectId: string) => request<import('@/types').PlanResponse>(`/api/projects/${projectId}/plan`),
+    /** 한 행 저장. 계획 칸 3개는 항상 덮어쓴다(null = 비움). enabled 를 빼면 사용 여부는 그대로. */
+    patch: (projectId: string, data: import('@/types').PlanItemPatch) =>
+      request<void>(`/api/projects/${projectId}/plan/items`, { method: 'PATCH', body: JSON.stringify(data) }),
+    reorder: (projectId: string, items: import('@/types').PlanItemKey[]) =>
+      request<void>(`/api/projects/${projectId}/plan/order`, { method: 'PUT', body: JSON.stringify({ items }) }),
+    setEnabled: (projectId: string, items: import('@/types').PlanItemKey[], enabled: boolean) =>
+      request<void>(`/api/projects/${projectId}/plan/items/enabled`, {
+        method: 'PATCH',
+        body: JSON.stringify({ items, enabled }),
+      }),
+  },
+
+  rounds: {
+    list: (projectId: string) => request<import('@/types').TestRound[]>(`/api/projects/${projectId}/rounds`),
+    get: (projectId: string, executionId: number) =>
+      request<import('@/types').TestRoundDetail>(`/api/projects/${projectId}/rounds/${executionId}`),
+  },
+
   cancelExecution: (executionId: number) =>
     request<Execution>(`/api/executions/${executionId}/cancel`, { method: 'POST' }),
 
@@ -660,6 +719,11 @@ export const api = {
       request<import('@/types').AiJob>(`/api/ai-jobs/${id}/approve`, { method: 'POST' }),
     reject: (id: number) =>
       request<import('@/types').AiJob>(`/api/ai-jobs/${id}/reject`, { method: 'POST' }),
+    /** 수정 제안(PROPOSED)을 진행해 AI 수정을 시작한다 */
+    proceed: (id: number) =>
+      request<import('@/types').AiJob>(`/api/ai-jobs/${id}/proceed`, { method: 'POST' }),
+    dismiss: (id: number) =>
+      request<import('@/types').AiJob>(`/api/ai-jobs/${id}/dismiss`, { method: 'POST' }),
   },
 
   schedules: {

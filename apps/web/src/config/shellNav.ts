@@ -1,11 +1,12 @@
 import type { LucideIcon } from 'lucide-react';
 import {
+  ClipboardList,
   Container,
+  Download,
   FileCode,
   Gauge,
-  GitBranch,
+  House,
   LayoutDashboard,
-  Network,
   Play,
   Rows3,
   Settings,
@@ -30,14 +31,15 @@ export type RailItem = {
 };
 
 export const RAIL_ITEMS: RailItem[] = [
+  { to: '/home', label: '홈', icon: House },
   { to: '/projects', label: '프로젝트 목록', icon: Rows3 },
-  { to: '/runners', label: 'Runner 컨테이너', icon: Container },
+  { to: '/runners', label: 'Runner 컨테이너', icon: Container, adminOnly: true },
   { to: '/templates', label: 'Playwright 템플릿', icon: FileCode },
   { to: '/ai-settings', label: 'AI 설정 · 사용량', icon: Gauge },
   { to: '/users', label: '사용자 관리', icon: Users, adminOnly: true },
 ];
 
-export type WorkspaceGroupId = 'dashboard' | 'structure' | 'scenarios' | 'runs' | 'settings' | 'ai';
+export type WorkspaceGroupId = 'input' | 'plan' | 'runs' | 'dashboard' | 'settings' | 'ai';
 
 export type WorkspaceGroup = {
   id: WorkspaceGroupId;
@@ -50,16 +52,26 @@ export type WorkspaceGroup = {
 };
 
 export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
+  { id: 'input', label: '입력', icon: Download, tabs: ['input'] },
+  { id: 'plan', label: '계획', icon: ClipboardList, tabs: ['plan', 'scenarios', 'recorder', 'structure'] },
+  { id: 'runs', label: '실행', icon: Play, tabs: ['runs', 'results', 'schedules'] },
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, tabs: ['dashboard'] },
-  { id: 'structure', label: '구조', icon: Network, tabs: ['structure'] },
-  { id: 'scenarios', label: '테스트', icon: GitBranch, tabs: ['scenarios', 'recorder'] },
-  { id: 'runs', label: '실행', icon: Play, tabs: ['runs', 'results'] },
-  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'schedules', 'source'] },
+  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'members', 'source'] },
   { id: 'ai', label: 'AI', icon: Sparkles, tabs: ['ai-generate', 'ai-analysis', 'ai-review'], aiOnly: true },
 ];
 
-export function visibleWorkspaceGroups(aiActive: boolean): WorkspaceGroup[] {
-  return aiActive ? WORKSPACE_GROUPS : WORKSPACE_GROUPS.filter((group) => !group.aiOnly);
+/** 고치는 탭. 팀원(보기 · 실행만)에게는 보이지 않는다 — 서버도 이 탭들의 쓰기를 막는다. */
+const MANAGE_ONLY_TABS: ProjectTabId[] = ['input', 'scenarios', 'recorder', 'source', 'schedules', 'ai-generate', 'ai-review'];
+
+export function visibleTabs(tabs: ProjectTabId[], canManage = true): ProjectTabId[] {
+  return canManage ? tabs : tabs.filter((tab) => !MANAGE_ONLY_TABS.includes(tab));
+}
+
+export function visibleWorkspaceGroups(aiActive: boolean, canManage = true): WorkspaceGroup[] {
+  return WORKSPACE_GROUPS
+    .filter((group) => aiActive || !group.aiOnly)
+    .map((group) => ({ ...group, tabs: visibleTabs(group.tabs, canManage) }))
+    .filter((group) => group.tabs.length > 0);
 }
 
 export function groupOfTab(tab: ProjectTabId): WorkspaceGroup {

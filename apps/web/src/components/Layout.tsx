@@ -8,6 +8,7 @@ import { ProjectSwitcherDialog } from '@/components/shell/ProjectSwitcherDialog'
 import { SubTabBar, TopBar } from '@/components/shell/TopBar';
 import { api, clearStoredAuth, getStoredAuth } from '@/api/client';
 import { useAiEnabled } from '@/lib/aiEnabled';
+import { ROLE_LABEL, useAccess } from '@/lib/access';
 import { railLabelOf, tabLabel } from '@/config/shellNav';
 import type { Project } from '@/types';
 import {
@@ -37,7 +38,8 @@ export function Layout() {
   const location = useLocation();
   const { projectId } = useParams<{ projectId: string }>();
   const auth = getStoredAuth();
-  const admin = auth?.role === 'ADMIN';
+  const access = useAccess();
+  const admin = access.admin;
   // AI 키가 있고 사용자가 스위치를 켜 둔 경우에만 AI 버튼 · 채팅이 얹힌다.
   const { active: aiActive } = useAiEnabled();
 
@@ -49,6 +51,7 @@ export function Layout() {
   const activeProjectId = projectId ?? projectWorkspaceMatch?.[1];
   const inProjectWorkspace = Boolean(activeProjectId);
   const currentTab = activeWorkspaceTab(location.pathname);
+  const roleInProject = activeProjectId ? access.roleIn(activeProjectId) : null;
 
   // 최근 프로젝트는 기억해 두고, 상단바 칩에 쓸 프로젝트 이름을 받아온다.
   useEffect(() => {
@@ -128,12 +131,14 @@ export function Layout() {
           activeProject={activeProject}
           currentTab={currentTab}
           auth={auth}
+          roleLabel={roleInProject ? ROLE_LABEL[roleInProject] : undefined}
+          canManage={access.canManage(activeProjectId)}
           projectTab={inProjectWorkspace ? currentTab : undefined}
           onOpenProjectSwitcher={() => setProjectSwitcherOpen(true)}
           onLogout={handleLogout}
         />
         {inProjectWorkspace && activeProjectId && (
-          <SubTabBar projectId={activeProjectId} currentTab={currentTab} />
+          <SubTabBar projectId={activeProjectId} currentTab={currentTab} canManage={access.canManage(activeProjectId)} />
         )}
         {/* 리소스 바를 본문 아래에 붙여 둔다. AI 버튼 · 채팅 창도 본문 안에 띄워 바를 가리지 않는다 */}
         <div className="relative min-h-0 flex-1">
@@ -155,7 +160,8 @@ export function Layout() {
             </button>
           ))}
         </div>
-        <ResourceStatusBar />
+        {/* 리소스 현황은 관리자만 (#106) */}
+        {admin && <ResourceStatusBar />}
       </div>
       <ProjectSwitcherDialog
         open={projectSwitcherOpen}

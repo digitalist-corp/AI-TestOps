@@ -52,6 +52,7 @@ public class TestExecutionService {
     private final PlaywrightScenarioService scenarioService;
     private final SlackNotificationService slackNotificationService;
     private final NotificationService notificationService;
+    private final FixProposalService fixProposalService;
     private final LoginSessionService loginSessionService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<Long, Process> activeProcesses = new ConcurrentHashMap<>();
@@ -67,10 +68,12 @@ public class TestExecutionService {
             SlackNotificationService slackNotificationService,
             LoginSessionService loginSessionService,
             SiteMapPromptService siteMapPromptService,
-            NotificationService notificationService
+            NotificationService notificationService,
+            FixProposalService fixProposalService
     ) {
         this.siteMapPromptService = siteMapPromptService;
         this.notificationService = notificationService;
+        this.fixProposalService = fixProposalService;
         this.executionRepository = executionRepository;
         this.executionCaseResultRepository = executionCaseResultRepository;
         this.projectService = projectService;
@@ -214,6 +217,7 @@ public class TestExecutionService {
             executionRepository.save(execution);
             notifyFailureIfNeeded(execution, project);
             notificationService.executionFinished(execution, project);
+            fixProposalService.onExecutionFinished(execution, project);
             try {
                 projectService.cleanupEphemeralRunner(project);
             } catch (Exception e) {

@@ -23,20 +23,7 @@ export function AppRail({ admin }: { admin: boolean }) {
         <BrandLogo size={30} />
       </NavLink>
 
-      {RAIL_ITEMS.map(({ to, label, icon: Icon, adminOnly }) => {
-        const disabled = Boolean(adminOnly && !admin);
-        if (disabled) {
-          return (
-            <span
-              key={to}
-              className="group relative flex h-10 w-10 items-center justify-center rounded-xl text-sidebar-foreground/30"
-            >
-              <Icon className="h-[18px] w-[18px]" />
-              <RailTooltip label={`${label} (관리자 전용)`} />
-            </span>
-          );
-        }
-
+      {RAIL_ITEMS.filter((item) => admin || !item.adminOnly).map(({ to, label, icon: Icon }) => {
         return (
           <NavLink
             key={to}

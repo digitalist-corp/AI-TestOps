@@ -1,22 +1,18 @@
 import {
   BarChart3,
-  ExternalLink,
   FileCode,
   Loader2,
-  Pencil,
   Play,
   SlidersHorizontal,
   TriangleAlert,
-  Trash2,
 } from 'lucide-react';
 import type { DockerStatus, ExecutionStatus, Project, RunnerActivity, RunningAnalysis } from '@/types';
 import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
-import { cn, formatRelative } from '@/lib/utils';
-import {
-  configuredEnvCount,
-  resolveEnvRequirementState,
-} from '@/lib/envVariables';
+import { cn, executionStatusLabel, formatDuration, formatRelative } from '@/lib/utils';
+import { resolveEnvRequirementState, ENV_ASK_PM } from '@/lib/envVariables';
+import { parseRunProgress } from '@/lib/runProgress';
+import { useExecutionLogStream } from '@/components/project/ExecutionLogPanel';
 
 const dockerStatusLabel: Record<DockerStatus, string> = {
   RUNNING: '실행 중',
@@ -29,23 +25,6 @@ const runnerActivityLabel: Record<RunnerActivity, string> = {
   IDLE: '대기',
   TESTING: '테스트 중',
   UNAVAILABLE: '중지',
-};
-
-const serverTypeLabel: Record<Project['serverType'], string> = {
-  DEV: '개발',
-  TEST: '테스트',
-  PROD: '운영',
-};
-
-const executionStatusLabel: Record<ExecutionStatus, string> = {
-  SCHEDULED: '예약',
-  PENDING: '대기',
-  RUNNING: '실행 중',
-  CANCEL_REQUESTED: '중단 중',
-  CANCELLED: '중단',
-  PASSED: '성공',
-  FAILED: '실패',
-  ERROR: '오류',
 };
 
 const executionStatusTone: Record<ExecutionStatus, string> = {
@@ -97,13 +76,6 @@ export function envState(project: Project) {
   return resolveEnvRequirementState(project.loginEnvRequired, project.envVariables);
 }
 
-function formatDuration(durationMs: number | null): string {
-  if (durationMs == null) return '';
-  const seconds = durationMs / 1000;
-  if (seconds < 60) return `${seconds.toFixed(1)}초`;
-  return `${Math.floor(seconds / 60)}분 ${Math.round(seconds % 60)}초`;
-}
-
 function Chip({ tone, children }: { tone: string; children: React.ReactNode }) {
   return (
     <span className={cn('inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[12px] font-bold', tone)}>
@@ -143,7 +115,7 @@ function IconButton({
  * 프로젝트 한 개를 카드로 보여준다.
  *
  * 표 10칸을 가로로 훑는 대신, 카드 안에서 위에서 아래로 읽히게 묶었다.
- *   이름 · 대상 사이트  →  최근 실행 결과  →  실행 환경 · 러너  →  할 수 있는 일
+ *   이름  →  최근 실행 결과  →  실행 환경 · 러너  →  할 수 있는 일
  */
 export function ProjectCard({
   project,
@@ -153,8 +125,6 @@ export function ProjectCard({
   onOpen,
   onRun,
   onEnv,
-  onEdit,
-  onDelete,
   onGo,
 }: {
   project: Project;
@@ -164,14 +134,17 @@ export function ProjectCard({
   analysis?: RunningAnalysis;
   onOpen: () => void;
   onRun: () => void;
-  onEnv: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  /** 없으면(팀원) 환경변수 버튼 대신 PM에게 요청하라고 안내한다 */
+  onEnv?: () => void;
   onGo: (tab: 'results' | 'runs' | 'source') => void;
 }) {
   const state = envState(project);
   const missingEnv = state === 'required-missing';
   const status = project.latestExecutionStatus;
+  const active = status === 'RUNNING' || status === 'PENDING' || status === 'CANCEL_REQUESTED';
+  // 서버는 끝난 뒤에야 건수를 저장하므로, 실행 중에는 로그를 따라 읽어 진척도를 만든다.
+  const { log } = useExecutionLogStream(active ? project.latestExecutionId : null);
+  const progress = active ? parseRunProgress(log) : null;
   const runnerLabel = project.dockerStatus === 'RUNNING'
     ? runnerActivityLabel[project.runnerActivity ?? 'IDLE']
     : project.dockerEnabled && (project.runnerLifecycle === 'EPHEMERAL' || !project.dockerContainerId)
@@ -185,24 +158,20 @@ export function ProjectCard({
         justCreated ? 'border-primary ring-1 ring-primary' : 'border-border hover:border-border-strong'
       )}
     >
-      {/* 이름 · 대상 사이트 */}
+      {/* 이름 — 카드에서 가장 먼저 읽힌다. 사이트 주소는 프로젝트 정보에서 본다. */}
       <div className="flex items-start justify-between gap-3 px-4 pt-4">
-        <div className="min-w-0">
+        <h3 className="min-w-0">
           <button
             type="button"
             onClick={onOpen}
-            className="block max-w-full truncate text-left text-[17px] font-bold text-foreground hover:text-primary"
+            className="block max-w-full truncate text-left text-[21px] font-bold leading-tight text-foreground hover:text-primary"
             title={project.projectName}
           >
             {project.projectName}
           </button>
-          <p className="mt-0.5 truncate font-mono text-[12px] text-muted-foreground" title={project.baseUrl ?? project.projectId}>
-            {project.baseUrl ?? project.projectId}
-          </p>
-        </div>
+        </h3>
         <div className="flex shrink-0 flex-col items-end gap-1">
           {justCreated && <Chip tone="border-primary/30 bg-primary/10 text-primary">방금 등록됨</Chip>}
-          <Chip tone="border-border bg-muted text-secondary-foreground">{serverTypeLabel[project.serverType]}</Chip>
           <Chip tone={healthTone[projectHealth(project)]}>{healthLabel[projectHealth(project)]}</Chip>
         </div>
       </div>
@@ -240,6 +209,35 @@ export function ProjectCard({
         ) : (
           <p className="text-[13px] text-muted-foreground">아직 실행한 적이 없습니다. 실행을 눌러 첫 테스트를 돌려보세요.</p>
         )}
+        {active && (
+          <div className="mt-2">
+            {progress ? (
+              <>
+                <div className="flex items-center justify-between gap-2 text-[12px]">
+                  <span className="font-bold text-foreground">완료 {progress.done} / {progress.total}</span>
+                  <span className={cn('text-muted-foreground', progress.failed > 0 && 'text-destructive')}>
+                    성공 {progress.passed} · 실패 {progress.failed}
+                  </span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-label="실행 진척도"
+                  aria-valuemin={0}
+                  aria-valuemax={progress.total}
+                  aria-valuenow={progress.done}
+                  className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"
+                >
+                  <span
+                    className="block h-full bg-primary transition-[width]"
+                    style={{ width: `${progress.total ? (progress.done / progress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </>
+            ) : (
+              <p className="text-[12px] text-muted-foreground">실행 준비 중 · 설치와 러너를 확인하고 있어요</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 러너 · 실행 환경 */}
@@ -251,16 +249,6 @@ export function ProjectCard({
           </dd>
         </div>
         <div className="flex min-w-0 items-center gap-1.5">
-          <dt className="shrink-0 text-muted-foreground">환경</dt>
-          <dd className="truncate font-medium text-foreground">
-            Node {project.nodeVersion} · PW {project.playwrightVersion}
-          </dd>
-        </div>
-        <div className="flex min-w-0 items-center gap-1.5">
-          <dt className="shrink-0 text-muted-foreground">환경변수</dt>
-          <dd className="truncate font-medium text-foreground">{configuredEnvCount(project.envVariables)}개</dd>
-        </div>
-        <div className="flex min-w-0 items-center gap-1.5">
           <dt className="shrink-0 text-muted-foreground">담당</dt>
           <dd className="truncate font-medium text-foreground">{project.managerName || '-'}</dd>
         </div>
@@ -269,7 +257,7 @@ export function ProjectCard({
       {missingEnv && (
         <p className="mx-4 mt-2.5 flex items-start gap-1.5 rounded-sm border border-destructive bg-destructive/10 px-2.5 py-1.5 text-[12px] text-destructive">
           <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          테스트 계정 환경변수가 필요합니다. 입력해야 실행할 수 있습니다.
+          {onEnv ? '테스트 계정 환경변수가 필요합니다. 입력해야 실행할 수 있습니다.' : ENV_ASK_PM}
         </p>
       )}
 
@@ -283,7 +271,6 @@ export function ProjectCard({
           </Button>
           <Button size="sm" variant="outline" onClick={onOpen}>
             열기
-            <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1">
@@ -293,19 +280,15 @@ export function ProjectCard({
           <IconButton title="소스" onClick={() => onGo('source')}>
             <FileCode className="h-4 w-4" />
           </IconButton>
-          <IconButton
-            title="환경변수"
-            onClick={onEnv}
-            tone={missingEnv ? 'border-destructive text-destructive hover:bg-destructive/10' : undefined}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-          </IconButton>
-          <IconButton title="수정" onClick={onEdit}>
-            <Pencil className="h-4 w-4" />
-          </IconButton>
-          <IconButton title="삭제" onClick={onDelete} tone="hover:border-destructive hover:text-destructive">
-            <Trash2 className="h-4 w-4" />
-          </IconButton>
+          {onEnv && (
+            <IconButton
+              title="환경변수"
+              onClick={onEnv}
+              tone={missingEnv ? 'border-destructive text-destructive hover:bg-destructive/10' : undefined}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </IconButton>
+          )}
         </div>
       </div>
     </article>

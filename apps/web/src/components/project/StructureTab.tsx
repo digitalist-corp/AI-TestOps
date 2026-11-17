@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { projectTabPath } from '@/config/projectWorkspace';
 import { ChevronDown, Globe, Info, KeyRound, List, Loader2, Plus, RefreshCw, Settings2, TriangleAlert, Waypoints, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { Coverage, Execution, SiteMap, SiteMapNode } from '@/types';
@@ -83,7 +84,7 @@ function ViewSwitch({ view, onChange }: {
     </button>
   );
   return (
-    <div role="tablist" aria-label="구조 보기" className="inline-flex rounded-full border border-border bg-card p-0.5">
+    <div role="tablist" aria-label="화면 지도 보기" className="inline-flex rounded-full border border-border bg-card p-0.5">
       {item('graph', '그래프', <Waypoints className="h-3.5 w-3.5" />)}
       {item('list', '목록', <List className="h-3.5 w-3.5" />)}
     </div>
@@ -99,8 +100,10 @@ function ViewSwitch({ view, onChange }: {
  * 있으면 넓은 화면(1024px 이상)은 그래프 보기, 좁은 화면은 목록 보기가 기본이다. 여러 화면을 이어 경로로
  * 테스트를 만드는 일은 그래프 보기에서만 한다.
  */
-export function StructureTab({ projectId, onOpenEnv }: {
+export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
   projectId: string;
+  /** input: 입력 단계 — 저장소 연결·화면 찾기 버튼만. map: 계획 › 화면 지도 — 찾은 화면만. 상태·폴링은 같이 쓴다. */
+  mode?: 'input' | 'map';
   /** 프로젝트 환경변수 창을 연다 (막힌 곳의 "로그인 정보 넣기") */
   onOpenEnv?: () => void;
 }) {
@@ -223,7 +226,8 @@ export function StructureTab({ projectId, onOpenEnv }: {
       }
       if (action === 'SET_LOGIN') {
         if (onOpenEnv) onOpenEnv();
-        else setNotice({ tone: 'info', text: '프로젝트 환경변수에 LOGIN_ID 와 LOGIN_PASSWORD 를 넣어 주세요.' });
+        // 창을 열 수 없는 사람(팀원): 입력은 PM 이 한다
+        else setNotice({ tone: 'info', text: '로그인 정보(LOGIN_ID · LOGIN_PASSWORD)는 PM이 프로젝트 환경변수에 넣습니다. PM에게 요청하세요.' });
         return;
       }
       if (!issue.specPath || !data) return;
@@ -463,6 +467,11 @@ export function StructureTab({ projectId, onOpenEnv }: {
             <span className="text-xs text-muted-foreground">마지막 분석 {formatTime(analysis.finishedAt)}</span>
           )}
 
+          {mode === 'map' ? (
+            <Link to={projectTabPath(projectId, 'input')} className="ml-auto text-xs font-medium text-primary hover:underline">
+              화면 다시 찾기는 입력 단계에서 →
+            </Link>
+          ) : (
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
@@ -512,9 +521,10 @@ export function StructureTab({ projectId, onOpenEnv }: {
               코드로 찾기
             </Button>
           </div>
+          )}
         </div>
 
-        {showSource && (
+        {mode === 'input' && showSource && (
           <div id="structure-source-settings" className="mt-3 space-y-3 border-t border-border pt-3">
             <p className="text-xs text-muted-foreground">
               테스트할 앱의 소스 코드가 있는 GitHub 저장소입니다. React Router 와 Next.js 프로젝트를 읽을 수 있습니다.
@@ -609,7 +619,16 @@ export function StructureTab({ projectId, onOpenEnv }: {
         )}
       </section>
 
-      {empty ? (
+      {mode === 'input' ? (
+        <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          {empty ? '아직 찾은 화면이 없어요. 위에서 사이트 주소나 코드로 화면을 찾아 주세요.' : `찾은 화면 ${siteMap.nodes.length}개는 `}
+          {!empty && (
+            <Link to={projectTabPath(projectId, 'structure')} className="font-medium text-primary hover:underline">
+              계획 › 화면 지도에서 봅니다 →
+            </Link>
+          )}
+        </p>
+      ) : empty ? (
         <StructureEmptyState
           projectId={projectId}
           running={Boolean(running)}
@@ -677,7 +696,7 @@ export function StructureTab({ projectId, onOpenEnv }: {
           <DialogHeader>
             <DialogTitle>화면 직접 추가</DialogTitle>
             <DialogDescription>
-              탐색되지 않은 URL 경로나 새 화면 노드를 사이트 맵에 직접 추가합니다.
+              탐색되지 않은 URL 경로나 새 화면 노드를 화면 지도에 직접 추가합니다.
             </DialogDescription>
           </DialogHeader>
 

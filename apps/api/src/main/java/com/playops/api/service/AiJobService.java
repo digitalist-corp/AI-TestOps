@@ -6,6 +6,7 @@ import com.playops.api.dto.AiJobFileDiff;
 import com.playops.api.entity.AiJob;
 import com.playops.api.entity.AiJobStatus;
 import com.playops.api.entity.AiJobType;
+import com.playops.api.entity.AiModelProvider;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.User;
 import com.playops.api.entity.UserAuditAction;
@@ -44,6 +45,7 @@ public class AiJobService {
     private final GitCommitService gitCommitService;
     private final LlmGatewayService llmGatewayService;
     private final SiteMapPromptService siteMapPromptService;
+    private final AiProviderSettingsService aiProviderSettingsService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -67,8 +69,10 @@ public class AiJobService {
             GitCommitService gitCommitService,
             LlmGatewayService llmGatewayService,
             SiteMapPromptService siteMapPromptService,
+            AiProviderSettingsService aiProviderSettingsService,
             @Lazy AiJobService self
     ) {
+        this.aiProviderSettingsService = aiProviderSettingsService;
         this.aiJobRepository = aiJobRepository;
         this.projectService = projectService;
         this.executionLogService = executionLogService;
@@ -261,8 +265,7 @@ public class AiJobService {
             job.setRiskFlags(objectMapper.writeValueAsString(allFlags));
         } catch (IOException ignored) {}
 
-        boolean autoApplyCandidate = !assessment.hasHardGate() && assessment.withinQuantitativeLimits(project);
-        if (autoApplyCandidate && project.getAiAutoApplyEnabled()) {
+        if (canAutoApply(job, project, assessment)) {
             applyDiff(job, project);
             job.setStatus(AiJobStatus.APPLIED);
             aiJobRepository.save(job);
@@ -411,8 +414,7 @@ public class AiJobService {
             job.setRiskFlags(objectMapper.writeValueAsString(allFlags));
         } catch (IOException ignored) {}
 
-        boolean autoApplyCandidate = !assessment.hasHardGate() && assessment.withinQuantitativeLimits(project);
-        if (autoApplyCandidate && project.getAiAutoApplyEnabled()) {
+        if (canAutoApply(job, project, assessment)) {
             applyDiff(job, project);
             job.setStatus(AiJobStatus.APPLIED);
             job.setReviewedBy(null);
@@ -425,7 +427,9 @@ public class AiJobService {
         aiJobRepository.save(job);
 
         String reason;
-        if (assessment.hasHardGate()) {
+        if (job.isAutoCreated()) {
+            reason = "자동으로 만든 수정 제안은 항상 사람 검토를 거칩니다";
+        } else if (assessment.hasHardGate()) {
             reason = String.join(", ", assessment.hardGateFlags());
         } else if (!assessment.withinQuantitativeLimits(project)) {
             reason = "변경 규모 임계값 초과 (changedLines=" + assessment.changedLines() + ", changedFiles=" + assessment.changedFiles() + ")";
@@ -476,6 +480,17 @@ public class AiJobService {
             files.add(job.getTargetSpecPath());
         }
         return files;
+    }
+
+    /**
+     * 사람 승인 없이 바로 반영해도 되는지. 프로젝트에서 자동 적용을 켰고, 사람이 요청한 작업이며,
+     * 검증 약화 같은 위험 표시가 없고 변경 규모가 상한 안일 때만 그렇다. (D-03 승인 게이트)
+     */
+    static boolean canAutoApply(AiJob job, Project project, AiDiffRiskEvaluatorService.Assessment assessment) {
+        return project.getAiAutoApplyEnabled()
+                && !job.isAutoCreated()
+                && !assessment.hasHardGate()
+                && assessment.withinQuantitativeLimits(project);
     }
 
     /**
@@ -586,6 +601,40 @@ public class AiJobService {
         postApplyVerificationService.triggerVerification(saved, project);
 
         return saved;
+    }
+
+    /**
+     * 수정 제안(PROPOSED)을 진행한다. 이때부터는 사람이 직접 만든 CODE_FIX 와 같은 길을 가고,
+     * 결과는 검토 대기(NEEDS_REVIEW)에서 다시 승인을 기다린다.
+     */
+    public AiJob proceed(Long jobId, Long userId) {
+        AiJob job = getJobOrThrow(jobId);
+        if (job.getStatus() != AiJobStatus.PROPOSED) {
+            throw new ApiException(409, "STATE_CONFLICT", "수정 제안 상태의 작업만 진행할 수 있습니다. 현재 상태: " + job.getStatus());
+        }
+        AiModelProvider provider = llmGatewayService.defaultProvider();
+        if (!aiProviderSettingsService.hasKey(provider)) {
+            throw new ApiException(400, "AI_UNAVAILABLE", "AI 키가 등록되지 않아 자동으로 고칠 수 없습니다. 관리자 메뉴의 AI 설정을 확인하세요.");
+        }
+        job.setStatus(AiJobStatus.PENDING);
+        job.setAiModelProvider(provider);
+        job.setRequestedBy(userId);
+        job.setCallbackToken(UUID.randomUUID().toString());
+        job.setCallbackTokenExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
+        job = aiJobRepository.save(job);
+        self.runAsync(job.getId());
+        return job;
+    }
+
+    /** 수정 제안을 닫는다. 아무것도 바뀌지 않는다. */
+    public AiJob dismiss(Long jobId, Long userId) {
+        AiJob job = getJobOrThrow(jobId);
+        if (job.getStatus() != AiJobStatus.PROPOSED) {
+            throw new ApiException(409, "STATE_CONFLICT", "수정 제안 상태의 작업만 닫을 수 있습니다. 현재 상태: " + job.getStatus());
+        }
+        job.setStatus(AiJobStatus.CANCELED);
+        job.setReviewedBy(userId);
+        return aiJobRepository.save(job);
     }
 
     public AiJob reject(Long jobId, Long rejectedByUserId) {

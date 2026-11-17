@@ -40,9 +40,9 @@ import { LayoutGroupNode, type LayoutGroupFlowNode } from './LayoutGroupNode';
 import { PathBar, DEFAULT_PATH_INSTRUCTION } from './PathBar';
 import { PathEdge, PathEdgeDefs, type PathFlowEdge } from './PathEdge';
 import { ScreenDetailPanel, DETAIL_PANEL_WIDTH } from './ScreenDetailPanel';
-import { ScreenNode, type ScreenFlowNode, type ScreenPlayback } from './ScreenNode';
+import { LINK_TINT, linkTint, ScreenNode, type ScreenFlowNode, type ScreenPlayback } from './ScreenNode';
 import { ZoomControls } from './ZoomControls';
-import { SCREEN_H, SCREEN_W, groupBoxes, layoutGraph, nodeStatus, type Point } from './layoutGraph';
+import { SCREEN_H, SCREEN_W, connectionCounts, connectionLevel, groupBoxes, layoutGraph, nodeStatus, type Point } from './layoutGraph';
 import { useMediaQuery } from './useMediaQuery';
 import { buildConnectivity, usePathSelection } from './usePathSelection';
 
@@ -158,6 +158,11 @@ function GraphCanvas({
   const [moved, setMoved] = useState<Record<string, Point>>({});
   const positions = useMemo(() => ({ ...laid.positions, ...moved }), [laid, moved]);
   const groups = useMemo(() => groupBoxes(shown.layouts, positions), [shown.layouts, positions]);
+  // 연결이 많을수록 진하게, 가장 많이 연결된 화면(핵심 화면)은 테두리로 강조한다.
+  const links = useMemo(() => {
+    const counts = connectionCounts(laid.edges);
+    return { counts, max: Math.max(0, ...counts.values()) };
+  }, [laid.edges]);
   const nodeByRoute = useMemo(() => new Map(shown.nodes.map((n) => [n.routeKey, n])), [shown.nodes]);
   const covByRoute = useMemo(() => new Map(coverage.nodes.map((n) => [n.routeKey, n])), [coverage.nodes]);
   const edgeStates = useMemo(() => new Map(coverage.edges.map((e) => [edgeKey(e.from, e.to), e.state])), [coverage.edges]);
@@ -465,8 +470,9 @@ function GraphCanvas({
         zIndex: play?.bubble ? 20 : undefined,
         // 키보드로 노드에 초점이 갈 때 나오는 테두리가 카드 모서리를 따라 둥글게 보이도록
         className: 'rounded-lg',
-        ariaLabel: `${node.title ?? node.routeKey} 화면 · ${NODE_STATE_META[cov.state].label}`,
+        ariaLabel: `${node.title ?? node.routeKey} 화면 · ${NODE_STATE_META[cov.state].label} · 연결 ${links.counts.get(node.routeKey) ?? 0}개`,
         data: {
+          projectId,
           node,
           status: nodeStatus(node),
           state: cov.state,
@@ -480,13 +486,16 @@ function GraphCanvas({
           appeared: appeared.has(node.routeKey),
           changed: changed.has(node.routeKey),
           play,
+          links: links.counts.get(node.routeKey) ?? 0,
+          linkLevel: connectionLevel(links.counts.get(node.routeKey) ?? 0, links.max),
+          core: links.max > 0 && links.counts.get(node.routeKey) === links.max,
           onAdd: addToPath,
           onOpen: openDetail,
         },
       });
     }
     return list;
-  }, [groups, shown.nodes, covByRoute, playByRoute, positions, laid, path.orders, filtering, passes, playing, hotSet, hovered, focused, flash, appeared, changed, nodeByRoute, addToPath, openDetail]);
+  }, [groups, shown.nodes, covByRoute, playByRoute, positions, laid, links, path.orders, filtering, passes, playing, hotSet, hovered, focused, flash, appeared, changed, nodeByRoute, addToPath, openDetail]);
 
   const rfEdges = useMemo<PathFlowEdge[]>(() => {
     const transitionIds = new Set(laid.edges.map((e) => e.id));
@@ -690,7 +699,7 @@ function GraphCanvas({
             colorMode={theme}
             // 바탕색은 바깥 상자(bg-background)가 맡는다.
             style={{ background: 'transparent' }}
-            aria-label="화면 구조 그래프"
+            aria-label="화면 지도 그래프"
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} color="var(--color-border)" />
 
@@ -708,6 +717,21 @@ function GraphCanvas({
                   </i>
                 </LegendItem>
               ))}
+              {links.max > 0 && (
+                <>
+                  <LegendItem label="진할수록 연결 많은 화면" hint="들어오고 나가는 전환이 많을수록 화면 상자를 진하게 칠해요">
+                    <span className="flex" aria-hidden="true">
+                      {LINK_TINT.slice(1).map((pct) => (
+                        <i key={pct} className="h-3 w-2 border border-border-strong first:rounded-l-[3px] last:rounded-r-[3px]"
+                           style={{ backgroundColor: linkTint(pct) }} />
+                      ))}
+                    </span>
+                  </LegendItem>
+                  <LegendItem label="핵심 화면" hint="가장 많이 연결된 화면. 여기가 막히면 여러 흐름이 함께 막혀요">
+                    <i className="h-3 w-4 rounded-[3px] border border-border-strong outline-2 outline-offset-1 outline-foreground" />
+                  </LegendItem>
+                </>
+              )}
               <span aria-hidden="true" className="h-3 w-px bg-border" />
               {(['TESTED', 'OBSERVED', 'FAILED', 'UNKNOWN'] as const)
                 .filter((state) => edgeStatesUsed.has(state))

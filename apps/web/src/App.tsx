@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/LoginPage';
+import { SignupPage } from '@/pages/SignupPage';
+import { HomePage } from '@/pages/HomePage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
 import { ProjectDetailPage } from '@/pages/ProjectDetailPage';
 import { UsersPage } from '@/pages/UsersPage';
@@ -10,6 +12,7 @@ import { TemplatesPage } from '@/pages/TemplatesPage';
 import { RunnerContainersPage } from '@/pages/RunnerContainersPage';
 import { getStoredAuth } from '@/api/client';
 import { AiEnabledProvider } from '@/lib/aiEnabled';
+import { AccessProvider } from '@/lib/access';
 
 function GuideRedirect() {
   useEffect(() => {
@@ -29,6 +32,7 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
         <Route path="/guide" element={<GuideRedirect />} />
         <Route path="/guide/*" element={<GuideRedirect />} />
         <Route path="/antigravity-guide" element={<GuideRedirect />} />
@@ -36,13 +40,16 @@ export function App() {
         <Route
           element={
             <ProtectedRoute>
-              <AiEnabledProvider>
-                <Layout />
-              </AiEnabledProvider>
+              <AccessProvider>
+                <AiEnabledProvider>
+                  <Layout />
+                </AiEnabledProvider>
+              </AccessProvider>
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/projects" replace />} />
+          <Route index element={<Navigate to="/home" replace />} />
+          <Route path="home" element={<HomePage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route
             path="projects/:projectId"
@@ -55,7 +62,7 @@ export function App() {
           <Route path="ai-settings" element={<AiSettingsPage />} />
           <Route path="users" element={<UsersPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/projects" replace />} />
+        <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     </BrowserRouter>
   );

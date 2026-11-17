@@ -2,7 +2,13 @@ package com.playops.api.controller;
 
 import com.playops.api.dto.LoginRequest;
 import com.playops.api.dto.LoginResponse;
+import com.playops.api.dto.SignupRequest;
+import com.playops.api.entity.ProjectRole;
+import com.playops.api.entity.User;
+import com.playops.api.entity.UserRole;
 import com.playops.api.service.AuthService;
+import com.playops.api.service.ProjectMemberService;
+import com.playops.api.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -12,9 +18,28 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserService userService;
+    private final ProjectMemberService memberService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, UserService userService, ProjectMemberService memberService) {
         this.authService = authService;
+        this.userService = userService;
+        this.memberService = memberService;
+    }
+
+    public record ProjectRoleItem(String projectId, ProjectRole role) {}
+
+    public record Me(Long id, String username, String displayName, UserRole role, java.util.List<ProjectRoleItem> projects) {}
+
+    /** 로그인한 사람의 전역 역할과 프로젝트별 역할. 웹은 이것만 보고 버튼을 나눈다 (#105). */
+    @GetMapping("/me")
+    public Me me(HttpServletRequest request) {
+        User user = (User) request.getAttribute("currentUser");
+        return new Me(user.getId(), user.getUsername(), user.getDisplayName(), user.getRole(),
+                memberService.projectsOf(user).entrySet().stream()
+                        .map(e -> new ProjectRoleItem(e.getKey(), e.getValue()))
+                        .sorted(java.util.Comparator.comparing(ProjectRoleItem::projectId))
+                        .toList());
     }
 
     @PostMapping("/login")
@@ -25,6 +50,16 @@ public class AuthController {
                 : httpRequest.getRemoteAddr();
         String userAgent = httpRequest.getHeader("User-Agent");
         return authService.login(request, clientIp, userAgent);
+    }
+
+    @PostMapping("/signup")
+    public LoginResponse signup(@RequestBody SignupRequest request, HttpServletRequest httpRequest) {
+        return userService.signup(request, httpRequest.getHeader("User-Agent"));
+    }
+
+    @PostMapping("/guest")
+    public LoginResponse guest(HttpServletRequest httpRequest) {
+        return authService.guestLogin(httpRequest.getHeader("User-Agent"));
     }
 
     @PostMapping("/logout")

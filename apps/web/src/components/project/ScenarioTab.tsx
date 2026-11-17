@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
-import { cn } from '@/lib/utils';
+import { cn, executionStatusLabel } from '@/lib/utils';
 
 export interface SelectedCase {
   grep: string;
@@ -89,17 +89,6 @@ const statusPillColor: Record<ExecutionStatus, string> = {
   PASSED: 'bg-success/10 text-success',
   FAILED: 'bg-destructive/10 text-destructive',
   ERROR: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
-};
-
-const statusLabel: Record<ExecutionStatus, string> = {
-  SCHEDULED: '예약됨',
-  PENDING: '대기',
-  RUNNING: '실행 중',
-  CANCEL_REQUESTED: '중단 중',
-  CANCELLED: '중단됨',
-  PASSED: '성공',
-  FAILED: '실패',
-  ERROR: '오류',
 };
 
 function splitSpecPaths(value: string | null) {
@@ -198,7 +187,7 @@ function StatusBadge({ execution }: { execution: Execution | null }) {
 
   return (
     <span className={cn('inline-flex px-2 py-0.5 rounded-full text-xs font-medium', statusPillColor[execution.status])}>
-      {statusLabel[execution.status]}
+      {executionStatusLabel[execution.status]}
     </span>
   );
 }

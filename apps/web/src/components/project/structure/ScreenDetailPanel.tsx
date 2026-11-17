@@ -130,7 +130,7 @@ export function ScreenDetailPanel({
   };
 
   const handleDelete = async () => {
-    if (!confirm(`'${routeKey}' 화면을 구조에서 삭제할까요? 연결된 전환선도 함께 삭제됩니다.`)) return;
+    if (!confirm(`'${routeKey}' 화면을 화면 지도에서 삭제할까요? 연결된 전환선도 함께 삭제됩니다.`)) return;
     setSaving(true);
     setError('');
     try {
@@ -190,7 +190,7 @@ export function ScreenDetailPanel({
             className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             onClick={handleDelete}
             disabled={saving}
-            title="이 화면을 구조에서 삭제"
+            title="이 화면을 화면 지도에서 삭제"
           >
             <Trash2 className="h-3.5 w-3.5 mr-1" /> 삭제
           </Button>

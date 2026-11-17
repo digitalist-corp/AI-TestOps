@@ -16,7 +16,7 @@ export const TOOL_LABELS: Record<string, string> = {
   list_executions: '실행 목록',
   get_execution_detail: '실행 상세',
   get_case_history: '케이스 이력',
-  get_sitemap: '화면 구조',
+  get_sitemap: '화면 지도',
   get_job_status: '작업 상태',
   run_tests: '테스트 실행',
   fix_test: '테스트 수정',

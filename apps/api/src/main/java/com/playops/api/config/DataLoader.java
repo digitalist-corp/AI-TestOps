@@ -4,9 +4,12 @@ import com.playops.api.entity.User;
 import com.playops.api.entity.UserRole;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.PackageManager;
+import com.playops.api.entity.ProjectMember;
+import com.playops.api.entity.ProjectRole;
 import com.playops.api.entity.ProjectServerType;
 import com.playops.api.entity.RunnerLifecycle;
 import com.playops.api.entity.TestSuite;
+import com.playops.api.repository.ProjectMemberRepository;
 import com.playops.api.repository.UserRepository;
 import com.playops.api.repository.ProjectRepository;
 import com.playops.api.repository.TestSuiteRepository;
@@ -21,29 +24,41 @@ import org.springframework.stereotype.Component;
 @Order(10)
 public class DataLoader implements CommandLineRunner {
 
+    /** 게스트가 팀원으로 들어가 둘러보는 시연 프로젝트 */
+    private static final String GUEST_DEMO_PROJECT = "example.com";
+
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final TestSuiteRepository testSuiteRepository;
+    private final ProjectMemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
     private final String loginUsername;
     private final String loginPassword;
+    private final String guestUsername;
+    private final String guestPassword;
     private final String webPort;
 
     public DataLoader(
             UserRepository userRepository,
             ProjectRepository projectRepository,
             TestSuiteRepository testSuiteRepository,
+            ProjectMemberRepository memberRepository,
             PasswordEncoder passwordEncoder,
             @Value("${LOGIN_USERNAME:admin}") String loginUsername,
             @Value("${LOGIN_PASSWORD:admin}") String loginPassword,
+            @Value("${GUEST_USERNAME:guest}") String guestUsername,
+            @Value("${GUEST_PASSWORD:}") String guestPassword,
             @Value("${WEB_PORT:3000}") String webPort
     ) {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.testSuiteRepository = testSuiteRepository;
+        this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
         this.loginUsername = loginUsername;
         this.loginPassword = loginPassword;
+        this.guestUsername = guestUsername;
+        this.guestPassword = guestPassword;
         this.webPort = webPort;
     }
 
@@ -62,6 +77,7 @@ public class DataLoader implements CommandLineRunner {
             userRepository.save(existingAdmin);
         }
 
+        seedGuest();
         removeObsoleteDemoProject("kakao.com");
         normalizeExistingRuntimeVersions();
 
@@ -80,6 +96,45 @@ public class DataLoader implements CommandLineRunner {
                 "AI-TestOps 배포 후 자체 회귀 테스트 (CI/CD 게이트)", true);
 
         seedSelfTestSuite();
+        seedMembers();
+    }
+
+    /**
+     * PM 이 없는 프로젝트(새로 시드한 데모 등)는 관리자를 PM 으로, 게스트는 시연 프로젝트(example.com)의 팀원으로 둔다 (#104).
+     * 기존 DB 의 프로젝트는 V14 마이그레이션이 이미 PM 을 채운다.
+     */
+    private void seedMembers() {
+        User admin = userRepository.findByUsername(loginUsername).orElse(null);
+        if (admin != null) {
+            for (Project project : projectRepository.findAll()) {
+                if (!memberRepository.existsByProjectIdAndRole(project.getProjectId(), ProjectRole.PM)) {
+                    memberRepository.save(ProjectMember.of(project.getProjectId(), admin.getId(), ProjectRole.PM, admin.getId()));
+                }
+            }
+        }
+        userRepository.findByUsername(guestUsername)
+                .filter(guest -> guest.getRole() == UserRole.USER && projectRepository.existsById(GUEST_DEMO_PROJECT))
+                .filter(guest -> memberRepository.findByProjectIdAndUserId(GUEST_DEMO_PROJECT, guest.getId()).isEmpty())
+                .ifPresent(guest -> memberRepository.save(ProjectMember.of(
+                        GUEST_DEMO_PROJECT, guest.getId(), ProjectRole.MEMBER, admin != null ? admin.getId() : null)));
+    }
+
+    /**
+     * "게스트로 시작"용 팀원 계정. 관리자와 분리한다 (#103).
+     * GUEST_PASSWORD 가 비어 있으면 아무도 모르는 임의 값으로 두어 게스트 버튼으로만 들어가게 한다.
+     */
+    private void seedGuest() {
+        if (guestUsername.isBlank() || guestUsername.equals(loginUsername)
+                || userRepository.findByUsername(guestUsername).isPresent()) {
+            return;
+        }
+        User guest = new User();
+        guest.setUsername(guestUsername);
+        guest.setDisplayName("게스트");
+        String password = guestPassword.isBlank() ? java.util.UUID.randomUUID().toString() : guestPassword;
+        guest.setPassword(passwordEncoder.encode(password));
+        guest.setRole(UserRole.USER);
+        userRepository.save(guest);
     }
 
     private void seedSelfTestSuite() {

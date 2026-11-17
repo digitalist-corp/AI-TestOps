@@ -1,5 +1,7 @@
 package com.playops.api.service;
 
+import com.playops.api.dto.LoginResponse;
+import com.playops.api.dto.SignupRequest;
 import com.playops.api.dto.UserAuditLogResponse;
 import com.playops.api.dto.UserRequest;
 import com.playops.api.dto.UserResponse;
@@ -76,6 +78,38 @@ public class UserService {
         User saved = userRepository.save(user);
         audit(actingUser, UserAuditAction.CREATED, saved, "역할: " + saved.getRole());
         return UserResponse.from(saved);
+    }
+
+    /** 회원가입: 누구나 가입하고 가입 즉시 팀원(USER)이 된다. 프로젝트는 PM이 초대해야 보인다. */
+    @Transactional
+    public LoginResponse signup(SignupRequest request, String userAgent) {
+        if (request == null || request.username() == null || request.username().isBlank()) {
+            throw new ApiException(400, "VALIDATION_ERROR", "아이디를 입력하세요.");
+        }
+        String username = request.username().trim();
+        if (username.length() > 100) {
+            throw new ApiException(400, "VALIDATION_ERROR", "아이디는 100자 이하여야 합니다.");
+        }
+        String name = request.name() == null ? "" : request.name().trim();
+        if (name.isEmpty() || name.length() > 100) {
+            throw new ApiException(400, "VALIDATION_ERROR", "이름은 1~100자로 입력하세요.");
+        }
+        if (request.password() == null || request.password().isBlank()) {
+            throw new ApiException(400, "VALIDATION_ERROR", "비밀번호를 입력하세요.");
+        }
+        validatePasswordForRegistration(request.password());
+        if (userRepository.existsByUsername(username)) {
+            throw new ApiException(409, "STATE_CONFLICT", "이미 사용 중인 아이디입니다.");
+        }
+
+        User user = new User();
+        user.setUsername(username);
+        user.setDisplayName(name);
+        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setRole(UserRole.USER);
+        User saved = userRepository.save(user);
+        audit(saved, UserAuditAction.CREATED, saved, "회원가입");
+        return authService.issueSession(saved, userAgent);
     }
 
     @Transactional

@@ -27,7 +27,6 @@ import { Label } from '@/components/ui/Label';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
@@ -48,6 +47,8 @@ interface ProjectFormDialogProps {
   onSubmit: (data: ProjectFormData, aiBootstrapInstruction?: string) => Promise<void>;
   title: string;
   initial?: Project;
+  /** 등록할 때 고를 PM 후보 (관리자만 등록한다). 없으면 PM 칸을 보이지 않는다. */
+  pmCandidates?: { id: number; label: string }[];
 }
 
 type FormValue = string | number | boolean;
@@ -208,13 +209,13 @@ function validateExecutionEnvironment(form: ProjectFormData): string | null {
     return `Playwright 버전은 ${ALLOWED_PLAYWRIGHT_VERSION}만 사용할 수 있습니다.`;
   }
   if (!form.installCommand.trim()) {
-    return '설치 명령어를 입력하세요. (고급 설정 > 실행 환경)';
+    return '설치 명령어를 입력하세요. (상세 설정 > 실행 환경)';
   }
   if (!form.testCommand.trim()) {
-    return '테스트 명령어를 입력하세요. (고급 설정 > 실행 환경)';
+    return '테스트 명령어를 입력하세요. (상세 설정 > 실행 환경)';
   }
   if (!form.workingDirectory.trim()) {
-    return '작업 디렉터리를 입력하세요. (고급 설정 > 실행 환경)';
+    return '작업 디렉터리를 입력하세요. (상세 설정 > 실행 환경)';
   }
   if (form.timeout < 1 || form.timeout > 86400) {
     return '제한 시간은 1~86400초 사이로 입력하세요.';
@@ -250,6 +251,7 @@ export function ProjectFormDialog({
   onSubmit,
   title,
   initial,
+  pmCandidates,
 }: ProjectFormDialogProps) {
   const [form, setForm] = useState<ProjectFormData>(DEFAULT_PROJECT_FORM);
   const [loading, setLoading] = useState(false);
@@ -414,7 +416,7 @@ export function ProjectFormDialog({
     setEnvError('');
 
     if (!initial && !form.baseUrl.trim() && !form.repositoryUrl.trim()) {
-      setError('테스트할 사이트 주소를 입력하세요. 기존 테스트 코드가 있다면 GitHub 주소만 넣어도 됩니다.');
+      setError('사이트 주소를 입력하세요. 기존 테스트 코드가 있다면 GitHub 주소만 넣어도 됩니다.');
       setLoading(false);
       return;
     }
@@ -463,14 +465,9 @@ export function ProjectFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl p-0 overflow-hidden">
+      <DialogContent className="max-w-3xl p-0 overflow-hidden" aria-describedby={undefined}>
         <DialogHeader className="border-b border-border px-6 py-5">
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {creating
-              ? '테스트할 사이트만 알려주면 나머지는 기본값으로 시작합니다. 등록 후 설정에서 언제든 바꿀 수 있습니다.'
-              : '프로젝트 정보와 실행 방식을 수정합니다.'}
-          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex max-h-[calc(90vh-96px)] flex-col">
@@ -478,7 +475,7 @@ export function ProjectFormDialog({
             {/* 1. 무엇을 테스트할 것인가 */}
             <section className="space-y-4 rounded-md border border-border bg-card p-5">
               <div className="space-y-2">
-                <Label htmlFor="baseUrl">테스트할 사이트 {creating && <span className="text-destructive">*</span>}</Label>
+                <Label htmlFor="baseUrl">사이트 {creating && <span className="text-destructive">*</span>}</Label>
                 <div className="flex gap-2">
                   <Input
                     id="baseUrl"
@@ -519,29 +516,6 @@ export function ProjectFormDialog({
                 )}
               </div>
 
-              <div className="space-y-2">
-                <Label>환경</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {([['DEV', '개발'], ['TEST', '테스트'], ['PROD', '운영']] as const).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => update('serverType', value)}
-                      className={cn(
-                        'h-10 rounded-sm border text-[15px] font-bold transition-colors',
-                        form.serverType === value
-                          ? 'border-primary bg-primary-subtle text-primary'
-                          : 'border-border bg-card text-muted-foreground hover:bg-accent'
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[13px] text-muted-foreground">
-                  목록에서 이 기준으로 모아 볼 수 있습니다. 나중에 설정에서 바꿔도 됩니다.
-                </p>
-              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="projectName">프로젝트 이름 <span className="text-destructive">*</span></Label>
@@ -572,11 +546,39 @@ export function ProjectFormDialog({
                   ) : (
                     <p className="text-[13px] text-muted-foreground">
                       주소: <span className="font-mono">/projects/{form.projectId || '...'}</span>
-                      <span className="ml-1">— 고급 설정에서 바꿀 수 있습니다.</span>
+                      <span className="ml-1">— 상세 설정에서 바꿀 수 있습니다.</span>
                     </p>
                   )
                 )}
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="managerName">담당자</Label>
+                <Input
+                  id="managerName"
+                  value={form.managerName}
+                  onChange={(e) => update('managerName', e.target.value)}
+                  placeholder="이름"
+                />
+              </div>
+
+              {!initial && pmCandidates && (
+                <div className="space-y-2">
+                  <Label htmlFor="pmUserId">PM</Label>
+                  <select
+                    id="pmUserId"
+                    className={selectClass}
+                    value={form.pmUserId ?? ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, pmUserId: e.target.value ? Number(e.target.value) : undefined }))}
+                  >
+                    <option value="">나 (등록하는 관리자)</option>
+                    {pmCandidates.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[13px] text-muted-foreground">PM은 팀원을 넣고 계획을 정합니다.</p>
+                </div>
+              )}
             </section>
 
             {/* 2. 이미 짜둔 테스트 코드가 있나 */}
@@ -652,7 +654,7 @@ export function ProjectFormDialog({
                 <p className="text-[13px] text-muted-foreground">
                   테스트할 앱의 소스 코드가 있는 저장소입니다. 넣어 두면 등록 직후 코드를 읽어 어떤 화면과 버튼이 있는지
                   찾아 두고, AI 가 그 정보로 테스트를 만듭니다. React Router 와 Next.js 를 읽을 수 있습니다.
-                  나중에 코드 → 구조 탭에서 연결해도 됩니다.
+                  나중에 입력 단계에서 연결해도 됩니다.
                 </p>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
                   <div className="md:col-span-4">
@@ -760,7 +762,7 @@ export function ProjectFormDialog({
               </section>
             )}
 
-            {/* 5. 고급 설정 — 기본값이 이미 들어 있는 것들 */}
+            {/* 5. 상세 설정 — 기본값이 이미 들어 있는 것들 */}
             <div className="rounded-md border border-border bg-card">
               <button
                 type="button"
@@ -769,7 +771,7 @@ export function ProjectFormDialog({
                 aria-expanded={advancedOpen}
               >
                 <span className="min-w-0">
-                  <span className="block text-[15px] font-bold text-foreground">고급 설정</span>
+                  <span className="block text-[15px] font-bold text-foreground">상세 설정</span>
                   <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">
                     Node {form.nodeVersion} · Playwright {form.playwrightVersion} · {form.packageManager.toLowerCase()} ·
                     제한 {form.timeout}초 · 환경변수 {envEntries.filter((row) => row.key.trim()).length}개
@@ -808,15 +810,7 @@ export function ProjectFormDialog({
                           onChange={(e) => update('displayOrder', Number(e.target.value))}
                         />
                       </div>
-                      <div className="space-y-2 md:col-span-3">
-                        <Label>담당자</Label>
-                        <Input
-                          value={form.managerName}
-                          onChange={(e) => update('managerName', e.target.value)}
-                          placeholder="이름"
-                        />
-                      </div>
-                      <div className="space-y-2 md:col-span-3">
+                      <div className="space-y-2 md:col-span-2">
                         <Label>연락처</Label>
                         <Input
                           value={form.managerContact}
