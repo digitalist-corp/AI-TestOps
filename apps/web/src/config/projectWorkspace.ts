@@ -13,6 +13,7 @@ import {
   Play,
   ShieldCheck,
   Sparkles,
+  Users,
 } from 'lucide-react';
 
 export type ProjectTabId =
@@ -29,7 +30,8 @@ export type ProjectTabId =
   | 'ai-analysis'
   | 'ai-review'
   | 'schedules'
-  | 'settings';
+  | 'settings'
+  | 'members';
 
 export const PROJECT_WORKSPACE_TABS: {
   id: ProjectTabId;
@@ -120,6 +122,12 @@ export const PROJECT_WORKSPACE_TABS: {
     label: '설정',
     description: '환경 · Docker Runner',
     icon: Container,
+  },
+  {
+    id: 'members',
+    label: '팀원',
+    description: '프로젝트 멤버 · PM 지정',
+    icon: Users,
   },
 ];
 

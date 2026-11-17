@@ -54,12 +54,22 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { id: 'plan', label: '계획', icon: ClipboardList, tabs: ['plan', 'scenarios', 'recorder', 'structure'] },
   { id: 'runs', label: '실행', icon: Play, tabs: ['runs', 'results', 'schedules'] },
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, tabs: ['dashboard'] },
-  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'source'] },
+  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'members', 'source'] },
   { id: 'ai', label: 'AI', icon: Sparkles, tabs: ['ai-generate', 'ai-analysis', 'ai-review'], aiOnly: true },
 ];
 
-export function visibleWorkspaceGroups(aiActive: boolean): WorkspaceGroup[] {
-  return aiActive ? WORKSPACE_GROUPS : WORKSPACE_GROUPS.filter((group) => !group.aiOnly);
+/** 고치는 탭. 팀원(보기 · 실행만)에게는 보이지 않는다 — 서버도 이 탭들의 쓰기를 막는다. */
+const MANAGE_ONLY_TABS: ProjectTabId[] = ['input', 'scenarios', 'recorder', 'source', 'schedules', 'ai-generate', 'ai-review'];
+
+export function visibleTabs(tabs: ProjectTabId[], canManage = true): ProjectTabId[] {
+  return canManage ? tabs : tabs.filter((tab) => !MANAGE_ONLY_TABS.includes(tab));
+}
+
+export function visibleWorkspaceGroups(aiActive: boolean, canManage = true): WorkspaceGroup[] {
+  return WORKSPACE_GROUPS
+    .filter((group) => aiActive || !group.aiOnly)
+    .map((group) => ({ ...group, tabs: visibleTabs(group.tabs, canManage) }))
+    .filter((group) => group.tabs.length > 0);
 }
 
 export function groupOfTab(tab: ProjectTabId): WorkspaceGroup {

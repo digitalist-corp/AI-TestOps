@@ -11,6 +11,7 @@ import { TemplatesPage } from '@/pages/TemplatesPage';
 import { RunnerContainersPage } from '@/pages/RunnerContainersPage';
 import { getStoredAuth } from '@/api/client';
 import { AiEnabledProvider } from '@/lib/aiEnabled';
+import { AccessProvider } from '@/lib/access';
 
 function GuideRedirect() {
   useEffect(() => {
@@ -38,9 +39,11 @@ export function App() {
         <Route
           element={
             <ProtectedRoute>
-              <AiEnabledProvider>
-                <Layout />
-              </AiEnabledProvider>
+              <AccessProvider>
+                <AiEnabledProvider>
+                  <Layout />
+                </AiEnabledProvider>
+              </AccessProvider>
             </ProtectedRoute>
           }
         >

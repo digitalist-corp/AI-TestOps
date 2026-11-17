@@ -30,3 +30,26 @@ describe('ProjectFormDialog — 등록 화면 단순화', () => {
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ serverType: 'DEV', managerName: '홍길동' });
   });
 });
+
+describe('ProjectFormDialog — PM 고르기', () => {
+  it('등록할 때 고른 PM 을 함께 보낸다', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ProjectFormDialog
+        open
+        onOpenChange={() => {}}
+        onSubmit={onSubmit}
+        title="프로젝트 등록"
+        pmCandidates={[{ id: 7, label: '김윤재 (kim)' }]}
+      />
+    );
+
+    fireEvent.change(screen.getByLabelText(/사이트/), { target: { value: 'https://shop.example.com' } });
+    fireEvent.change(screen.getByLabelText(/프로젝트 이름/), { target: { value: 'shop' } });
+    fireEvent.change(screen.getByLabelText('PM'), { target: { value: '7' } });
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ pmUserId: 7 });
+  });
+});

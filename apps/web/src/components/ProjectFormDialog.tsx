@@ -47,6 +47,8 @@ interface ProjectFormDialogProps {
   onSubmit: (data: ProjectFormData, aiBootstrapInstruction?: string) => Promise<void>;
   title: string;
   initial?: Project;
+  /** 등록할 때 고를 PM 후보 (관리자만 등록한다). 없으면 PM 칸을 보이지 않는다. */
+  pmCandidates?: { id: number; label: string }[];
 }
 
 type FormValue = string | number | boolean;
@@ -249,6 +251,7 @@ export function ProjectFormDialog({
   onSubmit,
   title,
   initial,
+  pmCandidates,
 }: ProjectFormDialogProps) {
   const [form, setForm] = useState<ProjectFormData>(DEFAULT_PROJECT_FORM);
   const [loading, setLoading] = useState(false);
@@ -558,6 +561,24 @@ export function ProjectFormDialog({
                   placeholder="이름"
                 />
               </div>
+
+              {!initial && pmCandidates && (
+                <div className="space-y-2">
+                  <Label htmlFor="pmUserId">PM</Label>
+                  <select
+                    id="pmUserId"
+                    className={selectClass}
+                    value={form.pmUserId ?? ''}
+                    onChange={(e) => setForm((prev) => ({ ...prev, pmUserId: e.target.value ? Number(e.target.value) : undefined }))}
+                  >
+                    <option value="">나 (등록하는 관리자)</option>
+                    {pmCandidates.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                  <p className="text-[13px] text-muted-foreground">PM은 팀원을 넣고 계획을 정합니다.</p>
+                </div>
+              )}
             </section>
 
             {/* 2. 이미 짜둔 테스트 코드가 있나 */}

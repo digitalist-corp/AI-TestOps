@@ -4,7 +4,7 @@ import { api } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
-import { getStoredAuth } from '@/api/client';
+import { useAccess } from '@/lib/access';
 import type { AiProviderSettingsResponse, AiUsageSummary } from '@/types';
 import { cn } from '@/lib/utils';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
@@ -32,7 +32,7 @@ function formatUsd(value: number): string {
 }
 
 export function AiSettingsPage() {
-  const admin = getStoredAuth()?.role === 'ADMIN';
+  const { admin } = useAccess();
   const [settings, setSettings] = useState<AiProviderSettingsResponse | null>(null);
   const [usage, setUsage] = useState<AiUsageSummary | null>(null);
   const [days, setDays] = useState(30);
