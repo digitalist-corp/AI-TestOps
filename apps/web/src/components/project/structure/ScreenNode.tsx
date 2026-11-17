@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ISSUE_KIND_META, NODE_STATE_META, elementRatioText } from '@/lib/coverage';
 import { cn } from '@/lib/utils';
 import { SCREEN_H, SCREEN_W, type ScreenStatus } from './layoutGraph';
+import { useScreenshot } from './useScreenshot';
 
 /** 흐름 재생 중 이 화면의 모습 */
 export interface ScreenPlayback {
@@ -19,6 +20,7 @@ export interface ScreenPlayback {
 }
 
 export interface ScreenNodeData extends Record<string, unknown> {
+  projectId: string;
   node: SiteMapNode;
   /** 예전 3단계 상태(failed · passed · neutral). data-status 로만 남긴다 */
   status: ScreenStatus;
@@ -116,6 +118,8 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
   // 화면 이름: 제목 → 화면 파일 이름 → 주소
   const name = node.title ?? node.sourceFile?.split('/').pop() ?? node.routeKey;
   const firstIssue = coverage.issues[0];
+  // 사이트 탐색으로 찍은 화면 캡처가 있으면 상태 줄 오른쪽에 작게 보여 준다
+  const thumb = useScreenshot(data.projectId, node.routeKey, node.hasScreenshot);
   const stopped = play?.lit && play.bubble != null;
   const fade = data.dimmed ? 'opacity-25' : play && !play.lit ? 'opacity-50' : state === 'UNSEEN' || node.excluded || node.stale ? 'opacity-70' : '';
 
@@ -220,7 +224,14 @@ function ScreenNodeView({ data }: NodeProps<ScreenFlowNode>) {
       </div>
 
       {/* 상태 한 줄: 막혔으면 그 이유 */}
-      <p className={cn('mt-1 truncate pl-6 text-xs font-medium', STATE_ICON[state].tone)} title={firstIssue?.message ?? meta.hint}>
+      {thumb && (
+        <img
+          src={thumb}
+          alt={`${name} 화면`}
+          className="pointer-events-none absolute right-3 top-10 h-10 w-16 rounded border border-border object-cover object-top"
+        />
+      )}
+      <p className={cn('mt-1 truncate pl-6 text-xs font-medium', thumb && 'pr-[72px]', STATE_ICON[state].tone)} title={firstIssue?.message ?? meta.hint}>
         {meta.label}
         {firstIssue && state === 'BLOCKED' && <span className="font-normal"> · {ISSUE_KIND_META[firstIssue.kind].title}</span>}
       </p>
