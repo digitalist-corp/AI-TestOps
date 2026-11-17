@@ -1,12 +1,17 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import java.time.Instant;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 /**
  * 사용자가 화면에 남긴 것 (제외 표시, 메모).
  * 분석 결과와 따로 두어 다시 분석해도 지워지지 않게 한다. 화면의 id 가 아니라 routeKey 로 잇는다.
  */
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "site_node_edit", uniqueConstraints =
         @UniqueConstraint(name = "uk_site_node_edit_route", columnNames = {"project_id", "route_key"}))
 public class SiteNodeEdit {
@@ -27,11 +32,38 @@ public class SiteNodeEdit {
     @Column(length = 500)
     private String note;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    @Column(name = "updated_at")
+    private Instant updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
+    }
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
 
     public Long getId() { return id; }
+    public Long getUpdatedBy() { return updatedBy; }
+    public Instant getUpdatedAt() { return updatedAt; }
     public String getProjectId() { return projectId; }
     public void setProjectId(String projectId) { this.projectId = projectId; }
     public String getRouteKey() { return routeKey; }

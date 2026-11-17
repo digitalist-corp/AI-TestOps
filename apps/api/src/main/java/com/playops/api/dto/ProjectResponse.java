@@ -55,7 +55,10 @@ public record ProjectResponse(
         BigDecimal monthlyAiBudgetUsd,
         Long version,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        // 최근 수정한 사용자 (#118). 기존 데이터 · 사용자가 없는 저장이면 비어 있다.
+        Long updatedBy,
+        String updatedByName
 ) {
     public static ProjectResponse from(Project project) {
         return from(project, project.getDockerStatus(), RunnerActivity.UNAVAILABLE, null);
@@ -74,6 +77,16 @@ public record ProjectResponse(
             DockerStatus dockerStatus,
             RunnerActivity runnerActivity,
             Execution latestExecution
+    ) {
+        return from(project, dockerStatus, runnerActivity, latestExecution, null);
+    }
+
+    public static ProjectResponse from(
+            Project project,
+            DockerStatus dockerStatus,
+            RunnerActivity runnerActivity,
+            Execution latestExecution,
+            String updatedByName
     ) {
         Instant latestExecutionAt = null;
         if (latestExecution != null) {
@@ -125,7 +138,9 @@ public record ProjectResponse(
                 project.getMonthlyAiBudgetUsd(),
                 project.getVersion(),
                 project.getCreatedAt(),
-                project.getUpdatedAt()
+                project.getUpdatedAt(),
+                project.getUpdatedBy(),
+                updatedByName
         );
     }
 }

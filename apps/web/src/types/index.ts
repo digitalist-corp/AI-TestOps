@@ -47,6 +47,9 @@ export interface Project {
   latestExecutionDurationMs: number | null;
   createdAt: string;
   updatedAt: string;
+  /** 최근 수정한 사람 (#118). 기존 데이터면 null */
+  updatedBy: number | null;
+  updatedByName: string | null;
 }
 
 export interface RunnerContainer {
@@ -1184,6 +1187,9 @@ export interface PlanItem {
   priority: PlanPriority | null;
   lastStatus: 'PASSED' | 'FAILED' | null;
   lastRunAt: string | null;
+  /** 계획 칸을 마지막으로 고친 사람 · 때 (#118). 고친 적이 없으면 null */
+  updatedByName: string | null;
+  updatedAt: string | null;
 }
 
 /** passed · failed · notRun 은 사용 중 항목만. completionRate 0~1 */

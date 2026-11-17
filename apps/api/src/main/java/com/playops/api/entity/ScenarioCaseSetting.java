@@ -1,10 +1,14 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 import java.time.LocalDate;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(
         name = "scenario_case_settings",
         uniqueConstraints = @UniqueConstraint(
@@ -45,16 +49,35 @@ public class ScenarioCaseSetting {
     @Column(length = 10)
     private String priority;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     @PrePersist
+    void onCreate() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
     @PreUpdate
-    void onSave() {
+    void onUpdate() {
         updatedAt = Instant.now();
     }
 
     public Long getId() { return id; }
+    public Long getCreatedBy() { return createdBy; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Long getUpdatedBy() { return updatedBy; }
 
     public String getProjectId() { return projectId; }
     public void setProjectId(String projectId) { this.projectId = projectId; }

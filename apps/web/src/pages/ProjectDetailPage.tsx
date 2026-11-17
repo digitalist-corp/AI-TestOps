@@ -34,7 +34,7 @@ import {
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { confirmFullRun } from '@/lib/runConfirm';
 import { useAiEnabled } from '@/lib/aiEnabled';
-import { cn } from '@/lib/utils';
+import { cn, formatRelative } from '@/lib/utils';
 import {
   DEFAULT_PROJECT_TAB,
   isValidProjectTab,
@@ -807,6 +807,7 @@ export function ProjectDetailPage() {
                     ['사이트', project.baseUrl ?? '-'],
                     ['Runner lifecycle', project.runnerLifecycle === 'EPHEMERAL' ? 'Ephemeral' : 'Persistent'],
                     ['테스트 계정 env', project.loginEnvRequired ? '필수' : '선택'],
+                    ['최근 수정', [project.updatedByName, formatRelative(project.updatedAt)].filter(Boolean).join(' · ') || '-'],
                   ].map(([k, v]) => (
                     <div key={k}>
                       <dt className="text-muted-foreground text-xs">{k}</dt>

@@ -40,7 +40,7 @@ class PlanServiceTest {
         when(repository.findByProjectIdAndNodeTypeAndSpecPathAndGrepFilter(anyString(), anyString(), anyString(), anyString()))
                 .thenReturn(Optional.empty());
         service = new PlanService(mock(PlaywrightScenarioService.class), repository,
-                mock(ExecutionCaseResultRepository.class), projectService);
+                mock(ExecutionCaseResultRepository.class), projectService, mock(ProjectMemberService.class));
     }
 
     private List<ScenarioCaseSetting> saved(int count) {

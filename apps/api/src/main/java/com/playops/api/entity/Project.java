@@ -1,11 +1,15 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "projects")
 public class Project {
 
@@ -150,6 +154,14 @@ public class Project {
     @Column(name = "monthly_ai_budget_usd", precision = 18, scale = 8, nullable = false)
     private BigDecimal monthlyAiBudgetUsd = BigDecimal.ZERO;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
@@ -192,6 +204,9 @@ public class Project {
 
     public LocalDate getEndDate() { return endDate; }
     public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    public Long getCreatedBy() { return createdBy; }
+    public Long getUpdatedBy() { return updatedBy; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

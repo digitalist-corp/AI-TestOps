@@ -1,9 +1,13 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "test_suites")
 public class TestSuite {
 
@@ -32,8 +36,13 @@ public class TestSuite {
     @Column(nullable = false, columnDefinition = "boolean not null default false")
     private boolean sequential = false;
 
+    @CreatedBy
     @Column(name = "created_by")
     private Long createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -78,6 +87,7 @@ public class TestSuite {
     public void setSequential(boolean sequential) { this.sequential = sequential; }
 
     public Long getCreatedBy() { return createdBy; }
+    public Long getUpdatedBy() { return updatedBy; }
     public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 
     public Long getVersion() { return version != null ? version : 0L; }

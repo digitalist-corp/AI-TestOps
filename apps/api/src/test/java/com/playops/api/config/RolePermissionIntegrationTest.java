@@ -51,6 +51,9 @@ class RolePermissionIntegrationTest {
     @Autowired
     com.playops.api.repository.SiteAnalysisRunRepository analysisRuns;
 
+    @Autowired
+    com.playops.api.repository.ScenarioCaseSettingRepository planRows;
+
     private static int signups;
     private String admin;
     private String member;
@@ -200,5 +203,26 @@ class RolePermissionIntegrationTest {
         JsonNode cleared = call(put("/api/projects/example.com").content("{\"endDate\":\"\"}"), member, 200);
         assertThat(cleared.get("endDate").isNull()).isTrue();
         assertThat(cleared.get("startDate").asText()).isEqualTo("2026-11-01");
+    }
+
+    @Test
+    void planRowAndProjectRememberWhoChangedThemLast() throws Exception {
+        call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
+        String row = "{\"specPath\":\"tests/audit.spec.ts\",\"grep\":\"감사\",\"assignee\":\"나\"}";
+        assertThat(status(patch("/api/projects/example.com/plan/items").content(row), member)).isEqualTo(204);
+
+        var saved = planRows.findByProjectIdAndNodeTypeAndSpecPathAndGrepFilter("example.com", "TEST", "tests/audit.spec.ts", "감사").orElseThrow();
+        assertThat(saved.getCreatedBy()).isEqualTo(memberId);
+        assertThat(saved.getUpdatedBy()).isEqualTo(memberId);
+
+        long adminId = call(get("/api/auth/me"), admin, 200).get("id").asLong();
+        assertThat(status(patch("/api/projects/example.com/plan/items").content(row.replace("나", "관리자")), admin)).isEqualTo(204);
+        saved = planRows.findById(saved.getId()).orElseThrow();
+        assertThat(saved.getCreatedBy()).isEqualTo(memberId);
+        assertThat(saved.getUpdatedBy()).isEqualTo(adminId);
+
+        JsonNode project = call(put("/api/projects/example.com").content("{\"description\":\"감사 확인\"}"), member, 200);
+        assertThat(project.get("updatedBy").asLong()).isEqualTo(memberId);
+        assertThat(project.get("updatedByName").asText()).isEqualTo("팀원");
     }
 }

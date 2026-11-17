@@ -17,12 +17,13 @@ vi.mock('@/api/client', () => ({
 const item = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1,
   enabled: true, parentEnabled: true, sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
+  updatedByName: null, updatedAt: null,
   ...over,
 });
 
 const plan: PlanResponse = {
   items: [
-    item({}),
+    item({ updatedByName: '김윤재', updatedAt: new Date().toISOString() }),
     item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED' }),
     item({ grep: '탈퇴된다', title: '탈퇴된다', line: 20, enabled: false, lastStatus: null }),
     item({ specPath: 'tests/off.spec.ts', grep: '꺼진 파일', title: '꺼진 파일', enabled: false, parentEnabled: false, lastStatus: null }),
@@ -46,10 +47,11 @@ describe('PlanTab', () => {
   it('코드 용어 없이 업무 열 이름을 보여 준다', async () => {
     const { container } = render(<PlanTab projectId="p1" onRun={() => {}} />);
     await screen.findByText('로그아웃된다');
-    for (const name of ['사용', '순서', '계획 항목', '화면', '담당자', '마감일', '우선순위', '최근 결과']) {
+    for (const name of ['사용', '순서', '계획 항목', '화면', '담당자', '마감일', '우선순위', '최근 결과', '최근 수정']) {
       expect(screen.getAllByText(name).length).toBeGreaterThan(0);
     }
     expect(container.textContent).not.toMatch(/spec|grep/i);
+    expect(screen.getByText('김윤재 · 방금')).toBeTruthy();
   });
 
   it('사용 체크를 끄면 그 행의 계획 칸과 함께 enabled=false 를 보낸다', async () => {

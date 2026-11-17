@@ -26,7 +26,7 @@ const project = (projectId: string, projectName: string) =>
   ({ projectId, projectName, dockerStatus: 'RUNNING', status: 'RUNNING', startDate: '2026-11-01', endDate: null } as Project);
 const row = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
-  sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null, ...over,
+  sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null, updatedByName: null, updatedAt: null, ...over,
 });
 const items = [
   row({}),

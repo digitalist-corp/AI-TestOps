@@ -7,6 +7,8 @@ import type { PlanItem, PlanItemKey, PlanPriority, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { casesByScreen } from '@/lib/rounds';
 import { PRIORITY_LABEL, inSuite, planCounts, planKey, screenNameByCase } from '@/lib/plan';
+import { useAccess } from '@/lib/access';
+import { formatRelative } from '@/lib/utils';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -29,6 +31,7 @@ const PRIORITY_OPTIONS = ['', 'HIGH', 'MEDIUM', 'LOW'];
  * readOnly(팀원): 고치지 못하고 보기 · 실행만 한다.
  */
 export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: string; onRun: () => void; readOnly?: boolean }) {
+  const { me } = useAccess();
   const [items, setItems] = useState<PlanItem[] | null>(null);
   const [screens, setScreens] = useState<Map<string, string>>(new Map());
   const [selected, setSelected] = useState<PlanItem[]>([]);
@@ -72,7 +75,8 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
     setItems((list) => list?.map((i) => (rowId(i) === rowId(next) ? next : i)) ?? list);
 
   const save = (before: PlanItem, change: Change) => {
-    const after = { ...before, ...change };
+    // 최근 수정은 저장하면 서버도 나로 바뀌므로 화면에서 먼저 바꿔 둔다.
+    const after = { ...before, ...change, updatedByName: me?.displayName || me?.username || null, updatedAt: new Date().toISOString() };
     replace(after);
     setNotice(null);
     api.plan
@@ -194,6 +198,12 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
           const view = RESULT_VIEW[(p.value as keyof typeof RESULT_VIEW) ?? 'NONE'];
           return <span className={`rounded px-2 py-0.5 text-xs font-medium ${view.className}`}>{view.label}</span>;
         },
+      },
+      {
+        headerName: '최근 수정',
+        width: 150,
+        valueGetter: (p) =>
+          p.data?.updatedAt ? [p.data.updatedByName, formatRelative(p.data.updatedAt)].filter(Boolean).join(' · ') : '',
       },
     ],
     // save · setItems 는 매번 새로 만들어지지만 최신 상태를 쓰므로 화면 이름이 바뀔 때만 열을 다시 만든다.

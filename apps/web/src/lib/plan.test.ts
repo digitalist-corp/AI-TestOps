@@ -7,7 +7,7 @@ const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
 const item = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'a.spec.ts', grep: '가입', title: '가입', describePath: '', line: 1, enabled: true, parentEnabled: true, sortOrder: null,
-  assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, ...over,
+  assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, updatedByName: null, updatedAt: null, ...over,
 });
 
 describe('screenNameByCase', () => {
@@ -82,7 +82,7 @@ describe('planCounts', () => {
 describe('역할별 대시보드 집계', () => {
   const row = (over: Partial<PlanItem>): PlanItem => ({
     specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
-    sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, ...over,
+    sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, updatedByName: null, updatedAt: null, ...over,
   });
 
   it('failedRerun: 사용 중인 실패 항목만 파일과 이름(정규식 이스케이프)으로 다시 실행한다', () => {

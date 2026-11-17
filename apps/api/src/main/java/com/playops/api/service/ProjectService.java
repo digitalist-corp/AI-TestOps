@@ -463,7 +463,8 @@ public class ProjectService {
                 project,
                 dockerStatus,
                 getRunnerActivity(project, dockerStatus),
-                executionRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getProjectId()).orElse(null)
+                executionRepository.findFirstByProjectIdOrderByCreatedAtDesc(project.getProjectId()).orElse(null),
+                project.getUpdatedBy() == null ? null : memberService.namesOf(List.of(project.getUpdatedBy())).get(project.getUpdatedBy())
         );
     }
 

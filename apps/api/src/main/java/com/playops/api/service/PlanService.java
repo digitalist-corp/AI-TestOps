@@ -37,15 +37,18 @@ public class PlanService {
     private final ScenarioCaseSettingRepository settingRepository;
     private final ExecutionCaseResultRepository caseResultRepository;
     private final ProjectService projectService;
+    private final ProjectMemberService memberService;
 
     public PlanService(PlaywrightScenarioService scenarioService,
                        ScenarioCaseSettingRepository settingRepository,
                        ExecutionCaseResultRepository caseResultRepository,
-                       ProjectService projectService) {
+                       ProjectService projectService,
+                       ProjectMemberService memberService) {
         this.scenarioService = scenarioService;
         this.settingRepository = settingRepository;
         this.caseResultRepository = caseResultRepository;
         this.projectService = projectService;
+        this.memberService = memberService;
     }
 
     public PlanResponse get(String projectId) {
@@ -54,6 +57,7 @@ public class PlanService {
             if (TEST.equals(s.getNodeType())) settings.put(key(s.getSpecPath(), s.getGrepFilter()), s);
         }
         // ponytail: 프로젝트의 모든 케이스 결과를 읽는다. 이력이 수만 건이 되면 케이스별 마지막 결과만 고르는 쿼리로 바꾼다.
+        Map<Long, String> names = memberService.namesOf(settings.values().stream().map(ScenarioCaseSetting::getUpdatedBy).toList());
         Map<String, List<ExecutionCaseResult>> results =
                 byLeaf(caseResultRepository.findEarlierInProject(projectId, Long.MAX_VALUE));
 
@@ -67,7 +71,9 @@ public class PlanService {
                     s != null ? s.getDueDate() : null,
                     s != null ? s.getPriority() : null,
                     r != null ? r.getStatus() : null,
-                    r != null ? r.getCreatedAt() : null);
+                    r != null ? r.getCreatedAt() : null,
+                    s != null && s.getUpdatedBy() != null ? names.get(s.getUpdatedBy()) : null,
+                    s != null ? s.getUpdatedAt() : null);
         }).toList();
         items = sort(items);
         return new PlanResponse(items, summarize(items));
@@ -154,7 +160,7 @@ public class PlanService {
             boolean on = enabled && n.enabled();
             if (TEST.equals(n.type())) {
                 out.add(new PlanItem(spec, n.grep(), n.title(), String.join(" > ", describes), n.line(), on, enabled,
-                        null, null, null, null, null, null));
+                        null, null, null, null, null, null, null, null));
             } else {
                 List<String> next = new ArrayList<>(describes);
                 next.add(n.title());
