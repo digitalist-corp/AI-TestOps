@@ -472,6 +472,20 @@ export const api = {
   getExecutions: (projectId: string) =>
     request<Execution[]>(`/api/projects/${projectId}/executions`),
 
+  plan: {
+    get: (projectId: string) => request<import('@/types').PlanResponse>(`/api/projects/${projectId}/plan`),
+    /** 한 행 저장. 계획 칸 3개는 항상 덮어쓴다(null = 비움). enabled 를 빼면 사용 여부는 그대로. */
+    patch: (projectId: string, data: import('@/types').PlanItemPatch) =>
+      request<void>(`/api/projects/${projectId}/plan/items`, { method: 'PATCH', body: JSON.stringify(data) }),
+    reorder: (projectId: string, items: import('@/types').PlanItemKey[]) =>
+      request<void>(`/api/projects/${projectId}/plan/order`, { method: 'PUT', body: JSON.stringify({ items }) }),
+    setEnabled: (projectId: string, items: import('@/types').PlanItemKey[], enabled: boolean) =>
+      request<void>(`/api/projects/${projectId}/plan/items/enabled`, {
+        method: 'PATCH',
+        body: JSON.stringify({ items, enabled }),
+      }),
+  },
+
   rounds: {
     list: (projectId: string) => request<import('@/types').TestRound[]>(`/api/projects/${projectId}/rounds`),
     get: (projectId: string, executionId: number) =>

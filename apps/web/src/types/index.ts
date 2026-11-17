@@ -1119,3 +1119,50 @@ export interface RecorderCode {
   specPath: string;
   code: string;
 }
+
+/** 테스트 계획 표(F-1). 계획 항목 = 테스트 케이스 하나 (파일 경로 + grep). */
+export type PlanPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface PlanItem {
+  specPath: string;
+  grep: string;
+  title: string;
+  describePath: string;
+  line: number;
+  enabled: boolean;
+  sortOrder: number | null;
+  assignee: string | null;
+  /** YYYY-MM-DD */
+  dueDate: string | null;
+  priority: PlanPriority | null;
+  lastStatus: 'PASSED' | 'FAILED' | null;
+  lastRunAt: string | null;
+}
+
+/** passed · failed · notRun 은 사용 중 항목만. completionRate 0~1 */
+export interface PlanSummary {
+  total: number;
+  enabled: number;
+  disabled: number;
+  passed: number;
+  failed: number;
+  notRun: number;
+  completionRate: number;
+}
+
+export interface PlanResponse {
+  items: PlanItem[];
+  summary: PlanSummary;
+}
+
+export interface PlanItemKey {
+  specPath: string;
+  grep: string;
+}
+
+export interface PlanItemPatch extends PlanItemKey {
+  enabled?: boolean;
+  assignee: string | null;
+  dueDate: string | null;
+  priority: PlanPriority | null;
+}
