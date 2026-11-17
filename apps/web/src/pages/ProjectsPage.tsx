@@ -13,6 +13,7 @@ import { EnvVariablesDialog } from '@/components/project/EnvVariablesDialog';
 import { ProjectCard, isRunnerReady } from '@/components/project/ProjectCard';
 import { isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
+import { confirmFullRun } from '@/lib/runConfirm';
 import { cn } from '@/lib/utils';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
@@ -33,7 +34,6 @@ export function ProjectsPage() {
   const [query, setQuery] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [aiBootstrap, setAiBootstrap] = useState<{ projectId: string; instruction: string } | null>(null);
-  const [editProject, setEditProject] = useState<Project | null>(null);
   const [envProject, setEnvProject] = useState<Project | null>(null);
   const [testLoadingId, setTestLoadingId] = useState<string | null>(null);
   const [justCreatedId, setJustCreatedId] = useState<string | null>(null);
@@ -94,13 +94,6 @@ export function ProjectsPage() {
     }
   };
 
-  const handleUpdate = async (data: ProjectFormData) => {
-    if (!editProject) return;
-    await api.updateProject(editProject.projectId, data);
-    setEditProject(null);
-    loadProjects();
-  };
-
   const replaceProject = (updated: Project) => {
     setProjects((prev) => prev.map((project) =>
       project.projectId === updated.projectId ? updated : project
@@ -112,17 +105,6 @@ export function ProjectsPage() {
     setEnvProject(updated);
   };
 
-  const handleDelete = async (projectId: string) => {
-    const ok = confirm([
-      `프로젝트 "${projectId}"를 삭제하시겠습니까?`,
-      '',
-      '프로젝트 설정, 테스트 파일, 실행 이력과 리포트가 함께 삭제됩니다.',
-    ].join('\n'));
-    if (!ok) return;
-    await api.deleteProject(projectId);
-    loadProjects();
-  };
-
   const handleRunProject = async (project: Project) => {
     if (isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
       alert('테스트 계정 환경변수가 필요합니다. 환경변수를 먼저 입력하세요.');
@@ -132,6 +114,7 @@ export function ProjectsPage() {
 
     setTestLoadingId(project.projectId);
     try {
+      if (!(await confirmFullRun(project.projectName, () => api.getScenarios(project.projectId)))) return;
       if (!(await confirmPlaywrightVersion(project, '테스트 실행'))) {
         return;
       }
@@ -235,8 +218,6 @@ export function ProjectsPage() {
               onOpen={() => navigate(projectTabPath(project.projectId, 'dashboard'))}
               onRun={() => handleRunProject(project)}
               onEnv={() => setEnvProject(project)}
-              onEdit={() => setEditProject(project)}
-              onDelete={() => handleDelete(project.projectId)}
               onGo={(tab) => navigate(projectTabPath(project.projectId, tab))}
             />
           ))}
@@ -264,16 +245,6 @@ export function ProjectsPage() {
             setAiBootstrap(null);
             navigate(projectTabPath(target, 'source'));
           }}
-        />
-      )}
-
-      {editProject && (
-        <ProjectFormDialog
-          open={!!editProject}
-          onOpenChange={(open) => !open && setEditProject(null)}
-          onSubmit={handleUpdate}
-          title="프로젝트 수정"
-          initial={editProject}
         />
       )}
 

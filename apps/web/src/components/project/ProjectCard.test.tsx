@@ -25,7 +25,7 @@ const cardProject = {
 } as unknown as Project;
 
 const noop = () => {};
-const cardHandlers = { onOpen: noop, onRun: noop, onEnv: noop, onEdit: noop, onDelete: noop, onGo: noop };
+const cardHandlers = { onOpen: noop, onRun: noop, onEnv: noop, onGo: noop };
 
 describe('ProjectCard', () => {
   it('프로젝트 이름을 제목으로 크게 보이고, 사이트 주소 · 환경은 보이지 않는다', () => {

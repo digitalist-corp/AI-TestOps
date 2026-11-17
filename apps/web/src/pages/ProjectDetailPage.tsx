@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Play, RefreshCw, Settings2, Square, Terminal, Upload } from 'lucide-react';
+import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Pencil, Play, RefreshCw, Settings2, Square, Terminal, Trash2, Upload } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthStateStatus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +29,7 @@ import {
   resolveEnvRequirementState,
 } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
+import { confirmFullRun } from '@/lib/runConfirm';
 import { useAiEnabled } from '@/lib/aiEnabled';
 import { cn } from '@/lib/utils';
 import {
@@ -314,6 +315,8 @@ export function ProjectDetailPage() {
 
     setRunning(true);
     try {
+      // 옵션 없는 실행은 전체 실행 — 대시보드 · 상단 · 계획 표의 버튼이 모두 여기로 온다.
+      if (!options && !(await confirmFullRun(project.projectName, () => api.getScenarios(projectId)))) return;
       if (project && !(await confirmPlaywrightVersion(project, '테스트 실행'))) {
         return;
       }
@@ -338,6 +341,22 @@ export function ProjectDetailPage() {
       alert(err instanceof Error ? err.message : '실행 실패');
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleDeleteProject = async () => {
+    if (!projectId) return;
+    const ok = confirm([
+      `프로젝트 "${projectId}"를 삭제하시겠습니까?`,
+      '',
+      '프로젝트 설정, 테스트 파일, 실행 이력과 리포트가 함께 삭제됩니다.',
+    ].join('\n'));
+    if (!ok) return;
+    try {
+      await api.deleteProject(projectId);
+      navigate('/projects');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '프로젝트 삭제 실패');
     }
   };
 
@@ -742,7 +761,7 @@ export function ProjectDetailPage() {
             <div className="grid grid-cols-1 @5xl:grid-cols-2 gap-6">
               <div>
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <h3 className="font-medium">환경 정보</h3>
+                  <h3 className="font-medium">프로젝트 정보</h3>
                   <Button
                     size="sm"
                     variant="outline"
@@ -783,7 +802,17 @@ export function ProjectDetailPage() {
                   AI-TestOps 일반 실행은 <span className="font-mono">playwright test</span> 명령에
                   <span className="font-mono"> --project=chromium --retries=0</span>을 기본 적용합니다.
                 </p>
-                <Button className="mt-4" variant="outline" onClick={() => setEditOpen(true)}>설정 수정</Button>
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" onClick={() => setEditOpen(true)}>
+                    <Pencil className="h-4 w-4" />
+                    설정 수정
+                  </Button>
+                  <Button variant="outline" onClick={handleDeleteProject}
+                          className="text-destructive hover:border-destructive hover:bg-destructive/10">
+                    <Trash2 className="h-4 w-4" />
+                    프로젝트 삭제
+                  </Button>
+                </div>
               </div>
               <div>
                 <h3 className="font-medium mb-3">Docker Runner</h3>
