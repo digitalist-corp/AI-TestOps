@@ -17,12 +17,14 @@ public class AuthInterceptor implements HandlerInterceptor {
 
     private static final int GENERAL_API_LIMIT_PER_MIN = 120;
     private static final int AI_CHAT_LIMIT_PER_MIN = 10;
+    private static final int SIGNUP_LIMIT_PER_MIN = 5;
     private static final java.util.regex.Pattern AI_CHAT_REPLY_PATH =
             java.util.regex.Pattern.compile("^/api/ai/chat/sessions/\\d+/messages$");
 
     private final AuthService authService;
     private final Map<String, RateWindow> generalRateWindows = new ConcurrentHashMap<>();
     private final Map<String, RateWindow> aiChatRateWindows = new ConcurrentHashMap<>();
+    private final Map<String, RateWindow> signupRateWindows = new ConcurrentHashMap<>();
 
     public AuthInterceptor(AuthService authService) {
         this.authService = authService;
@@ -41,6 +43,18 @@ public class AuthInterceptor implements HandlerInterceptor {
         }
 
         String path = request.getRequestURI();
+        // 경로 매개변수(';')는 스프링이 주소를 맞출 때 떼어 내지만 권한 검사는 원래 주소로 한다.
+        // '/api;x/users' 처럼 검사를 건너뛰지 못하게 아예 받지 않는다.
+        if (path.indexOf(';') >= 0) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST);
+            return false;
+        }
+        // 가입은 토큰 없이 열려 있어 IP 기준으로 분당 5회까지만 받는다 (로그인과 같은 IP 판단).
+        if (path.equals("/api/auth/signup")
+                && !allowRequest(signupRateWindows, clientIp(request), SIGNUP_LIMIT_PER_MIN)) {
+            writeRateLimitResponse(response, "회원가입 요청 한도(분당 5회)를 초과했습니다.");
+            return false;
+        }
         if (path.startsWith("/actuator") || path.equals("/api/auth/login")
                 || path.equals("/api/auth/signup") || path.equals("/api/auth/guest") || path.startsWith("/api/health")) {
             return true;
@@ -88,6 +102,11 @@ public class AuthInterceptor implements HandlerInterceptor {
 
         request.setAttribute("currentUser", user);
         return true;
+    }
+
+    private static String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        return forwarded != null && !forwarded.isBlank() ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
     }
 
     private boolean isArtifactDownload(HttpServletRequest request, String path) {

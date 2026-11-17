@@ -40,7 +40,11 @@ class ProjectAccessInterceptorTest {
         Execution mine = new Execution();
         mine.setProjectId("shop");
         when(executions.findById(5L)).thenReturn(Optional.of(mine));
-        interceptor = new ProjectAccessInterceptor(members, executions, mock(AiJobRepository.class));
+        com.playops.api.service.AiBootstrapService bootstraps = mock(com.playops.api.service.AiBootstrapService.class);
+        when(bootstraps.projectIdOf(any())).thenReturn(Optional.empty());
+        when(bootstraps.projectIdOf("b-shop")).thenReturn(Optional.of("shop"));
+        when(bootstraps.projectIdOf("b-blog")).thenReturn(Optional.of("blog"));
+        interceptor = new ProjectAccessInterceptor(members, executions, mock(AiJobRepository.class), bootstraps);
     }
 
     private boolean passes(String method, String path) throws Exception {
@@ -69,5 +73,13 @@ class ProjectAccessInterceptorTest {
     void executionOfAnotherProjectIsHidden() throws Exception {
         assertThat(passes("GET", "/api/executions/9")).isFalse();
         assertThat(passes("GET", "/api/executions/9/logs")).isFalse();
+    }
+
+    @Test
+    void bootstrapShortPathsAreCheckedAgainstTheirProject() throws Exception {
+        assertThat(passes("GET", "/api/ai/bootstrap/b-shop")).isTrue();
+        assertThat(passes("GET", "/api/ai/bootstrap/b-blog")).isFalse();
+        assertThat(passes("GET", "/api/ai/bootstrap/b-blog/screens/1.png")).isFalse();
+        assertThat(passes("POST", "/api/ai/bootstrap/b-shop/credentials")).isFalse();
     }
 }
