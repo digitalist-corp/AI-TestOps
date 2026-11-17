@@ -1,5 +1,6 @@
 package com.playops.api.service;
 
+import com.playops.api.dto.MemberDtos.Member;
 import com.playops.api.dto.PlanDtos.ItemKey;
 import com.playops.api.dto.PlanDtos.ItemPatch;
 import com.playops.api.dto.PlanDtos.PlanItem;
@@ -68,6 +69,7 @@ public class PlanService {
                     item.enabled(), item.parentEnabled(),
                     s != null ? s.getSortOrder() : null,
                     s != null ? s.getAssignee() : null,
+                    s != null ? s.getAssigneeUserId() : null,
                     s != null ? s.getDueDate() : null,
                     s != null ? s.getPriority() : null,
                     r != null ? r.getStatus() : null,
@@ -89,8 +91,15 @@ public class PlanService {
             throw new ApiException(400, "담당자는 100자까지 쓸 수 있습니다.");
         }
         projectService.getProject(projectId);
+        if (patch.assigneeUserId() != null) {
+            Member member = memberService.list(projectId).stream()
+                    .filter(m -> m.userId().equals(patch.assigneeUserId())).findFirst()
+                    .orElseThrow(() -> new ApiException(400, "VALIDATION_ERROR", "담당자는 이 프로젝트의 멤버 중에서 고르세요."));
+            assignee = member.displayName() != null && !member.displayName().isBlank() ? member.displayName() : member.username();
+        }
         ScenarioCaseSetting s = row(projectId, patch.specPath(), patch.grep());
         if (patch.enabled() != null) s.setEnabled(patch.enabled());
+        s.setAssigneeUserId(patch.assigneeUserId());
         s.setAssignee(assignee);
         s.setDueDate(patch.dueDate());
         s.setPriority(priority);
@@ -160,7 +169,7 @@ public class PlanService {
             boolean on = enabled && n.enabled();
             if (TEST.equals(n.type())) {
                 out.add(new PlanItem(spec, n.grep(), n.title(), String.join(" > ", describes), n.line(), on, enabled,
-                        null, null, null, null, null, null, null, null));
+                        null, null, null, null, null, null, null, null, null));
             } else {
                 List<String> next = new ArrayList<>(describes);
                 next.add(n.title());

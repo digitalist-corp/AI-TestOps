@@ -1181,7 +1181,9 @@ export interface PlanItem {
   /** 파일 · 상위 묶음이 모두 사용 중인지. false 면 이 행만 켜도 실행되지 않는다. */
   parentEnabled: boolean;
   sortOrder: number | null;
+  /** 담당자 이름. assigneeUserId 가 없으면 계정과 잇지 못한 옛 이름 (#119) */
   assignee: string | null;
+  assigneeUserId: number | null;
   /** YYYY-MM-DD */
   dueDate: string | null;
   priority: PlanPriority | null;
@@ -1216,6 +1218,8 @@ export interface PlanItemKey {
 export interface PlanItemPatch extends PlanItemKey {
   enabled?: boolean;
   assignee: string | null;
+  /** 프로젝트 멤버. null 이면 assignee 글자만 남는다 */
+  assigneeUserId: number | null;
   dueDate: string | null;
   priority: PlanPriority | null;
 }

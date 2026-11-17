@@ -11,20 +11,21 @@ vi.mock('@/api/client', () => ({
     testSuites: { listByProject: vi.fn() },
     getSiteMap: vi.fn(),
     getSiteMapCoverage: vi.fn(),
+    members: { list: vi.fn() },
   },
 }));
 
 const item = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1,
   enabled: true, parentEnabled: true, sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
-  updatedByName: null, updatedAt: null,
+  assigneeUserId: null, updatedByName: null, updatedAt: null,
   ...over,
 });
 
 const plan: PlanResponse = {
   items: [
     item({ updatedByName: '김윤재', updatedAt: new Date().toISOString() }),
-    item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED' }),
+    item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED', assignee: '김윤재', assigneeUserId: 7 }),
     item({ grep: '탈퇴된다', title: '탈퇴된다', line: 20, enabled: false, lastStatus: null }),
     item({ specPath: 'tests/off.spec.ts', grep: '꺼진 파일', title: '꺼진 파일', enabled: false, parentEnabled: false, lastStatus: null }),
   ],
@@ -37,6 +38,7 @@ beforeEach(() => {
   vi.mocked(api.getSiteMap).mockRejectedValue(new Error('없음'));
   vi.mocked(api.getSiteMapCoverage).mockRejectedValue(new Error('없음'));
   vi.mocked(api.testSuites.listByProject).mockResolvedValue([]);
+  vi.mocked(api.members.list).mockResolvedValue([{ userId: 7, username: 'kim', displayName: '김윤재', role: 'MEMBER' }]);
 });
 afterEach(() => {
   cleanup();
@@ -54,13 +56,20 @@ describe('PlanTab', () => {
     expect(screen.getByText('김윤재 · 방금')).toBeTruthy();
   });
 
+  it('담당자는 멤버 계정 이름으로, 계정과 잇지 못한 옛 이름은 "(계정 없음)"으로 보인다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    await screen.findByText('로그아웃된다');
+    expect(screen.getAllByText('(계정 없음) 윤재').length).toBeGreaterThan(0);
+    expect(screen.getByText('김윤재')).toBeTruthy();
+  });
+
   it('사용 체크를 끄면 그 행의 계획 칸과 함께 enabled=false 를 보낸다', async () => {
     vi.mocked(api.plan.patch).mockResolvedValue(undefined);
     render(<PlanTab projectId="p1" onRun={() => {}} />);
     fireEvent.click(await screen.findByRole('checkbox', { name: '로그인된다 사용' }));
     await waitFor(() =>
       expect(api.plan.patch).toHaveBeenCalledWith('p1', {
-        specPath: 'tests/login.spec.ts', grep: '로그인된다', enabled: false, assignee: '윤재', dueDate: null, priority: null,
+        specPath: 'tests/login.spec.ts', grep: '로그인된다', enabled: false, assignee: '윤재', assigneeUserId: null, dueDate: null, priority: null,
       })
     );
   });

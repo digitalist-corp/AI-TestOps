@@ -8,7 +8,7 @@ import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 import { ProjectStatusChip, isRunnerReady, projectPeriod } from '@/components/project/ProjectCard';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { useAccess } from '@/lib/access';
-import { byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
+import { assigneeLabel, byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
 import { formatRelative } from '@/lib/utils';
 
 const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (현지 날짜)
@@ -57,7 +57,7 @@ function ProgressBar({ value }: { value: number }) {
  */
 export function HomePage() {
   const navigate = useNavigate();
-  const { admin, roleIn } = useAccess();
+  const { admin, me, roleIn } = useAccess();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [plans, setPlans] = useState<Record<string, PlanItem[]>>({});
   const [userCount, setUserCount] = useState<number | null>(null);
@@ -130,6 +130,10 @@ export function HomePage() {
 
   const pmProjects = admin ? [] : projects.filter((p) => roleIn(p.projectId) === 'PM');
   const memberProjects = admin ? [] : projects.filter((p) => roleIn(p.projectId) === 'MEMBER');
+  // 팀원 홈: 내 계정이 담당자인 사용 중 항목 (#119)
+  const mine = memberProjects.flatMap((p) => (plans[p.projectId] ?? [])
+    .filter((i) => i.enabled && me?.id != null && i.assigneeUserId === me.id)
+    .map((item) => ({ project: p, item })));
 
   return (
     <div className="@container space-y-8 p-6">
@@ -213,7 +217,7 @@ export function HomePage() {
                     </thead>
                     <tbody>
                       {byAssignee(items).map((row) => (
-                        <tr key={row.assignee} className="border-t border-border">
+                        <tr key={row.key} className="border-t border-border">
                           <td className="py-1.5 text-foreground">{row.assignee}</td>
                           <td className="py-1.5 text-right">{row.passed} / {row.total}</td>
                           <td className="py-1.5 text-right text-destructive">{row.failed || ''}</td>
@@ -227,7 +231,7 @@ export function HomePage() {
                       {late.slice(0, 5).map((i) => (
                         <li key={`${i.specPath}\n${i.grep}`} className="flex justify-between gap-3">
                           <span className="truncate text-foreground">{i.title}</span>
-                          <span className="shrink-0 text-destructive">{i.dueDate} · {i.assignee ?? '미지정'}</span>
+                          <span className="shrink-0 text-destructive">{i.dueDate} · {assigneeLabel(i) || '미지정'}</span>
                         </li>
                       ))}
                     </ul>
@@ -270,6 +274,24 @@ export function HomePage() {
                 </li>
               );
             })}
+          </ul>
+        </Section>
+      )}
+
+      {mine.length > 0 && (
+        <Section title="나에게 배정된 항목">
+          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+            {mine.map(({ project: p, item: i }) => (
+              <li key={`${p.projectId}\n${i.specPath}\n${i.grep}`} className="flex items-center gap-4 px-5 py-3 text-sm">
+                <Link to={projectTabPath(p.projectId, 'plan')} className="min-w-0 flex-1 truncate font-medium text-foreground hover:underline">
+                  {p.projectName} · {i.title}
+                </Link>
+                {i.dueDate && <span className="shrink-0 text-muted-foreground">마감 {i.dueDate}</span>}
+                <span className="shrink-0 text-muted-foreground">
+                  {i.lastStatus === 'PASSED' ? '성공' : i.lastStatus === 'FAILED' ? '실패' : '미수행'}
+                </span>
+              </li>
+            ))}
           </ul>
         </Section>
       )}

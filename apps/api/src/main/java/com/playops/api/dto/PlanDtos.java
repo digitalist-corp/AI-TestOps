@@ -12,11 +12,12 @@ public final class PlanDtos {
     /**
      * lastStatus: PASSED | FAILED | null(미수행). priority: HIGH | MEDIUM | LOW | null.
      * parentEnabled: 파일 · 상위 묶음이 모두 사용 중인지. false 면 이 행만 켜도 실행되지 않는다.
+     * assignee · assigneeUserId: 담당자 이름과 계정(#119). 계정이 없으면 이관 전에 손으로 쓴 이름만 있다.
      * updatedByName · updatedAt: 계획 칸을 마지막으로 고친 사람 · 때 (#118). 고친 적이 없으면 비어 있다.
      */
     public record PlanItem(String specPath, String grep, String title, String describePath, int line,
-                           boolean enabled, boolean parentEnabled, Integer sortOrder, String assignee, LocalDate dueDate,
-                           String priority, String lastStatus, Instant lastRunAt,
+                           boolean enabled, boolean parentEnabled, Integer sortOrder, String assignee, Long assigneeUserId,
+                           LocalDate dueDate, String priority, String lastStatus, Instant lastRunAt,
                            String updatedByName, Instant updatedAt) {}
 
     /** passed · failed · notRun 은 사용 중 항목만 센다. completionRate = passed / enabled (0~1). */
@@ -27,9 +28,12 @@ public final class PlanDtos {
 
     public record ItemKey(String specPath, String grep) {}
 
-    /** 한 행 저장. enabled 가 null 이면 사용 여부는 그대로, 계획 칸(담당자 · 마감일 · 우선순위)은 보낸 값으로 덮어쓴다(null = 비움). */
+    /**
+     * 한 행 저장. enabled 가 null 이면 사용 여부는 그대로, 계획 칸(담당자 · 마감일 · 우선순위)은 보낸 값으로 덮어쓴다(null = 비움).
+     * 담당자는 assigneeUserId(프로젝트 멤버)로 고른다. 없으면 assignee 글자만 남긴다(이관 못 한 옛 이름을 지우지 않도록).
+     */
     public record ItemPatch(String specPath, String grep, Boolean enabled, String assignee, LocalDate dueDate,
-                            String priority) {}
+                            String priority, Long assigneeUserId) {}
 
     public record OrderRequest(List<ItemKey> items) {}
 

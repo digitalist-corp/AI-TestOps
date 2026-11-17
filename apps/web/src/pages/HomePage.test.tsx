@@ -26,12 +26,12 @@ const project = (projectId: string, projectName: string) =>
   ({ projectId, projectName, dockerStatus: 'RUNNING', status: 'RUNNING', startDate: '2026-11-01', endDate: null } as Project);
 const row = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
-  sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null, updatedByName: null, updatedAt: null, ...over,
+  sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null, assigneeUserId: null, updatedByName: null, updatedAt: null, ...over,
 });
 const items = [
   row({}),
   row({ grep: '결제', title: '결제', lastStatus: 'FAILED', dueDate: '2000-01-01' }),
-  row({ grep: '탈퇴', title: '탈퇴', lastStatus: null, assignee: '민지' }),
+  row({ grep: '탈퇴', title: '탈퇴', lastStatus: null, assignee: '민지', assigneeUserId: 9, dueDate: '2026-12-01' }),
 ];
 
 beforeEach(() => {
@@ -68,6 +68,9 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
 
     expect(await screen.findByRole('heading', { name: '내 프로젝트' })).toBeTruthy();
     expect(screen.getByText('성공 1 · 실패 1 · 미수행 1')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '나에게 배정된 항목' })).toBeTruthy();
+    expect(screen.getByText('쇼핑몰 · 탈퇴')).toBeTruthy();
+    expect(screen.queryByText('쇼핑몰 · 결제')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '쇼핑몰 실패 1건 다시 실행' }));
 
     await waitFor(() => expect(api.runTests).toHaveBeenCalledWith('shop', { specPaths: ['a.spec.ts'], grep: '결제' }));
@@ -82,7 +85,7 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     expect(screen.getByText('진척률 33%')).toBeTruthy();
     expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
     expect(screen.getByText('2026-11-01 ~')).toBeTruthy();
-    expect(screen.getByText('윤재')).toBeTruthy();
+    expect(screen.getByText('(계정 없음) 윤재')).toBeTruthy();
     expect(screen.getByText('민지')).toBeTruthy();
     expect(screen.getByText(/기한 지남 1건/)).toBeTruthy();
     expect(screen.queryByRole('heading', { name: '내 프로젝트' })).toBeNull();

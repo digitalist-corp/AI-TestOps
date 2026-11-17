@@ -75,7 +75,7 @@ beforeEach(() => {
     items: [
       {
         specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1, enabled: true, parentEnabled: true,
-        sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: 'FAILED', lastRunAt: null, updatedByName: null, updatedAt: null,
+        sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: 'FAILED', lastRunAt: null, assigneeUserId: null, updatedByName: null, updatedAt: null,
       },
     ],
     summary: { total: 10, enabled: 8, disabled: 2, passed: 6, failed: 1, notRun: 1, completionRate: 0.75 },
