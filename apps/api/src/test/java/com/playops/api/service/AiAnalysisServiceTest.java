@@ -57,7 +57,7 @@ class AiAnalysisServiceTest {
     private static ExecutionDetailResponse detailFor(String projectId) {
         ExecutionResponse execution = new ExecutionResponse(
                 7L, projectId, ExecutionStatus.FAILED, null, null, null,
-                3, 2, 1, 0, 1200L, null, null, null, null
+                3, 2, 1, 0, 1200L, null, null, null, null, null
         );
         return new ExecutionDetailResponse(execution, "", List.of(), null, List.of());
     }

@@ -54,6 +54,13 @@ class RolePermissionIntegrationTest {
     @Autowired
     com.playops.api.repository.ScenarioCaseSettingRepository planRows;
 
+    @Autowired
+    com.playops.api.repository.ExecutionCaseResultRepository caseResults;
+
+    /** 러너 없이 실행 요청까지만 확인하려고 러너 확인만 건너뛴다. */
+    @org.springframework.boot.test.mock.mockito.SpyBean
+    com.playops.api.service.ProjectService projectService;
+
     private static int signups;
     private String admin;
     private String member;
@@ -102,6 +109,58 @@ class RolePermissionIntegrationTest {
         assertThat(status(get("/api/projects/google.com"), member)).isEqualTo(403);
         assertThat(status(get("/api/projects/google.com/plan"), member)).isEqualTo(403);
         assertThat(status(get("/api/projects/example.com"), member)).isEqualTo(200);
+    }
+
+    @Test
+    void teamMemberSeesDefectsOfTheirProjectOnly() throws Exception {
+        JsonNode defects = call(get("/api/projects/example.com/defects"), member, 200);
+        assertThat(defects.has("open")).isTrue();
+        assertThat(status(get("/api/projects/google.com/defects"), member)).isEqualTo(403);
+    }
+
+    @Test
+    void teamMemberRerunsDefectsLinkedToTheFailedRun() throws Exception {
+        org.mockito.Mockito.doNothing().when(projectService).ensureDockerRunnerRunning(org.mockito.ArgumentMatchers.any());
+        var spec = projectService.getProjectPath("example.com").resolve("tests/defect-rerun.spec.ts");
+        java.nio.file.Files.createDirectories(spec.getParent());
+        java.nio.file.Files.writeString(spec, "import { test } from '@playwright/test';\ntest('결함 다시 실행 확인', async () => {});\n");
+        JsonNode item = null;
+        for (JsonNode i : call(get("/api/projects/example.com/plan"), member, 200).get("items")) {
+            if (i.get("title").asText().equals("결함 다시 실행 확인")) item = i;
+        }
+        assertThat(item).isNotNull();
+        var failed = new com.playops.api.entity.Execution();
+        failed.setProjectId("example.com");
+        failed.setStatus(com.playops.api.entity.ExecutionStatus.FAILED);
+        failed = executions.save(failed);
+        var result = new com.playops.api.entity.ExecutionCaseResult();
+        result.setExecutionId(failed.getId());
+        result.setSpecPath(item.get("specPath").asText());
+        result.setCaseTitle(item.get("title").asText());
+        result.setStatus("FAILED");
+        caseResults.save(result);
+
+        assertThat(status(post("/api/projects/google.com/defects/rerun").content("{}"), member)).isEqualTo(403);
+        JsonNode run = call(post("/api/projects/example.com/defects/rerun").content("{}"), member, 200);
+        assertThat(run.get("rerunOf").asLong()).isEqualTo(failed.getId());
+        assertThat(run.get("caseTitle").asText()).isEqualTo("결함 다시 실행 1건");
+        assertThat(executions.findById(run.get("id").asLong()).orElseThrow().getRerunOf()).isEqualTo(failed.getId());
+    }
+
+    @Test
+    void teamMemberReadsStepsOfTheirProjectsRunsOnly() throws Exception {
+        var mine = new com.playops.api.entity.Execution();
+        mine.setProjectId("example.com");
+        mine = executions.save(mine);
+        var other = new com.playops.api.entity.Execution();
+        other.setProjectId("google.com");
+        other = executions.save(other);
+
+        JsonNode steps = call(get("/api/projects/example.com/executions/" + mine.getId() + "/steps"), member, 200);
+        assertThat(steps.get("recorded").asBoolean()).isFalse();
+        assertThat(status(get("/api/projects/google.com/executions/" + other.getId() + "/steps"), member)).isEqualTo(403);
+        // 내 프로젝트 주소로 다른 프로젝트 실행을 물어도 보이지 않는다
+        assertThat(status(get("/api/projects/example.com/executions/" + other.getId() + "/steps"), member)).isEqualTo(404);
     }
 
     @Test

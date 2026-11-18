@@ -8,7 +8,7 @@ import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 import { ProjectStatusChip, isRunnerReady, projectPeriod } from '@/components/project/ProjectCard';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { useAccess } from '@/lib/access';
-import { assigneeLabel, byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
+import { assigneeLabel, byAssignee, overdue, planCounts } from '@/lib/plan';
 import { formatRelative } from '@/lib/utils';
 
 const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (현지 날짜)
@@ -42,6 +42,19 @@ function StatusAndPeriod({ project }: { project: Project }) {
   );
 }
 
+/** 미해결 결함 수 — 결함 리스트와 같은 API (#81). 누르면 결함 탭 */
+function OpenDefects({ projectId, count }: { projectId: string; count: number | undefined }) {
+  if (count === undefined) return null;
+  return (
+    <Link
+      to={projectTabPath(projectId, 'defects')}
+      className={`shrink-0 text-sm hover:underline ${count > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}
+    >
+      미해결 결함 {count}
+    </Link>
+  );
+}
+
 function ProgressBar({ value }: { value: number }) {
   return (
     <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
@@ -60,6 +73,7 @@ export function HomePage() {
   const { admin, me, roleIn } = useAccess();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [plans, setPlans] = useState<Record<string, PlanItem[]>>({});
+  const [defects, setDefects] = useState<Record<string, number>>({});
   const [userCount, setUserCount] = useState<number | null>(null);
   const [runners, setRunners] = useState<{ running: number; total: number } | null>(null);
   const [rerunId, setRerunId] = useState<string | null>(null);
@@ -74,6 +88,9 @@ export function HomePage() {
         for (const p of list) {
           api.plan.get(p.projectId)
             .then((plan) => alive && setPlans((prev) => ({ ...prev, [p.projectId]: plan.items })))
+            .catch(() => {});
+          api.defects.list(p.projectId)
+            .then((d) => alive && setDefects((prev) => ({ ...prev, [p.projectId]: d.open })))
             .catch(() => {});
         }
       })
@@ -98,9 +115,9 @@ export function HomePage() {
       .catch(() => {});
   }, [admin]);
 
+  /** 미해결 결함 전부를 결함 다시 실행 API로 — 새 실행이 실패했던 실행에 이어진다 (#83) */
   const rerunFailed = async (project: Project, items: PlanItem[]) => {
-    const options = failedRerun(items);
-    if (!options) return;
+    if (planCounts(items).failed === 0) return;
     if (!window.confirm(`'${project.projectName}'의 실패 ${planCounts(items).failed}건을 다시 실행할까요?`)) return;
     setRerunId(project.projectId);
     try {
@@ -111,7 +128,7 @@ export function HomePage() {
         }
         await api.startDocker(project.projectId);
       }
-      await api.runTests(project.projectId, options);
+      await api.defects.rerun(project.projectId, []);
       navigate(projectTabPath(project.projectId, 'runs'));
     } catch (err) {
       alert(err instanceof Error ? err.message : '다시 실행하지 못했습니다.');
@@ -176,6 +193,7 @@ export function HomePage() {
                       {p.projectName}
                     </Link>
                     <StatusAndPeriod project={p} />
+                    <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
                   </div>
                   <ProgressBar value={items ? progressOf(items) : 0} />
                   <span className="text-right text-sm text-muted-foreground">{items ? `${progressOf(items)}%` : '-'}</span>
@@ -200,7 +218,10 @@ export function HomePage() {
                     </Link>
                     <StatusAndPeriod project={p} />
                   </div>
-                  <span className="text-sm font-medium text-foreground">진척률 {progressOf(items)}%</span>
+                  <span className="flex shrink-0 items-center gap-4">
+                    <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
+                    <span className="text-sm font-medium text-foreground">진척률 {progressOf(items)}%</span>
+                  </span>
                 </div>
                 <ProgressBar value={progressOf(items)} />
                 {items.length === 0 ? (
@@ -259,6 +280,7 @@ export function HomePage() {
                   <span className="text-sm text-muted-foreground">
                     성공 {counts.passed} · 실패 {counts.failed} · 미수행 {counts.notRun}
                   </span>
+                  <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
                   {counts.failed > 0 && (
                     <Button
                       size="sm"

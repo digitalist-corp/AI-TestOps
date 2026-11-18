@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   BarChart3,
+  Bug,
   ClipboardList,
   Download,
   CalendarClock,
@@ -25,6 +26,7 @@ export type ProjectTabId =
   | 'scenarios'
   | 'recorder'
   | 'runs'
+  | 'defects'
   | 'results'
   | 'ai-generate'
   | 'ai-analysis'
@@ -86,6 +88,12 @@ export const PROJECT_WORKSPACE_TABS: {
     label: '실행 이력',
     description: '실행 목록 · 로그 스트리밍',
     icon: Play,
+  },
+  {
+    id: 'defects',
+    label: '결함',
+    description: '실패한 케이스 모아 보기 · 골라서 다시 실행',
+    icon: Bug,
   },
   {
     id: 'results',

@@ -323,6 +323,8 @@ export interface Execution {
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
+  /** 결함 다시 실행이면 실패했던 원래 실행 (#82) */
+  rerunOf?: number | null;
 }
 
 /** N차 테스트. 사용자가 돌린 실행을 순서대로 센 것 (실행 이력에서 계산). */
@@ -1210,6 +1212,52 @@ export interface PlanResponse {
 export interface PlanItemKey {
   specPath: string;
   grep: string;
+}
+
+/** 통합 결함 리스트(F-4). 결함 = 사용 중 계획 항목의 실패. OPEN 미해결 · RESOLVED 실패 뒤 통과 */
+export type DefectStatus = 'OPEN' | 'RESOLVED';
+
+export interface DefectRun {
+  executionId: number;
+  status: 'PASSED' | 'FAILED';
+  at: string | null;
+  /** 결함 다시 실행이면 원래 실행 */
+  rerunOf: number | null;
+}
+
+export interface Defect extends PlanItemKey {
+  title: string;
+  describePath: string;
+  status: DefectStatus;
+  assignee: string | null;
+  assigneeUserId: number | null;
+  /** 처음 발견한 뒤 실패한 실행 수 */
+  failCount: number;
+  firstFailedExecutionId: number;
+  firstFailedAt: string | null;
+  lastExecutionId: number;
+  lastRunAt: string | null;
+  resolvedExecutionId: number | null;
+  resolvedAt: string | null;
+  errorMessage: string | null;
+  /** 테스트가 지나는 화면. 모르면 빈 배열 */
+  routeKeys: string[];
+  /** 발견 실행부터 오래된 순 */
+  runs: DefectRun[];
+}
+
+/** open · resolved 는 돌려준 목록 안에서 센다 */
+export interface DefectResponse {
+  defects: Defect[];
+  open: number;
+  resolved: number;
+}
+
+export interface DefectFilter {
+  status?: DefectStatus;
+  assigneeUserId?: number;
+  suiteId?: number;
+  screen?: string;
 }
 
 export interface PlanItemPatch extends PlanItemKey {

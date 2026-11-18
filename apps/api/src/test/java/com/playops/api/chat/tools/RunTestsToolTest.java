@@ -51,7 +51,7 @@ class RunTestsToolTest {
 
     private static ExecutionResponse started(long id) {
         return new ExecutionResponse(id, "p1", ExecutionStatus.PENDING, null, null, null,
-                0, 0, 0, 0, null, null, null, null, Instant.parse("2026-11-01T00:00:00Z"));
+                0, 0, 0, 0, null, null, null, null, Instant.parse("2026-11-01T00:00:00Z"), null);
     }
 
     private static LlmToolCall call(Map<String, Object> args) {

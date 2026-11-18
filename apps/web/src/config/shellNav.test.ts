@@ -14,7 +14,7 @@ describe('shellNav', () => {
     expect(visibleWorkspaceGroups(true).map((g) => g.id)).toEqual(['input', 'plan', 'runs', 'dashboard', 'settings', 'ai']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'input')?.tabs).toEqual(['input']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'plan')?.tabs).toEqual(['plan', 'scenarios', 'recorder', 'structure']);
-    expect(WORKSPACE_GROUPS.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'results', 'schedules']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'defects', 'results', 'schedules']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members', 'source']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-generate', 'ai-analysis', 'ai-review']);
     expect(tabLabel('structure')).toBe('화면 지도');
@@ -61,7 +61,7 @@ describe('팀원에게 보이는 탭', () => {
     const groups = visibleWorkspaceGroups(true, false);
     expect(groups.map((g) => g.id)).toEqual(['plan', 'runs', 'dashboard', 'settings', 'ai']);
     expect(groups.find((g) => g.id === 'plan')?.tabs).toEqual(['plan', 'structure']);
-    expect(groups.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'results']);
+    expect(groups.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'defects', 'results']);
     expect(groups.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members']);
     expect(groups.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-analysis']);
   });

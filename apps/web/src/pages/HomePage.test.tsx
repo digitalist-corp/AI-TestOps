@@ -15,6 +15,7 @@ vi.mock('@/api/client', () => ({
   api: {
     getProjects: vi.fn(),
     plan: { get: vi.fn() },
+    defects: { list: vi.fn(), rerun: vi.fn() },
     getUsers: vi.fn(),
     getRunnerContainers: vi.fn(),
     runTests: vi.fn(),
@@ -40,6 +41,7 @@ beforeEach(() => {
     items,
     summary: { total: 3, enabled: 3, disabled: 0, passed: 1, failed: 1, notRun: 1, completionRate: 1 / 3 },
   });
+  vi.mocked(api.defects.list).mockResolvedValue({ defects: [], open: 1, resolved: 0 });
   vi.mocked(api.notices.list).mockResolvedValue([1, 2, 3, 4].map((id) => ({ id, title: `공지 ${id}`, pinned: id === 1, createdAt: '2026-11-17T00:00:00Z' }) as never));
   vi.mocked(api.getUsers).mockResolvedValue([{ id: 1 }, { id: 2 }] as never);
   vi.mocked(api.getRunnerContainers).mockResolvedValue([
@@ -63,17 +65,20 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
   it('팀원: 내 프로젝트의 성공 · 실패 · 미수행과 실패 재실행', async () => {
     me = user('USER', [{ projectId: 'shop', role: 'MEMBER' }]);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.mocked(api.runTests).mockResolvedValue({ id: 1 } as never);
+    vi.mocked(api.defects.rerun).mockResolvedValue({ id: 1 } as never);
     renderHome();
 
     expect(await screen.findByRole('heading', { name: '내 프로젝트' })).toBeTruthy();
     expect(screen.getByText('성공 1 · 실패 1 · 미수행 1')).toBeTruthy();
+    // 미해결 결함 수는 결함 리스트와 같은 API에서 온다 (#81)
+    expect((await screen.findByRole('link', { name: '미해결 결함 1' })).getAttribute('href')).toBe('/projects/shop/defects');
     expect(screen.getByRole('heading', { name: '나에게 배정된 항목' })).toBeTruthy();
     expect(screen.getByText('쇼핑몰 · 탈퇴')).toBeTruthy();
     expect(screen.queryByText('쇼핑몰 · 결제')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '쇼핑몰 실패 1건 다시 실행' }));
 
-    await waitFor(() => expect(api.runTests).toHaveBeenCalledWith('shop', { specPaths: ['a.spec.ts'], grep: '결제' }));
+    // 실패만 다시 실행 = 결함 다시 실행 API(빈 목록)로 원래 실행에 잇는다 (#83)
+    await waitFor(() => expect(api.defects.rerun).toHaveBeenCalledWith('shop', []));
     expect(screen.queryByRole('heading', { name: '전체 현황' })).toBeNull();
   });
 
@@ -83,6 +88,7 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
 
     expect(await screen.findByRole('heading', { name: '내가 맡은 프로젝트' })).toBeTruthy();
     expect(screen.getByText('진척률 33%')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: '미해결 결함 1' })).toBeTruthy();
     expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
     expect(screen.getByText('2026-11-01 ~')).toBeTruthy();
     expect(screen.getByText('(계정 없음) 윤재')).toBeTruthy();
@@ -99,6 +105,7 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     expect(await screen.findByText('프로젝트 1개')).toBeTruthy();
     expect(screen.getByText('사용자 2명')).toBeTruthy();
     expect(screen.getByText('러너 1 / 2 실행 중')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: '미해결 결함 1' })).toBeTruthy();
     expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
   });
 
