@@ -271,3 +271,18 @@ jobs:
             echo "시연 프로젝트 실행 #$EXEC_ID: $STATUS"
           fi
           curl -sf -H "$H" "$API/api/projects/example.com/defects" | jq -r '"미해결 결함 \(.open)건: \([.defects[] | select(.status=="OPEN") | .title] | join(", "))"'
+
+      # TODO(#121) 임시 — 다음 배포에서 지운다. 터널 주소로 요청 하나를 보내 API 가 받는 주소 헤더의 "모양"만 본다.
+      # 저장소가 공개라 로그도 공개다: IP 값은 <사설> · <공인> 으로 바꿔 출력한다.
+      - name: "#121 접속 주소 헤더 확인 (임시)"
+        continue-on-error: true
+        run: |
+          set +e
+          cd /home/playops/playops
+          PUBLIC=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' README.md | head -1)
+          [ -n "$PUBLIC" ] && curl -s -o /dev/null -w "터널 경유 %{http_code}\n" -m 20 "$PUBLIC/api/health/services?ipProbe=1"
+          curl -s -o /dev/null -w "web 직접 %{http_code}\n" -m 10 "http://localhost:3000/api/health/services?ipProbe=1"
+          sleep 2
+          docker compose -f docker-compose.dev.yml logs --since 3m api | grep -o '\[#121\].*' \
+            | sed -E 's/\b(10\.[0-9.]+|172\.(1[6-9]|2[0-9]|3[01])\.[0-9.]+|192\.168\.[0-9.]+|127\.[0-9.]+)\b/<사설>/g; s/\b([0-9]{1,3}\.){3}[0-9]{1,3}\b/<공인>/g; s/[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}/<IPv6>/g' \
+            || echo "로그 없음"
