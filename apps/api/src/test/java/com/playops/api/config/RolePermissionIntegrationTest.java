@@ -57,6 +57,9 @@ class RolePermissionIntegrationTest {
     @Autowired
     com.playops.api.repository.ExecutionCaseResultRepository caseResults;
 
+    @Autowired
+    com.playops.api.repository.AiJobRepository aiJobs;
+
     /** 러너 없이 실행 요청까지만 확인하려고 러너 확인만 건너뛴다. */
     @org.springframework.boot.test.mock.mockito.SpyBean
     com.playops.api.service.ProjectService projectService;
@@ -180,6 +183,33 @@ class RolePermissionIntegrationTest {
                 assertThat(i.get("priority").asText()).isEqualTo("HIGH");
             }
         }
+    }
+
+    /**
+     * 화면에서 팀원에게 숨긴 쓰기(화면 지도 · AI 작업)를 서버도 막는지 (3차 권한 화면 정리).
+     * 화면만 숨기고 서버가 열려 있으면 숨김은 의미가 없다.
+     */
+    @Test
+    void teamMemberCannotChangeTheScreenMapOrAiJobs() throws Exception {
+        String base = "/api/projects/example.com";
+        assertThat(status(post(base + "/sitemap/node").content("{\"routeKey\":\"/x\"}"), member)).isEqualTo(403);
+        assertThat(status(patch(base + "/sitemap/node").content("{\"routeKey\":\"/x\",\"note\":\"n\"}"), member)).isEqualTo(403);
+        assertThat(status(delete(base + "/sitemap/node").param("route", "/x"), member)).isEqualTo(403);
+        assertThat(status(post(base + "/sitemap/analyze-url").content("{}"), member)).isEqualTo(403);
+        assertThat(status(post(base + "/sitemap/analyze").content("{}"), member)).isEqualTo(403);
+        assertThat(status(post(base + "/ai-jobs").content("{}"), member)).isEqualTo(403);
+        assertThat(status(post(base + "/ai-jobs/template-generate").content("{}"), member)).isEqualTo(403);
+
+        var job = new com.playops.api.entity.AiJob();
+        job.setProjectId("example.com");
+        job.setJobType(com.playops.api.entity.AiJobType.values()[0]);
+        job.setStatus(com.playops.api.entity.AiJobStatus.PROPOSED);
+        job = aiJobs.save(job);
+        for (String action : List.of("approve", "reject", "proceed", "dismiss")) {
+            assertThat(status(post("/api/ai-jobs/" + job.getId() + "/" + action).content("{}"), member)).as(action).isEqualTo(403);
+        }
+        // 보기는 된다
+        assertThat(status(get(base + "/sitemap"), member)).isEqualTo(200);
     }
 
     @Test

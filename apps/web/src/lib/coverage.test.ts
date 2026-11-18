@@ -191,6 +191,12 @@ describe('막힌 곳', () => {
     expect(issueActions(issue({ action: 'FIX_WITH_AI' }), true)).toEqual(['RECORD_AGAIN']);
   });
 
+  it('팀원에게는 서버가 허용하는 다시 실행만 남긴다 (고치기 · 녹화 · 로그인 정보는 PM)', () => {
+    const fix = issue({ action: 'FIX_WITH_AI', executionId: 7, specPath: 'tests/a.spec.ts' });
+    expect(issueActions(fix, true, false)).toEqual(['RERUN']);
+    expect(issueActions(issue({ action: 'SET_LOGIN' }), true, false)).toEqual([]);
+  });
+
   it('다시 실행은 테스트를 알 때만, 행동 없음은 버튼 없음', () => {
     expect(issueActions(issue({ kind: 'OPEN_FAILED', action: 'RERUN' }), true)).toEqual([]);
     expect(issueActions(issue({ kind: 'LOGIN_REQUIRED', action: 'SET_LOGIN' }), true)).toEqual(['SET_LOGIN']);

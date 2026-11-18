@@ -43,7 +43,7 @@ import {
   PROJECT_WORKSPACE_TABS,
   type ProjectTabId,
 } from '@/config/projectWorkspace';
-import { groupOfTab } from '@/config/shellNav';
+import { canOpenTab, groupOfTab } from '@/config/shellNav';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const dockerStatusLabel: Record<Project['dockerStatus'], string> = {
@@ -159,11 +159,16 @@ export function ProjectDetailPage() {
       navigate(projectTabPath(projectId, DEFAULT_PROJECT_TAB), { replace: true });
       return;
     }
+    // 팀원이 링크로 관리 전용 탭을 열면 기본 탭으로. 권한을 받아오기 전(id 0)에는 PM 을 잘못 내보내지 않게 기다린다.
+    if (access.me && access.me.id !== 0 && !canOpenTab(activeTab, canManage)) {
+      navigate(projectTabPath(projectId, DEFAULT_PROJECT_TAB), { replace: true });
+      return;
+    }
     // 키 확인이 끝나기 전에는 active 가 잠깐 false 라서, 확인한 뒤에만 AI 탭에서 내보낸다.
     if (isAiTab && aiChecked && !aiActive) {
       navigate(projectTabPath(projectId, 'dashboard'), { replace: true });
     }
-  }, [projectId, tabParam, isAiTab, aiActive, aiChecked, navigate]);
+  }, [projectId, tabParam, isAiTab, aiActive, aiChecked, navigate, access.me, activeTab, canManage]);
 
   const goTab = (tab: ProjectTabId) => {
     if (projectId) navigate(projectTabPath(projectId, tab));
@@ -552,14 +557,17 @@ export function ProjectDetailPage() {
           )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={() => requestScenarioAction('pick')}
-          title="실행할 케이스를 골라 묶어서 실행합니다"
-        >
-          <ListChecks className="h-4 w-4" />
-          선택 실행
-        </Button>
+        {/* 케이스 고르기는 테스트 탭(PM)에서 — 팀원은 전체 실행 · 결함 다시 실행 · 계획 표 실행 */}
+        {canManage && (
+          <Button
+            variant="outline"
+            onClick={() => requestScenarioAction('pick')}
+            title="실행할 케이스를 골라 묶어서 실행합니다"
+          >
+            <ListChecks className="h-4 w-4" />
+            선택 실행
+          </Button>
+        )}
         {activeRun ? (
           <Button
             variant="outline"

@@ -4,6 +4,7 @@ import type { Coverage, ExecutionSchedule, TestRound } from '@/types';
 import { NODE_STATE_META, progressSegments, summarySentence, timeAgo } from '@/lib/coverage';
 import { mappingStats, nextScheduledRun, type ScreenCases } from '@/lib/rounds';
 import { cn } from '@/lib/utils';
+import { useAccess } from '@/lib/access';
 
 /**
  * 품질 현황 아래 요약 3칸. 매핑(어느 화면에) · 맵(어디까지) · 언제(최근 · 다음 실행).
@@ -24,6 +25,8 @@ export function SummaryCards({
   schedules: ExecutionSchedule[] | null;
 }) {
   const base = `/projects/${projectId}`;
+  // 예약 관리는 PM (관리 전용 탭)
+  const canManage = useAccess().canManage(projectId);
   const mapping = screens ? mappingStats(screens) : null;
   const next = schedules ? nextScheduledRun(schedules) : null;
   const hasMap = Boolean(coverage && coverage.summary.screens > 0);
@@ -70,7 +73,7 @@ export function SummaryCards({
         )}
       </Card>
 
-      <Card icon={CalendarClock} title="언제" to={`${base}/schedules`} linkLabel="예약 관리">
+      <Card icon={CalendarClock} title="언제" to={canManage ? `${base}/schedules` : undefined} linkLabel="예약 관리">
         <dl className="space-y-1.5 text-sm">
           <div className="flex items-baseline justify-between gap-2">
             <dt className="text-xs text-muted-foreground">최근</dt>
@@ -110,7 +113,8 @@ function Card({
 }: {
   icon: typeof Network;
   title: string;
-  to: string;
+  /** 없으면 링크를 숨긴다 */
+  to?: string;
   linkLabel: string;
   children: React.ReactNode;
 }) {
@@ -121,9 +125,11 @@ function Card({
           <Icon className="h-3.5 w-3.5 text-primary" />
           {title}
         </h4>
-        <Link to={to} className="text-xs font-medium text-primary hover:underline">
-          {linkLabel}
-        </Link>
+        {to && (
+          <Link to={to} className="text-xs font-medium text-primary hover:underline">
+            {linkLabel}
+          </Link>
+        )}
       </div>
       <div className="flex-1 space-y-1.5">{children}</div>
     </section>

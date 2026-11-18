@@ -21,6 +21,7 @@ import { RoundChanges, RoundTrend } from '@/components/dashboard/RoundView';
 import { CaseTree } from '@/components/dashboard/CaseTree';
 import { formatDuration } from '@/lib/utils';
 import { casesByScreen, isRoundRunning, roundOptionLabel, roundSentence } from '@/lib/rounds';
+import { useAccess } from '@/lib/access';
 
 /**
  * 프로젝트 대시보드. 비전공자도 한눈에 보도록
@@ -47,6 +48,8 @@ export function ProjectDashboardTab({
 }) {
   const activeRun = executions.find(isActiveExecution);
   const projectId = project.projectId;
+  // 코드 편집기 · 예약은 PM (관리 전용 탭)
+  const canManage = useAccess().canManage(projectId);
   const [rounds, setRounds] = useState<TestRound[] | null>(null);
   const [pickedId, setPickedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<TestRoundDetail | null>(null);
@@ -158,10 +161,12 @@ export function ProjectDashboardTab({
               전체 실행
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={onOpenSource}>
-            <FileCode className="h-4 w-4" />
-            소스
-          </Button>
+          {canManage && (
+            <Button size="sm" variant="outline" onClick={onOpenSource}>
+              <FileCode className="h-4 w-4" />
+              소스
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={onOpenRuns}>
             <Clock3 className="h-4 w-4" />
             이력

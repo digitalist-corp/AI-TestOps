@@ -16,6 +16,7 @@ import { api } from '@/api/client';
 import type { AiChatAction, AiJob, AiJobFileDiff, AiJobStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
+import { useAccess } from '@/lib/access';
 
 
 type Tone = 'pending' | 'review' | 'done' | 'failed';
@@ -54,6 +55,8 @@ const TONE_CLASS: Record<Tone, string> = {
 export function AiActionCard({ action }: { action: AiChatAction }) {
   const navigate = useNavigate();
   const isProposal = action.type === 'RUN_PROPOSAL';
+  // 승인 · 거부 · 코드 보기는 PM (서버가 막는 쓰기 · 관리 전용 탭)
+  const canManage = useAccess().canManage(action.projectId ?? undefined);
 
   // ── 실행 제안 ─────────────────────────────────────────────────────────
   const [running, setRunning] = useState(false);
@@ -246,7 +249,7 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-2">
+                  {canManage ? <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="xs"
                       onClick={() => review('approve')}
@@ -263,11 +266,11 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
                     >
                       거부
                     </Button>
-                  </div>
+                  </div> : <p className="text-[12px] text-muted-foreground">PM이 AI 검토에서 승인하면 반영됩니다.</p>}
                 </>
               )}
 
-              {status === 'APPLIED' && action.projectId && action.specPath && (
+              {canManage && status === 'APPLIED' && action.projectId && action.specPath && (
                 <Button
                   size="xs"
                   variant="outline"

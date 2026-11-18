@@ -5,6 +5,7 @@ import type { AiJob } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { useAiEnabled } from '@/lib/aiEnabled';
 import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
+import { useAccess } from '@/lib/access';
 
 /**
  * 실패한 실행에서 자동으로 만든 수정 제안 카드. (FR-25)
@@ -13,6 +14,8 @@ import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
  * AI를 꺼도 카드는 보인다. 고칠 방법을 읽고 직접 고치거나 닫을 수 있다.
  */
 export function FixProposals({ projectId, executionId }: { projectId: string; executionId: number }) {
+  // 진행 · 닫기는 PM (서버가 막는 쓰기). 팀원은 제안 내용만 본다.
+  const canManage = useAccess().canManage(projectId);
   const [proposals, setProposals] = useState<AiJob[]>([]);
 
   const load = useCallback(() => {
@@ -33,13 +36,14 @@ export function FixProposals({ projectId, executionId }: { projectId: string; ex
   return (
     <div className="space-y-2">
       {proposals.map((job) => (
-        <FixProposalCard key={job.id} job={job} />
+        <FixProposalCard key={job.id} job={job} canManage={canManage} />
       ))}
     </div>
   );
 }
 
-export function FixProposalCard({ job }: { job: AiJob }) {
+/** canManage: 진행 · 닫기 버튼(PM). 팀원은 제안 내용만 */
+export function FixProposalCard({ job, canManage }: { job: AiJob; canManage: boolean }) {
   const { active: aiActive } = useAiEnabled();
   const [busy, setBusy] = useState<'proceed' | 'dismiss' | null>(null);
   const [done, setDone] = useState<'proceeded' | 'dismissed' | null>(null);
@@ -68,7 +72,7 @@ export function FixProposalCard({ job }: { job: AiJob }) {
           {job.summary && <p className="text-sm text-muted-foreground">{job.summary}</p>}
           <p className="text-sm text-foreground">{job.instruction}</p>
           {job.targetSpecPath && <p className="text-xs font-mono text-muted-foreground truncate">{job.targetSpecPath}</p>}
-          {done === 'proceeded' ? (
+          {!canManage ? null : done === 'proceeded' ? (
             <p className="text-sm text-primary pt-1">AI가 고치기 시작했어요. 끝나면 AI 검토 탭에서 확인하고 승인해 주세요.</p>
           ) : (
             <div className="flex flex-wrap items-center gap-2 pt-2">

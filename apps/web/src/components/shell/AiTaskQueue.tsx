@@ -6,6 +6,7 @@ import type { AiJob, AiJobStatus } from '@/types';
 import { FixProposalCard } from '@/components/project/FixProposalCard';
 import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 import { aiJobStatusLabel, cn } from '@/lib/utils';
+import { useAccess } from '@/lib/access';
 
 const WORKING: AiJobStatus[] = ['PENDING', 'RUNNING', 'DIFF_READY'];
 const DONE_LABEL: Partial<Record<AiJobStatus, string>> = {
@@ -24,6 +25,7 @@ const RECENT_DONE = 5;
  * 프로젝트 밖에서는 모든 프로젝트의 검토 대기만 보여 준다.
  */
 export function AiTaskQueue({ projectId }: { projectId?: string }) {
+  const access = useAccess();
   const [jobs, setJobs] = useState<AiJob[] | null>(null);
 
   const load = useCallback(async () => {
@@ -74,7 +76,7 @@ export function AiTaskQueue({ projectId }: { projectId?: string }) {
       {todo.length > 0 && (
         <Section title={`할 일 ${todo.length}`}>
           {todo.map((job) =>
-            job.status === 'PROPOSED' ? <FixProposalCard key={job.id} job={job} /> : <ReviewCard key={job.id} job={job} />
+            job.status === 'PROPOSED' ? <FixProposalCard key={job.id} job={job} canManage={access.canManage(job.projectId)} /> : <ReviewCard key={job.id} job={job} />
           )}
         </Section>
       )}

@@ -108,7 +108,7 @@ function FlowCard({ flow, nodeByRoute, playing, onPlay }: {
  */
 export function FlowPanel({
   open, onOpen, tab, onTab, flows, issues, nodeByRoute, playingSpec, onPlay,
-  aiActive, onAction, busyKey, onSelectScreen,
+  aiActive, canManage, onAction, busyKey, onSelectScreen,
 }: {
   open: boolean;
   onOpen: (open: boolean) => void;
@@ -120,6 +120,7 @@ export function FlowPanel({
   playingSpec: string | null;
   onPlay: (flow: CoverageFlow) => void;
   aiActive: boolean;
+  canManage: boolean;
   onAction: IssueActionHandler;
   busyKey: string | null;
   onSelectScreen: (routeKey: string) => void;
@@ -227,6 +228,7 @@ export function FlowPanel({
           <IssueList
             items={issues}
             aiActive={aiActive}
+            canManage={canManage}
             onAction={onAction}
             busyKey={busyKey}
             onSelect={onSelectScreen}
