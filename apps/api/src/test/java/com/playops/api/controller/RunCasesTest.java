@@ -57,4 +57,25 @@ class RunCasesTest {
         assertThat(ProjectWorkspaceController.casesGrep(many)).isNull(); // 이름 없이 파일 단위로 — 더 돌 뿐 결과는 맞다
         assertThat(ProjectWorkspaceController.casesGrep(many.subList(0, 1))).hasSizeLessThanOrEqualTo(500);
     }
+
+    /** 코드 리뷰 5번: 여러 파일에서 고르면 파일 목록이 executions.spec_path(500자)를 넘어 500 오류가 났다 */
+    @Test
+    void manyFilesDropTheFileListBecauseThePatternAlreadyPinsEachFile() {
+        List<CaseKey> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 20; i++) many.add(new CaseKey("tests/feature-area-" + i + "/flow.spec.ts", "가", "TEST"));
+
+        assertThat(ProjectWorkspaceController.casesSpecPaths(many)).isEmpty();
+        assertThat(ProjectWorkspaceController.casesSpecPaths(many.subList(0, 2)))
+                .containsExactly("tests/feature-area-0/flow.spec.ts", "tests/feature-area-1/flow.spec.ts");
+    }
+
+    @Test
+    void aCaseWithoutFileOrNameIsABadRequestNotAServerError() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                ProjectWorkspaceController.casesSpecPaths(List.of(new CaseKey(null, "가", "TEST"))))
+                .isInstanceOf(com.playops.api.exception.ApiException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                ProjectWorkspaceController.casesSpecPaths(List.of(new CaseKey("a.spec.ts", " ", "TEST"))))
+                .isInstanceOf(com.playops.api.exception.ApiException.class);
+    }
 }

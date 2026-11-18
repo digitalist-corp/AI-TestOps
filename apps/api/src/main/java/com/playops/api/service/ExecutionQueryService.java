@@ -10,6 +10,7 @@ import com.playops.api.entity.ExecutionStatus;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.ExecutionCaseResultRepository;
 import com.playops.api.repository.ExecutionRepository;
+import com.playops.api.util.PlaywrightGrep;
 import jakarta.transaction.Transactional;
 import org.springframework.core.task.TaskRejectedException;
 import org.springframework.core.io.FileSystemResource;
@@ -174,11 +175,17 @@ public class ExecutionQueryService {
         return MediaType.APPLICATION_OCTET_STREAM;
     }
 
-    public List<ExecutionResponse> historyByGrep(String projectId, String grep) {
+    /**
+     * 케이스 실행 이력. 예전 실행은 키 그대로, 테스트 탭 · 채팅의 정확 일치 실행(#149)은 그 케이스의 패턴으로 저장돼 둘 다 찾는다.
+     * specPath 가 없으면 키 그대로만.
+     */
+    public List<ExecutionResponse> historyByGrep(String projectId, String grep, String specPath) {
         if (grep == null || grep.isBlank()) {
             return List.of();
         }
-        return executionRepository.findByProjectIdAndGrepFilterOrderByCreatedAtDesc(projectId, grep).stream()
+        List<String> keys = specPath == null || specPath.isBlank()
+                ? List.of(grep) : List.of(grep, PlaywrightGrep.testTitle(specPath, grep));
+        return executionRepository.findByProjectIdAndGrepFilterInOrderByCreatedAtDesc(projectId, keys).stream()
                 .map(ExecutionResponse::from)
                 .toList();
     }
