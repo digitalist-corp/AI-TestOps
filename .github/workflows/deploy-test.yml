@@ -85,6 +85,13 @@ jobs:
             exit 1
           fi
 
+          # 시연용 PM 비밀번호(3차): 서버 .env 에 없거나 비면 무작위 값을 서버 .env 에만 넣는다. 값은 출력하지 않는다.
+          if ! grep -qE '^DEMO_PM_PASSWORD=.+' .env; then
+            sed -i '/^DEMO_PM_PASSWORD=/d' .env
+            echo "DEMO_PM_PASSWORD=$(openssl rand -hex 12)" >> .env
+            echo "::notice::시연 PM 비밀번호를 서버 .env 에 새로 만들었습니다 (DEMO_PM_PASSWORD, 값은 서버에서 확인)"
+          fi
+
 
           # api/web은 소스를 바인드 마운트해 핫리로드된다
           # (gradle --continuous + Spring DevTools, vite HMR) — 재빌드가 필요 없다.
