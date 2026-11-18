@@ -54,6 +54,9 @@ class McpIntegrationTest {
     @Autowired
     AiJobRepository aiJobs;
 
+    @Autowired
+    com.playops.api.chat.ChatToolRegistry registry;
+
     private AiJob job(String projectId, Instant expiresAt) {
         AiJob job = new AiJob();
         job.setProjectId(projectId);
@@ -129,6 +132,27 @@ class McpIntegrationTest {
             assertThat(t.get("description").asText()).isNotBlank();
         });
         assertThat(names).containsExactlyInAnyOrder("list_executions", "get_sitemap");
+        // 작업이 프로젝트를 고정하므로 모델이 projectId 를 추측해 넣지 않게 스키마에서 뺀다
+        tools.forEach(t -> assertThat(t.get("inputSchema").path("properties").has("projectId")).as(t.get("name").asText()).isFalse());
+    }
+
+    /** 허용 목록 도구가 RUN · CHANGE 로 바뀌면 이 테스트가 깨진다 (그때는 MCP 로 내보내지 않는다). */
+    @Test
+    void allowedToolsAreAllReadOnly() {
+        for (String name : com.playops.api.controller.McpController.ALLOWED) {
+            assertThat(registry.find(name)).as(name).isPresent();
+            assertThat(registry.find(name).get().tier()).as(name).isEqualTo(com.playops.api.chat.ToolTier.READ);
+        }
+    }
+
+    /** LLM 은 선택 인자를 빈 값으로 채우곤 한다 — 채팅처럼 "없음"으로 보고, 공백은 다듬는다. */
+    @Test
+    void blankOrPaddedProjectIdMeansTheJobsProject() throws Exception {
+        AiJob job = job();
+        for (String value : java.util.List.of("", " example.com ")) {
+            JsonNode result = rpc(job, "tools/call", "{\"name\":\"list_executions\",\"arguments\":{\"projectId\":\"" + value + "\"}}").get("result");
+            assertThat(result.get("isError").asBoolean()).as("'" + value + "' " + result).isFalse();
+        }
     }
 
     @Test

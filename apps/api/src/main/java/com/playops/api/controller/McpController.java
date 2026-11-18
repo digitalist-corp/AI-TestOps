@@ -30,7 +30,7 @@ import java.util.Set;
 public class McpController {
 
     /** 실행 번호를 받는 도구는 다른 프로젝트 실행을 볼 수 있어(#158) 소속 확인을 붙인 뒤에 넣는다. */
-    static final Set<String> ALLOWED = Set.of("list_executions", "get_sitemap");
+    public static final Set<String> ALLOWED = Set.of("list_executions", "get_sitemap");
     private static final String DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 
     private final AiJobService aiJobService;
@@ -62,7 +62,7 @@ public class McpController {
             case "tools/list" -> result(id, Map.of("tools", exported().stream().map(tool -> Map.of(
                     "name", tool.spec().name(),
                     "description", tool.spec().description(),
-                    "inputSchema", tool.spec().inputSchema())).toList()));
+                    "inputSchema", withoutProjectId(tool.spec().inputSchema()))).toList()));
             case "tools/call" -> call(job, id, params);
             default -> error(id, -32601, "지원하지 않는 메서드: " + method);
         };
@@ -88,17 +88,34 @@ public class McpController {
             return error(id, -32602, "쓸 수 없는 도구: " + name);
         }
         Map<String, Object> args = params.get("arguments") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
-        Object projectId = args.get("projectId");
-        if (projectId != null && !job.getProjectId().equals(String.valueOf(projectId))) {
+        LlmToolCall toolCall = new LlmToolCall(String.valueOf(id), name, args);
+        // 채팅과 같은 규칙(LlmToolCall.arg): 빈 값은 없음, 앞뒤 공백은 다듬는다
+        String projectId = toolCall.arg("projectId");
+        if (projectId != null && !job.getProjectId().equals(projectId)) {
             return toolResult(id, "이 작업의 프로젝트(" + job.getProjectId() + ") 밖은 볼 수 없습니다.", true);
         }
         try {
-            ChatToolOutput output = tool.execute(new LlmToolCall(String.valueOf(id), name, args),
+            ChatToolOutput output = tool.execute(toolCall,
                     new ChatToolContext(job.getProjectId(), job.getRequestedBy(), false, null));
             return toolResult(id, output.content(), output.error());
         } catch (RuntimeException e) {
             return toolResult(id, "도구 실행 실패: " + e.getMessage(), true);
         }
+    }
+
+    /** 작업이 프로젝트를 고정하므로 모델이 projectId 를 추측해 넣지 않게 스키마에서 뺀다. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> withoutProjectId(Map<String, Object> schema) {
+        Map<String, Object> copy = new LinkedHashMap<>(schema);
+        if (copy.get("properties") instanceof Map<?, ?> properties) {
+            Map<String, Object> rest = new LinkedHashMap<>((Map<String, Object>) properties);
+            rest.remove("projectId");
+            copy.put("properties", rest);
+        }
+        if (copy.get("required") instanceof List<?> required) {
+            copy.put("required", required.stream().filter(r -> !"projectId".equals(r)).toList());
+        }
+        return copy;
     }
 
     private static ResponseEntity<Map<String, Object>> toolResult(Object id, String text, boolean isError) {
