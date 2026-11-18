@@ -11,7 +11,7 @@ from ai_service.graph import build_graph, run_once
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    with open_saver(os.environ["AI_SERVICE_DATABASE_URL"]) as saver:
+    async with open_saver(os.environ["AI_SERVICE_DATABASE_URL"]) as saver:
         app.state.saver = saver
         app.state.graph = build_graph(saver)
         yield
@@ -26,8 +26,8 @@ def health():
 
 
 @app.post("/runs")
-def create_run():
+async def create_run():
     thread_id = str(uuid.uuid4())
-    result = run_once(app.state.graph, thread_id)
-    checkpoints = len(list(app.state.saver.list({"configurable": {"thread_id": thread_id}})))
+    result = await run_once(app.state.graph, thread_id)
+    checkpoints = len([c async for c in app.state.saver.alist({"configurable": {"thread_id": thread_id}})])
     return {"threadId": thread_id, "steps": result["steps"], "checkpoints": checkpoints}

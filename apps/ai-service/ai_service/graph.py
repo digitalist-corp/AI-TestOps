@@ -22,5 +22,5 @@ def build_graph(checkpointer):
     return graph.compile(checkpointer=checkpointer)
 
 
-def run_once(graph, thread_id: str) -> dict:
-    return graph.invoke({"steps": []}, {"configurable": {"thread_id": thread_id}})
+async def run_once(graph, thread_id: str) -> dict:
+    return await graph.ainvoke({"steps": []}, {"configurable": {"thread_id": thread_id}})

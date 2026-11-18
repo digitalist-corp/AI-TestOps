@@ -24,3 +24,8 @@ apps/api/storage/
 build_final_storyboard.py
 scratch_remaining.txt
 apps/web/scratch_headings.txt
+
+# Python (ai-service)
+__pycache__/
+*.pyc
+.pytest_cache/

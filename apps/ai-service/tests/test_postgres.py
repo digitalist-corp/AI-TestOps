@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import psycopg
@@ -24,13 +25,20 @@ def tables_in(schema_name):
             "select table_name from information_schema.tables where table_schema = %s", (schema_name,))}
 
 
+async def count(saver, thread_id):
+    return len([c async for c in saver.alist({"configurable": {"thread_id": thread_id}})])
+
+
 def test_checkpoints_land_in_their_own_schema_and_accumulate(schema):
-    with open_saver(DB, schema) as saver:
-        graph = build_graph(saver)
-        run_once(graph, "t-pg")
-        first = len(list(saver.list({"configurable": {"thread_id": "t-pg"}})))
-        run_once(graph, "t-pg")
-        second = len(list(saver.list({"configurable": {"thread_id": "t-pg"}})))
+    async def scenario():
+        async with open_saver(DB, schema) as saver:
+            graph = build_graph(saver)
+            await run_once(graph, "t-pg")
+            first = await count(saver, "t-pg")
+            await run_once(graph, "t-pg")
+            return first, await count(saver, "t-pg")
+
+    first, second = asyncio.run(scenario())
 
     assert first >= 1
     assert second > first
