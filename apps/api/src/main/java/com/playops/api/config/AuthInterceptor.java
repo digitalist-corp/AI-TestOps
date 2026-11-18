@@ -4,6 +4,7 @@ import com.playops.api.entity.User;
 import com.playops.api.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.playops.api.util.ClientIp;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
@@ -14,8 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Component
 public class AuthInterceptor implements HandlerInterceptor {
-
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthInterceptor.class);
 
     private static final int GENERAL_API_LIMIT_PER_MIN = 120;
     private static final int AI_CHAT_LIMIT_PER_MIN = 10;
@@ -50,11 +49,6 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (path.indexOf(';') >= 0) {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST);
             return false;
-        }
-        // TODO(#121) 임시: 배포 서버에 실제로 들어오는 주소 헤더 확인용. 다음 배포에서 지운다. 주소 세 값만 — 다른 헤더는 남기지 않는다.
-        if (path.equals("/api/health/services") && "1".equals(request.getParameter("ipProbe"))) {
-            log.info("[#121] remote={} xff={} xreal={}",
-                    request.getRemoteAddr(), request.getHeader("X-Forwarded-For"), request.getHeader("X-Real-IP"));
         }
         // 가입은 토큰 없이 열려 있어 IP 기준으로 분당 5회까지만 받는다 (로그인과 같은 IP 판단).
         if (path.equals("/api/auth/signup")
@@ -111,9 +105,9 @@ public class AuthInterceptor implements HandlerInterceptor {
         return true;
     }
 
+    /** 믿을 프록시에서 온 X-Forwarded-For 만 쓴다 (#121) */
     private static String clientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        return forwarded != null && !forwarded.isBlank() ? forwarded.split(",")[0].trim() : request.getRemoteAddr();
+        return ClientIp.of(request);
     }
 
     private boolean isArtifactDownload(HttpServletRequest request, String path) {

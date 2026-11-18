@@ -1,5 +1,6 @@
 package com.playops.api.controller;
 
+import com.playops.api.util.ClientIp;
 import com.playops.api.dto.LoginRequest;
 import com.playops.api.dto.LoginResponse;
 import com.playops.api.dto.SignupRequest;
@@ -44,12 +45,8 @@ public class AuthController {
 
     @PostMapping("/login")
     public LoginResponse login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
-        String forwarded = httpRequest.getHeader("X-Forwarded-For");
-        String clientIp = forwarded != null && !forwarded.isBlank()
-                ? forwarded.split(",")[0].trim()
-                : httpRequest.getRemoteAddr();
-        String userAgent = httpRequest.getHeader("User-Agent");
-        return authService.login(request, clientIp, userAgent);
+        // 가입 횟수 제한(AuthInterceptor)과 같은 판단 — 믿을 프록시에서 온 X-Forwarded-For 만 (#121)
+        return authService.login(request, ClientIp.of(httpRequest), httpRequest.getHeader("User-Agent"));
     }
 
     @PostMapping("/signup")
