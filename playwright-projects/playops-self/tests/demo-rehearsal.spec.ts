@@ -12,6 +12,8 @@ const SHOTS = process.env.SHOTS || path.join(__dirname, '..', 'demo-shots');
 const PROJECT = '/projects/example.com';
 
 test.skip(!PASSWORD, '시연 PM 계정이 없어 리허설을 건너뜁니다');
+// trace · 영상에는 로그인 입력값과 요청 본문(비밀번호 원문)이 남는다 — 공개 저장소 아티팩트로 올라가지 않게 끈다
+test.use({ trace: 'off', video: 'off' });
 test.describe.configure({ mode: 'serial' });
 test.setTimeout(8 * 60_000);
 

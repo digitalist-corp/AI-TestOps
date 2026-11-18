@@ -40,18 +40,19 @@ jobs:
           docker run --rm --add-host host.docker.internal:host-gateway \
             -e BASE_URL="$BASE" -e DEMO_PM_USERNAME="${USER_NAME:-demo-pm}" -e DEMO_PM_PASSWORD="$PW" -e SHOTS=/shots \
             -v "$PWD/playwright-projects/playops-self:/w" -v "$SHOTS:/shots" -w /w "$IMAGE" \
-            npx playwright test tests/demo-rehearsal.spec.ts --project=chromium --reporter=list --output=/shots/test-output
+            npx playwright test tests/demo-rehearsal.spec.ts --project=chromium --reporter=list --trace off --output=/shots/test-output
           RESULT=$?
           # 컨테이너가 root 로 만든 파일을 러너가 올리고 지울 수 있게
           docker run --rm -v "$SHOTS:/shots" "$IMAGE" chown -R "$(id -u):$(id -g)" /shots
           echo "REHEARSAL_RESULT=$RESULT" >> "$GITHUB_ENV"
 
+      # 공개 저장소라 아티팩트도 공개 — 단계별 PNG 만 올린다 (test-output 의 trace · 오류 문맥에는 입력값이 남을 수 있다)
       - name: 단계별 화면 올리기
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: demo-rehearsal
-          path: ${{ runner.temp }}/demo-rehearsal
+          path: ${{ runner.temp }}/demo-rehearsal/*.png
 
       - name: 원래 상태로 되돌리기
         if: always()

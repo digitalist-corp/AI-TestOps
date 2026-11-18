@@ -66,6 +66,16 @@ jobs:
             exit 1
           fi
 
+          # 시연용 PM 계정(3차): 서버 .env 에 없거나 비면 아이디 기본값 · 무작위 비밀번호를 서버 .env 에만 넣는다.
+          # 값은 출력하지 않는다. 마지막 줄에 줄바꿈이 없으면 먼저 붙여 앞 줄 값에 섞이지 않게 한다.
+          [ -n "$(tail -c1 .env)" ] && echo >> .env
+          grep -qE '^DEMO_PM_USERNAME=.+' .env || { sed -i '/^DEMO_PM_USERNAME=/d' .env; echo "DEMO_PM_USERNAME=demo-pm" >> .env; }
+          if ! grep -qE '^DEMO_PM_PASSWORD=.+' .env; then
+            sed -i '/^DEMO_PM_PASSWORD=/d' .env
+            echo "DEMO_PM_PASSWORD=$(openssl rand -hex 12)" >> .env
+            echo "::notice::시연 PM 비밀번호를 서버 .env 에 새로 만들었습니다 (DEMO_PM_PASSWORD, 값은 서버에서 확인)"
+          fi
+
           MISSING=$(comm -23 \
             <(grep -oE '^[A-Z_][A-Z0-9_]*' .env.example | sort -u) \
             <(grep -oE '^[A-Z_][A-Z0-9_]*' .env | sort -u) || true)
@@ -83,13 +93,6 @@ jobs:
           if [ "$PROFILE" = "prod" ] && [ -z "$ENCKEY" ]; then
             echo "::error::prod 프로필인데 PLAYOPS_ENCRYPTION_KEY 가 비어 있습니다. API 가 기동하지 못합니다."
             exit 1
-          fi
-
-          # 시연용 PM 비밀번호(3차): 서버 .env 에 없거나 비면 무작위 값을 서버 .env 에만 넣는다. 값은 출력하지 않는다.
-          if ! grep -qE '^DEMO_PM_PASSWORD=.+' .env; then
-            sed -i '/^DEMO_PM_PASSWORD=/d' .env
-            echo "DEMO_PM_PASSWORD=$(openssl rand -hex 12)" >> .env
-            echo "::notice::시연 PM 비밀번호를 서버 .env 에 새로 만들었습니다 (DEMO_PM_PASSWORD, 값은 서버에서 확인)"
           fi
 
 
