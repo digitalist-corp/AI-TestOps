@@ -82,6 +82,15 @@ class RolePermissionIntegrationTest {
         return mvc.perform(req.contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse().getStatus();
     }
 
+    /**
+     * 앱이 뜨기 전에 프로젝트 폴더를 비운다. 지난 실행의 시연 spec 이 남아 있으면 DemoDataSeeder 가
+     * 계획 칸(담당자 · 마감일)을 채우지 않아 두 번째 실행부터 실패한다.
+     */
+    @org.junit.jupiter.api.BeforeAll
+    static void cleanProjectsRoot() throws Exception {
+        org.springframework.util.FileSystemUtils.deleteRecursively(java.nio.file.Path.of("build/tmp/roles-projects"));
+    }
+
     @BeforeEach
     void setUp() throws Exception {
         admin = call(post("/api/auth/login").content("{\"username\":\"admin\",\"password\":\"admin-test-pass-1\"}"), null, 200)

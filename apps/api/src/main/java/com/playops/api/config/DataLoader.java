@@ -32,11 +32,14 @@ public class DataLoader implements CommandLineRunner {
     private final TestSuiteRepository testSuiteRepository;
     private final ProjectMemberRepository memberRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
     private final String loginUsername;
     private final String loginPassword;
     private final String guestUsername;
     private final String guestPassword;
     private final String webPort;
+    private final String selftestUsername;
+    private final String selftestPassword;
 
     public DataLoader(
             UserRepository userRepository,
@@ -44,43 +47,35 @@ public class DataLoader implements CommandLineRunner {
             TestSuiteRepository testSuiteRepository,
             ProjectMemberRepository memberRepository,
             PasswordEncoder passwordEncoder,
+            AuthService authService,
             @Value("${LOGIN_USERNAME:admin}") String loginUsername,
             @Value("${LOGIN_PASSWORD:}") String loginPassword,
             @Value("${GUEST_USERNAME:guest}") String guestUsername,
             @Value("${GUEST_PASSWORD:}") String guestPassword,
-            @Value("${WEB_PORT:3000}") String webPort
+            @Value("${WEB_PORT:3000}") String webPort,
+            @Value("${SELFTEST_USERNAME:selftest}") String selftestUsername,
+            @Value("${SELFTEST_PASSWORD:}") String selftestPassword
     ) {
         this.userRepository = userRepository;
         this.projectRepository = projectRepository;
         this.testSuiteRepository = testSuiteRepository;
         this.memberRepository = memberRepository;
         this.passwordEncoder = passwordEncoder;
+        this.authService = authService;
         this.loginUsername = loginUsername;
         this.loginPassword = loginPassword;
         this.guestUsername = guestUsername;
         this.guestPassword = guestPassword;
         this.webPort = webPort;
+        this.selftestUsername = selftestUsername;
+        this.selftestPassword = selftestPassword;
     }
 
     @Override
     public void run(String... args) {
-        User existingAdmin = userRepository.findByUsername(loginUsername).orElse(null);
-        if (existingAdmin == null) {
-            // .env 값이 비었거나 admin 이면 admin 으로 만들고 첫 로그인에 비밀번호를 바꾸게 한다 (3-1 보안)
-            boolean defaultPassword = AuthService.isDefaultPassword(loginPassword);
-            User admin = new User();
-            admin.setUsername(loginUsername);
-            admin.setPassword(passwordEncoder.encode(defaultPassword ? AuthService.DEFAULT_PASSWORD : loginPassword));
-            admin.setRole(UserRole.ADMIN);
-            admin.setPasswordChangeRequired(defaultPassword);
-            userRepository.save(admin);
-        } else if (!isBcryptHash(existingAdmin.getPassword()) && existingAdmin.getPassword().equals(loginPassword)) {
-            // 과거 평문으로 생성된 부트스트랩 admin 계정을 최초 재기동 시 1회 해시로 마이그레이션한다.
-            existingAdmin.setPassword(passwordEncoder.encode(loginPassword));
-            userRepository.save(existingAdmin);
-        }
-
+        seedAdmin();
         seedGuest();
+        seedSelftest();
         removeObsoleteDemoProject("kakao.com");
         normalizeExistingRuntimeVersions();
 
@@ -138,6 +133,72 @@ public class DataLoader implements CommandLineRunner {
         guest.setPassword(passwordEncoder.encode(password));
         guest.setRole(UserRole.USER);
         userRepository.save(guest);
+    }
+
+    static final String SELFTEST_NAME = "셀프 회귀";
+
+    /**
+     * 관리자 계정 (3-1 보안). .env 의 LOGIN_USERNAME · LOGIN_PASSWORD 는 관리자가 한 명도 없을 때 최초 생성에만 쓴다.
+     * 비었거나 admin 이면 admin 으로 만들고 첫 로그인에 비밀번호를 바꾸게 한다.
+     * 예외 하나: 그 계정의 저장된 비밀번호가 아직 admin 이고 .env 값이 기본값이 아니면 .env 값으로 한 번 바꾸고 토큰을 모두 끊는다
+     * (배포가 서버 .env 의 기본값을 무작위 값으로 바꾼 뒤 admin/admin 이 남지 않게).
+     */
+    void seedAdmin() {
+        boolean defaultEnv = AuthService.isDefaultPassword(loginPassword);
+        User admin = userRepository.findByUsername(loginUsername).orElse(null);
+        if (admin == null) {
+            if (userRepository.existsByRole(UserRole.ADMIN)) return;
+            admin = new User();
+            admin.setUsername(loginUsername);
+            admin.setPassword(passwordEncoder.encode(defaultEnv ? AuthService.DEFAULT_PASSWORD : loginPassword));
+            admin.setRole(UserRole.ADMIN);
+            admin.setPasswordChangeRequired(defaultEnv);
+            userRepository.save(admin);
+            return;
+        }
+        if (!isBcryptHash(admin.getPassword()) && admin.getPassword().equals(loginPassword)) {
+            // 과거 평문으로 생성된 부트스트랩 admin 계정을 최초 재기동 시 1회 해시로 마이그레이션한다.
+            admin.setPassword(passwordEncoder.encode(loginPassword));
+            userRepository.save(admin);
+        }
+        if (admin.getRole() != UserRole.ADMIN || !isBcryptHash(admin.getPassword())
+                || !passwordEncoder.matches(AuthService.DEFAULT_PASSWORD, admin.getPassword())) {
+            return;
+        }
+        if (defaultEnv) {
+            if (!admin.isPasswordChangeRequired()) {
+                admin.setPasswordChangeRequired(true);
+                userRepository.save(admin);
+            }
+            return;
+        }
+        admin.setPassword(passwordEncoder.encode(loginPassword));
+        admin.setPasswordChangeRequired(false);
+        userRepository.save(admin);
+        authService.revokeAllSessions(admin.getId());
+    }
+
+    /**
+     * 셀프 회귀(playops-self) 전용 관리자 계정. 진짜 관리자 계정을 테스트가 쓰지 않게 한다.
+     * 비밀번호는 .env(SELFTEST_PASSWORD)로만 받고, 비면 만들지 않는다. 값이 바뀌면 다음 기동에 반영한다.
+     * 같은 아이디의 다른 사람 계정(표시 이름이 '셀프 회귀'가 아님)은 건드리지 않는다.
+     */
+    void seedSelftest() {
+        if (selftestPassword == null || selftestPassword.isBlank() || selftestUsername.isBlank()) return;
+        User user = userRepository.findByUsername(selftestUsername).orElse(null);
+        if (user == null) {
+            user = new User();
+            user.setUsername(selftestUsername);
+            user.setDisplayName(SELFTEST_NAME);
+            user.setRole(UserRole.ADMIN);
+            user.setPassword(passwordEncoder.encode(selftestPassword));
+            userRepository.save(user);
+        } else if (SELFTEST_NAME.equals(user.getDisplayName())
+                && !passwordEncoder.matches(selftestPassword, user.getPassword())) {
+            user.setPassword(passwordEncoder.encode(selftestPassword));
+            userRepository.save(user);
+            authService.revokeAllSessions(user.getId());
+        }
     }
 
     private void seedSelfTestSuite() {
