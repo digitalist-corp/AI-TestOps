@@ -10,6 +10,7 @@ import type { ServiceHealth, ServiceHealthItem } from '@/types';
 import { cn } from '@/lib/utils';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
+import { ServerNotice } from '@/components/ServerNotice';
 
 const ENV_FILE_PRESENT = import.meta.env.VITE_PLAYOPS_ENV_FILE_PRESENT === 'true';
 
@@ -199,6 +200,7 @@ export function LoginPage() {
           <div className="flex items-center gap-3">
             <BrandLogo size={40} />
             <span className="text-[19px] font-bold tracking-tight text-foreground">AI-TestOps</span>
+            <ServerNotice />
           </div>
 
           <div className="space-y-4">

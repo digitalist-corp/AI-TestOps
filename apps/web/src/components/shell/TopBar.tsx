@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { HelpMenu } from '@/components/shell/HelpMenu';
+import { ServerNotice } from '@/components/ServerNotice';
 import { NotificationBell } from '@/components/shell/NotificationBell';
 import { AiSwitch } from '@/components/shell/AiSwitch';
 import { LiveClock } from '@/components/console/ConsoleText';
@@ -105,6 +106,8 @@ export function TopBar({
           {railLabelOf(pathname) ?? 'AI-TestOps'}
         </p>
       )}
+
+      <ServerNotice className="hidden @min-[56rem]:inline-flex" />
 
       <div className="console-label hidden shrink-0 items-center gap-2 border-r border-border pr-3 @min-[64rem]:dark:flex" aria-hidden="true">
         <span className="console-live h-1.5 w-1.5 rounded-full bg-success shadow-[0_0_8px_var(--color-success)]" />

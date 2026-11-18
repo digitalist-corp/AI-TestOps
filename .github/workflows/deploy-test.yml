@@ -234,3 +234,36 @@ jobs:
           docker compose -f docker-compose.dev.yml logs --tail 200 api || true
           exit 1
 
+
+      # 시연 데이터 (#87): 시연 프로젝트(example.com)에 실행 이력이 없으면 한 번 돌려 결함 · 단계 기록을 만든다.
+      # 시연 spec 의 '문의하기 링크가 보인다'는 일부러 실패한다. 이 단계가 실패해도 배포는 그대로 둔다.
+      - name: 시연 데이터 (시연 프로젝트 첫 실행)
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          cd /home/playops/playops
+          API=http://localhost:8080
+          LOGIN_USER=$(grep -E '^LOGIN_USERNAME=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_USER=${LOGIN_USER:-admin}
+          LOGIN_PASS=$(grep -E '^LOGIN_PASSWORD=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_PASS=${LOGIN_PASS:-admin}
+          TOKEN=$(curl -sf -X POST "$API/api/auth/login" -H 'Content-Type: application/json' \
+            -d "{\"username\":\"$LOGIN_USER\",\"password\":\"$LOGIN_PASS\"}" | jq -r '.token // empty' | tr -d '\r\n')
+          [ -n "$TOKEN" ] || { echo "::warning::시연 데이터: 로그인 실패"; exit 1; }
+          H="Authorization: Bearer $TOKEN"
+
+          COUNT=$(curl -sf -H "$H" "$API/api/projects/example.com/executions" | jq 'length' || echo -1)
+          ITEMS=$(curl -sf -H "$H" "$API/api/projects/example.com/plan" | jq '.items | length' || echo -1)
+          echo "시연 프로젝트: 계획 항목 $ITEMS개, 실행 이력 $COUNT개"
+          if [ "$COUNT" != "0" ]; then
+            echo "실행 이력이 있어 그대로 둡니다."
+          else
+            EXEC_ID=$(curl -sf -X POST -H "$H" -H 'Content-Type: application/json' -d '{}' \
+              "$API/api/projects/example.com/executions" | jq -r '.id // empty')
+            echo "시연 프로젝트 실행 시작: execution #$EXEC_ID"
+            for i in $(seq 1 36); do
+              STATUS=$(curl -sf -H "$H" "$API/api/executions/$EXEC_ID" | jq -r '.execution.status')
+              case "$STATUS" in PASSED|FAILED|ERROR|CANCELLED) break ;; esac
+              sleep 10
+            done
+            echo "시연 프로젝트 실행 #$EXEC_ID: $STATUS"
+          fi
+          curl -sf -H "$H" "$API/api/projects/example.com/defects" | jq -r '"미해결 결함 \(.open)건: \([.defects[] | select(.status=="OPEN") | .title] | join(", "))"'
