@@ -535,6 +535,18 @@ export const api = {
       }),
   },
 
+  defects: {
+    list: (projectId: string, filter: import('@/types').DefectFilter = {}) => {
+      const q = new URLSearchParams(
+        Object.entries(filter).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]),
+      ).toString();
+      return request<import('@/types').DefectResponse>(`/api/projects/${projectId}/defects${q ? `?${q}` : ''}`);
+    },
+    /** 고른 결함만 다시 실행하고 원래 실행에 잇는다. 빈 배열이면 미해결 결함 전부(실패만 다시 실행) (#82) */
+    rerun: (projectId: string, items: import('@/types').PlanItemKey[]) =>
+      request<Execution>(`/api/projects/${projectId}/defects/rerun`, { method: 'POST', body: JSON.stringify({ items }) }),
+  },
+
   rounds: {
     list: (projectId: string) => request<import('@/types').TestRound[]>(`/api/projects/${projectId}/rounds`),
     get: (projectId: string, executionId: number) =>
@@ -572,6 +584,10 @@ export const api = {
 
   getExecutionDetail: (executionId: number) =>
     request<ExecutionDetail>(`/api/executions/${executionId}`),
+
+  /** 케이스별 단계 기록 (#84) */
+  getSteps: (projectId: string, executionId: number) =>
+    request<import('@/types').StepsResponse>(`/api/projects/${projectId}/executions/${executionId}/steps`),
 
   artifactUrl: (executionId: number, path: string) =>
     `/api/executions/${executionId}/artifact?path=${encodeURIComponent(path)}`,

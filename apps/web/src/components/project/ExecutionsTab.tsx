@@ -64,7 +64,8 @@ export function ExecutionsTab({
       field: 'caseTitle',
       headerName: '케이스',
       flex: 1,
-      valueFormatter: (p) => p.value ?? p.data?.grepFilter ?? '전체',
+      valueFormatter: (p) =>
+        `${p.value ?? p.data?.grepFilter ?? '전체'}${p.data?.rerunOf ? ` · #${p.data.rerunOf} 다시 실행` : ''}`,
     },
     {
       field: 'passedTests',

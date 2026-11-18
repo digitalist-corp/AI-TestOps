@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Pencil, Play, RefreshCw, Settings2, Square, Terminal, Trash2, Upload } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthStateStatus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
+import type { AuthStateStatus, CaseFocus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { SourceExplorerTab } from '@/components/project/SourceExplorerTab';
 import { ProjectDashboardTab } from '@/components/project/ProjectDashboardTab';
+import { DefectsTab } from '@/components/project/DefectsTab';
 import { PlanTab } from '@/components/project/PlanTab';
 import { MembersTab } from '@/components/project/MembersTab';
 import { useAccess } from '@/lib/access';
@@ -181,6 +182,7 @@ export function ProjectDetailPage() {
   const [running, setRunning] = useState(false);
   const [activeExecutionId, setActiveExecutionId] = useState<number | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<number | null>(null);
+  const [caseFocus, setCaseFocus] = useState<CaseFocus | null>(null);
   const [executionDetail, setExecutionDetail] = useState<ExecutionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -310,7 +312,11 @@ export function ProjectDetailPage() {
     }
   }, [activeTab, selectedExecutionId, executions, executionDetail?.execution.id]);
 
-  const handleRun = async (options?: { grep?: string; specPath?: string; specPaths?: string[]; caseTitle?: string; sequential?: boolean }) => {
+  /** start: 기본 실행 API 대신 쓸 실행 요청 (결함 다시 실행 #83). 러너 · 환경 확인은 같다. */
+  const handleRun = async (
+    options?: { grep?: string; specPath?: string; specPaths?: string[]; caseTitle?: string; sequential?: boolean },
+    start?: () => Promise<Execution>,
+  ) => {
     if (!projectId) return;
     if (!project) return;
     // 같은 프로젝트를 겹쳐 돌리지 않는다 — 상단 · 대시보드 · 계획 표 · 선택 실행이 모두 여기로 온다.
@@ -347,7 +353,7 @@ export function ProjectDetailPage() {
           return;
         }
       }
-      const ex = await api.runTests(projectId, options);
+      const ex = start ? await start() : await api.runTests(projectId, options);
       setActiveExecutionId(ex.id);
       setSelectedExecutionId(ex.id);
       goTab('runs');
@@ -464,8 +470,10 @@ export function ProjectDetailPage() {
     }
   };
 
-  const handleSelectExecution = (id: number) => {
+  /** focus: 결함에서 들어오면 결과 화면이 그 케이스의 실패 단계를 펼친다 (#85) */
+  const handleSelectExecution = (id: number, focus?: CaseFocus) => {
     setSelectedExecutionId(id);
+    setCaseFocus(focus ?? null);
     goTab('results');
   };
 
@@ -727,6 +735,16 @@ export function ProjectDetailPage() {
             />
           )}
 
+          {activeTab === 'defects' && projectId && (
+            <DefectsTab
+              projectId={projectId}
+              refreshKey={executions.map((e) => `${e.id}:${e.status}`).join(',')}
+              runDisabled={running || !!activeRun}
+              onRerun={(items) => handleRun({}, () => api.defects.rerun(projectId, items))}
+              onOpenExecution={handleSelectExecution}
+            />
+          )}
+
           {activeTab === 'results' && (
             <div className="space-y-4">
               {executions.length > 0 && (
@@ -740,7 +758,10 @@ export function ProjectDetailPage() {
                   <select
                     className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
                     value={selectedExecutionId ?? executions[0].id}
-                    onChange={(e) => setSelectedExecutionId(Number(e.target.value))}
+                    onChange={(e) => {
+                      setSelectedExecutionId(Number(e.target.value));
+                      setCaseFocus(null);
+                    }}
                   >
                     {executions.map((ex) => (
                       <option key={ex.id} value={ex.id}>
@@ -751,7 +772,7 @@ export function ProjectDetailPage() {
                 </div>
               )}
               <ExecutionLogPanel executionId={selectedExecutionId} />
-              <ResultsTab detail={executionDetail} loading={detailLoading} />
+              <ResultsTab detail={executionDetail} loading={detailLoading} focus={caseFocus} />
             </div>
           )}
 

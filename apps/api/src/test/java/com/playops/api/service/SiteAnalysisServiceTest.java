@@ -420,4 +420,26 @@ class SiteAnalysisServiceTest {
         assertThat(loginMap.get("idValue")).isEqualTo("standard_user");
         assertThat(loginMap.get("passwordValue")).isEqualTo("secret_sauce");
     }
+
+    /** 재시작 정리 (#137): 이번 기동 뒤에 시작한 분석은 실패로 바꾸지 않는다. */
+    @Test
+    void failInterruptedRunsKeepsRunsStartedAfterBoot() {
+        com.playops.api.repository.SiteAnalysisRunRepository runRepository = mock(com.playops.api.repository.SiteAnalysisRunRepository.class);
+        SiteAnalysisService cleaner = new SiteAnalysisService(
+                null, null, null, null, null, null, new ScreenFinder(), null,
+                runRepository, nodeRepository, editRepository, edgeRepository, originRepository, null, null, null, caseResultRepository);
+        java.time.Instant boot = java.time.Instant.now();
+        com.playops.api.entity.SiteAnalysisRun old = new com.playops.api.entity.SiteAnalysisRun();
+        old.setStatus(com.playops.api.entity.SiteAnalysisRun.RUNNING);
+        org.springframework.test.util.ReflectionTestUtils.setField(old, "startedAt", boot.minusSeconds(30));
+        com.playops.api.entity.SiteAnalysisRun fresh = new com.playops.api.entity.SiteAnalysisRun();
+        fresh.setStatus(com.playops.api.entity.SiteAnalysisRun.RUNNING);
+        org.springframework.test.util.ReflectionTestUtils.setField(fresh, "startedAt", boot.plusMillis(1));
+        when(runRepository.findByStatus(com.playops.api.entity.SiteAnalysisRun.RUNNING)).thenReturn(List.of(old, fresh));
+
+        cleaner.failInterruptedRuns(boot);
+
+        assertThat(old.getStatus()).isEqualTo(com.playops.api.entity.SiteAnalysisRun.FAILED);
+        assertThat(fresh.getStatus()).isEqualTo(com.playops.api.entity.SiteAnalysisRun.RUNNING);
+    }
 }

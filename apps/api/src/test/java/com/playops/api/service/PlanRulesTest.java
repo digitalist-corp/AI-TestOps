@@ -98,7 +98,7 @@ class PlanRulesTest {
                 result(4, "a.spec.ts", "a.spec.ts > 묶음 > 로그인", "FAILED"),
                 result(2, "a.spec.ts", "a.spec.ts > 묶음 > 로그인", "PASSED")));
 
-        assertThat(PlanService.latestFor(planned("a.spec.ts", "묶음", "로그인"), byLeaf).getStatus()).isEqualTo("FAILED");
+        assertThat(PlanService.historyFor(planned("a.spec.ts", "묶음", "로그인"), byLeaf).get(0).getStatus()).isEqualTo("FAILED");
     }
 
     @Test
@@ -106,8 +106,8 @@ class PlanRulesTest {
         // 저장 경로는 tests/a.spec.ts, 리포트 경로는 testDir(./tests) 기준이라 a.spec.ts
         var byLeaf = PlanService.byLeaf(List.of(result(7, "a.spec.ts", "a.spec.ts > 로그인", "PASSED")));
 
-        assertThat(PlanService.latestFor(planned("tests/a.spec.ts", "", "로그인"), byLeaf).getStatus()).isEqualTo("PASSED");
-        assertThat(PlanService.latestFor(planned("tests/b.spec.ts", "", "로그인"), byLeaf)).isNull();
+        assertThat(PlanService.historyFor(planned("tests/a.spec.ts", "", "로그인"), byLeaf).get(0).getStatus()).isEqualTo("PASSED");
+        assertThat(PlanService.historyFor(planned("tests/b.spec.ts", "", "로그인"), byLeaf)).isEmpty();
     }
 
     @Test
@@ -116,7 +116,7 @@ class PlanRulesTest {
                 result(7, "a.spec.ts", "a.spec.ts > 관리자 > 저장", "FAILED"),
                 result(7, "a.spec.ts", "a.spec.ts > 사용자 > 저장", "PASSED")));
 
-        assertThat(PlanService.latestFor(planned("a.spec.ts", "관리자", "저장"), byLeaf).getStatus()).isEqualTo("FAILED");
-        assertThat(PlanService.latestFor(planned("a.spec.ts", "사용자", "저장"), byLeaf).getStatus()).isEqualTo("PASSED");
+        assertThat(PlanService.historyFor(planned("a.spec.ts", "관리자", "저장"), byLeaf).get(0).getStatus()).isEqualTo("FAILED");
+        assertThat(PlanService.historyFor(planned("a.spec.ts", "사용자", "저장"), byLeaf).get(0).getStatus()).isEqualTo("PASSED");
     }
 }

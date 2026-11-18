@@ -20,7 +20,9 @@ public record ExecutionResponse(
         String errorMessage,
         Instant startedAt,
         Instant finishedAt,
-        Instant createdAt
+        Instant createdAt,
+        /** 결함 다시 실행(#82)이면 원래 실행 id */
+        Long rerunOf
 ) {
     public static ExecutionResponse from(Execution e) {
         return new ExecutionResponse(
@@ -38,7 +40,8 @@ public record ExecutionResponse(
                 e.getErrorMessage(),
                 e.getStartedAt(),
                 e.getFinishedAt(),
-                e.getCreatedAt()
+                e.getCreatedAt(),
+                e.getRerunOf()
         );
     }
 }

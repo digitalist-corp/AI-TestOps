@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanItem } from '@/types';
 import type { ScreenCase, ScreenCases } from '@/lib/rounds';
-import { byAssignee, failedRerun, failingScreens, inSuite, overdue, planAsResults, planCounts, screenNameByCase } from '@/lib/plan';
+import { byAssignee, failingScreens, inSuite, overdue, planAsResults, planCounts, screenNameByCase } from '@/lib/plan';
 
 const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
@@ -83,17 +83,6 @@ describe('역할별 대시보드 집계', () => {
   const row = (over: Partial<PlanItem>): PlanItem => ({
     specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
     sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, assigneeUserId: null, updatedByName: null, updatedAt: null, ...over,
-  });
-
-  it('failedRerun: 사용 중인 실패 항목만 파일과 이름(정규식 이스케이프)으로 다시 실행한다', () => {
-    const options = failedRerun([
-      row({ specPath: 'a.spec.ts', grep: '결제 (카드)', lastStatus: 'FAILED' }),
-      row({ specPath: 'b.spec.ts', grep: '탈퇴', lastStatus: 'FAILED' }),
-      row({ specPath: 'a.spec.ts', grep: '로그인', lastStatus: 'PASSED' }),
-      row({ specPath: 'c.spec.ts', grep: '꺼짐', lastStatus: 'FAILED', enabled: false }),
-    ]);
-    expect(options).toEqual({ specPaths: ['a.spec.ts', 'b.spec.ts'], grep: '결제 \\(카드\\)|탈퇴' });
-    expect(failedRerun([row({ lastStatus: 'PASSED' })])).toBeNull();
   });
 
   it('byAssignee: 계정(사용자 id)으로 묶고, 계정 없는 옛 이름 · 담당자 없음(미지정)은 따로 센다', () => {

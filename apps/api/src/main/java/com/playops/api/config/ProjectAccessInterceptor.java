@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
  * - 관리자: 모두 통과
  * - 관리자 전용: 사용자 관리 · 러너 · 리소스 · 템플릿 변경 · 프로젝트 생성/삭제 · 공지 쓰기
  * - 프로젝트 하위 경로(/api/projects/{id}/**, 실행 · AI 작업 · 첫 테스트 생성 id 경로 포함): 멤버가 아니면 403.
- *   조회(GET)는 멤버 모두, 쓰기는 PM. 팀원은 MEMBER_WRITES(실행 · 재실행 · 취소)만.
+ *   조회(GET)는 멤버 모두, 쓰기는 PM. 팀원은 MEMBER_WRITES(실행 · 재실행 · 결함 다시 실행 · 취소)만.
  *
  * 쓰기는 허용 목록 방식이라 새 API 를 만들고 깜빡해도 팀원에게는 막힌다.
  */
@@ -40,9 +40,10 @@ public class ProjectAccessInterceptor implements HandlerInterceptor {
     private static final Pattern BOOTSTRAP_PATH = Pattern.compile("^/api/ai/bootstrap/([^/]+)(/.*)?$");
     /** /api/projects/ 바로 아래지만 프로젝트 id 가 아닌 경로 */
     private static final Set<String> NOT_PROJECT_IDS = Set.of("docker", "site-check");
-    /** 팀원이 할 수 있는 쓰기 (프로젝트 기준 상대 경로): 실행 · 실패 재실행 · 러너 켜기 · 실행 취소 */
+    /** 팀원이 할 수 있는 쓰기 (프로젝트 기준 상대 경로): 실행 · 실패 재실행 · 결함 다시 실행 · 러너 켜기 · 실행 취소 */
     private static final List<Pattern> MEMBER_WRITES = List.of(
             Pattern.compile("^POST /executions$"),
+            Pattern.compile("^POST /defects/rerun$"),
             Pattern.compile("^POST /test-suites/\\d+/execute$"),
             Pattern.compile("^POST /docker/start$"),
             Pattern.compile("^POST /execution/\\d+/cancel$")

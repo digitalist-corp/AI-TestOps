@@ -114,7 +114,16 @@ public class ExecutionQueryService {
     public ExecutionResponse triggerRun(
             String projectId, String grep, String specPath, List<String> specPaths, String caseTitle, boolean sequential
     ) {
+        return triggerRun(projectId, grep, specPath, specPaths, caseTitle, sequential, null);
+    }
+
+    /** rerunOf: 결함 다시 실행(#82)이면 실패했던 원래 실행 */
+    public ExecutionResponse triggerRun(
+            String projectId, String grep, String specPath, List<String> specPaths, String caseTitle, boolean sequential,
+            Long rerunOf
+    ) {
         Execution execution = testExecutionService.createExecution(projectId, grep, specPath, specPaths, caseTitle, sequential);
+        execution.setRerunOf(rerunOf);
         Path reportDir = Path.of(properties.storageRoot(), "reports", projectId, String.valueOf(execution.getId()));
         execution.setReportPath(reportDir.toString().replace('\\', '/'));
         executionRepository.save(execution);

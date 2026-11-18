@@ -9,10 +9,16 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * 서버가 꺼지면서 끝나지 못한 실행을 오류로 정리한다.
+ * ApplicationRunner 는 웹 서버가 요청을 받기 시작한 뒤에 돌아서, 그 사이 새로 시작한 실행까지 잡지 않게
+ * 이번 기동 전에 만든 실행만 정리한다 (#137). 빈은 웹 서버가 열리기 전에 만들어지므로 생성 시각을 기동 시각으로 쓴다.
+ */
 @Component
 public class ExecutionStartupCleaner implements ApplicationRunner {
 
     private final ExecutionRepository executionRepository;
+    private final Instant bootedAt = Instant.now();
 
     public ExecutionStartupCleaner(ExecutionRepository executionRepository) {
         this.executionRepository = executionRepository;
@@ -24,7 +30,7 @@ public class ExecutionStartupCleaner implements ApplicationRunner {
                 ExecutionStatus.PENDING,
                 ExecutionStatus.RUNNING,
                 ExecutionStatus.CANCEL_REQUESTED
-        ));
+        )).stream().filter(e -> e.getCreatedAt() == null || e.getCreatedAt().isBefore(bootedAt)).toList();
         for (var execution : interrupted) {
             execution.setStatus(ExecutionStatus.ERROR);
             execution.setFinishedAt(Instant.now());

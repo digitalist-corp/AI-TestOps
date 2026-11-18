@@ -1015,8 +1015,10 @@ public class SiteAnalysisService {
     }
 
     /** 서버가 꺼지면서 끝나지 못한 실행을 정리한다. 그대로 두면 "이미 진행 중"으로 막혀 다시 분석할 수 없다. */
-    public void failInterruptedRuns() {
+    /** startedBefore 전에 시작한 분석만 — 그 뒤에 시작한 분석은 이번 서버가 돌리는 중이다 (#137) */
+    public void failInterruptedRuns(Instant startedBefore) {
         for (SiteAnalysisRun run : runRepository.findByStatus(SiteAnalysisRun.RUNNING)) {
+            if (run.getStartedAt() != null && !run.getStartedAt().isBefore(startedBefore)) continue;
             fail(run, "서버가 다시 시작되어 분석이 중단되었습니다. 다시 실행하세요.");
         }
     }
