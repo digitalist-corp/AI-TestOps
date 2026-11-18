@@ -8,8 +8,8 @@ public final class DefectDtos {
 
     private DefectDtos() {}
 
-    /** 결함 흐름의 실행 하나. status: PASSED | FAILED */
-    public record DefectRun(Long executionId, String status, Instant at) {}
+    /** 결함 흐름의 실행 하나. status: PASSED | FAILED. rerunOf: 결함 다시 실행이면 원래 실행(#82) */
+    public record DefectRun(Long executionId, String status, Instant at, Long rerunOf) {}
 
     /**
      * status: OPEN(최근 실행이 실패) | RESOLVED(실패 뒤 실행에서 통과).
@@ -25,12 +25,23 @@ public final class DefectDtos {
                          Long resolvedExecutionId, Instant resolvedAt,
                          String errorMessage, List<String> routeKeys, List<DefectRun> runs) {
 
-        public Defect withRouteKeys(List<String> keys) {
+        public Defect withLinks(List<String> keys, List<DefectRun> linkedRuns) {
             return new Defect(specPath, grep, title, describePath, status, assignee, assigneeUserId, failCount,
                     firstFailedExecutionId, firstFailedAt, lastExecutionId, lastRunAt, resolvedExecutionId, resolvedAt,
-                    errorMessage, keys, runs);
+                    errorMessage, keys, linkedRuns);
+        }
+
+        /** 마지막으로 실패한 실행 */
+        public Long lastFailedExecutionId() {
+            for (int i = runs.size() - 1; i >= 0; i--) {
+                if ("FAILED".equals(runs.get(i).status())) return runs.get(i).executionId();
+            }
+            return firstFailedExecutionId;
         }
     }
+
+    /** 결함 다시 실행(#82). items 가 비면 미해결 결함 전부(실패만 다시 실행). */
+    public record RerunRequest(List<PlanDtos.ItemKey> items) {}
 
     /** open · resolved 는 돌려준 목록 안에서 센다. 첫 화면 · 대시보드의 미해결 결함 수는 필터 없이 부른 open 이다. */
     public record DefectResponse(List<Defect> defects, int open, int resolved) {}

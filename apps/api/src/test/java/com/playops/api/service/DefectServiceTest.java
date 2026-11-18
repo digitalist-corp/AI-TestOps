@@ -3,10 +3,13 @@ package com.playops.api.service;
 import com.playops.api.dto.DefectDtos.Defect;
 import com.playops.api.dto.DefectDtos.DefectResponse;
 import com.playops.api.dto.DefectDtos.DefectRun;
+import com.playops.api.dto.PlanDtos.ItemKey;
 import com.playops.api.dto.PlanDtos.PlanItem;
+import com.playops.api.entity.Execution;
 import com.playops.api.entity.ExecutionCaseResult;
 import com.playops.api.entity.TestSuite;
 import com.playops.api.exception.ApiException;
+import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.repository.TestSuiteRepository;
 import com.playops.api.service.PlanService.Tracked;
 import com.playops.api.service.SiteCoverageService.Coverage;
@@ -22,6 +25,12 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.groups.Tuple.tuple;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -33,6 +42,8 @@ class DefectServiceTest {
     private PlanService planService;
     private SiteCoverageService coverageService;
     private TestSuiteRepository suiteRepository;
+    private ExecutionRepository executionRepository;
+    private ExecutionQueryService executionQueryService;
     private DefectService service;
 
     @BeforeEach
@@ -40,7 +51,9 @@ class DefectServiceTest {
         planService = mock(PlanService.class);
         coverageService = mock(SiteCoverageService.class);
         suiteRepository = mock(TestSuiteRepository.class);
-        service = new DefectService(planService, coverageService, suiteRepository);
+        executionRepository = mock(ExecutionRepository.class);
+        executionQueryService = mock(ExecutionQueryService.class);
+        service = new DefectService(planService, coverageService, suiteRepository, executionRepository, executionQueryService);
         when(coverageService.view("p1")).thenReturn(new Coverage(null, List.of(), List.of(), List.of(
                 new CoverageFlow("tests/a.spec.ts", "a", "PATH", "FAILED", null, 3L,
                         List.of(new FlowStep("/login", "PASSED", null), new FlowStep("/cart", "FAILED", null))))));
@@ -156,5 +169,59 @@ class DefectServiceTest {
 
         assertThat(service.list("p1", null, null, null, null).open()).isZero();
         verify(coverageService, never()).view("p1");
+    }
+
+    // ── 결함 다시 실행 (#82) ──
+
+    private void threeDefects() {
+        when(planService.tracked("p1")).thenReturn(List.of(
+                new Tracked(item("tests/a.spec.ts", "로그인(관리자)", true, null), history("F", "P")),       // 실행 2 실패
+                new Tracked(item("tests/b.spec.ts", "결제", true, null), history("F", "F", "F", "P")),       // 실행 4 실패
+                new Tracked(item("tests/a.spec.ts", "해결됨", true, null), history("P", "F"))));            // 해결
+    }
+
+    @Test
+    void rerunWithoutItemsRunsOpenDefectsInListOrderLinkedToTheLatestFailedRun() {
+        threeDefects();
+
+        service.rerun("p1", null);
+
+        verify(executionQueryService).triggerRun(eq("p1"), eq("결제|로그인\\(관리자\\)"), isNull(),
+                eq(List.of("tests/b.spec.ts", "tests/a.spec.ts")), eq("결함 다시 실행 2건"), eq(false), eq(4L));
+    }
+
+    @Test
+    void rerunOfPickedDefectsAllowsResolvedOnesAndRejectsCasesThatAreNotDefects() {
+        threeDefects();
+
+        service.rerun("p1", List.of(new ItemKey("tests/a.spec.ts", "해결됨")));
+        verify(executionQueryService).triggerRun(eq("p1"), eq("해결됨"), isNull(),
+                eq(List.of("tests/a.spec.ts")), eq("결함 다시 실행 1건"), eq(false), eq(1L));
+
+        assertThatThrownBy(() -> service.rerun("p1", List.of(new ItemKey("tests/a.spec.ts", "없는 케이스"))))
+                .isInstanceOf(ApiException.class).hasMessageContaining("결함 목록에 없는");
+    }
+
+    @Test
+    void rerunWithNothingOpenIsRejected() {
+        when(planService.tracked("p1")).thenReturn(List.of(new Tracked(item("a.spec.ts", "가", true, null), history("P", "F"))));
+
+        assertThatThrownBy(() -> service.rerun("p1", List.of())).isInstanceOf(ApiException.class)
+                .hasMessageContaining("다시 실행할 결함이 없습니다");
+        verify(executionQueryService, never()).triggerRun(anyString(), anyString(), any(), any(), anyString(), anyBoolean(), anyLong());
+    }
+
+    @Test
+    void runsShowWhichRunWasARerun() {
+        when(planService.tracked("p1")).thenReturn(List.of(new Tracked(item("tests/a.spec.ts", "가", true, null), history("P", "F"))));
+        Execution rerun = mock(Execution.class);
+        when(rerun.getId()).thenReturn(2L);
+        when(rerun.getRerunOf()).thenReturn(1L);
+        when(executionRepository.findAllById(any())).thenReturn(List.of(rerun));
+
+        Defect d = service.list("p1", null, null, null, null).defects().get(0);
+
+        assertThat(d.runs()).extracting(DefectRun::executionId, DefectRun::rerunOf)
+                .containsExactly(tuple(1L, null), tuple(2L, 1L));
     }
 }

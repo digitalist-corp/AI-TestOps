@@ -59,6 +59,8 @@ class ProjectAccessInterceptorTest {
         assertThat(passes("POST", "/api/projects/shop/test-suites/4/execute")).isTrue();
         assertThat(passes("POST", "/api/executions/5/cancel")).isTrue();
         assertThat(passes("GET", "/api/projects/shop/plan")).isTrue();
+        assertThat(passes("GET", "/api/projects/shop/defects")).isTrue();
+        assertThat(passes("POST", "/api/projects/shop/defects/rerun")).isTrue();
     }
 
     @Test
@@ -67,6 +69,10 @@ class ProjectAccessInterceptorTest {
         assertThat(passes("PUT", "/api/projects/shop/scenarios/usage")).isFalse();
         assertThat(passes("POST", "/api/projects/shop/members")).isFalse();
         assertThat(passes("DELETE", "/api/executions/5")).isFalse();
+        // 허용 목록은 경로 전체가 맞아야 한다
+        assertThat(passes("POST", "/api/projects/shop/defects/rerun/x")).isFalse();
+        assertThat(passes("DELETE", "/api/projects/shop/defects/rerun")).isFalse();
+        assertThat(passes("POST", "/api/projects/other/defects/rerun")).isFalse();
     }
 
     @Test

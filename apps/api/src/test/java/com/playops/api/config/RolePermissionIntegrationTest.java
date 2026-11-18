@@ -54,6 +54,13 @@ class RolePermissionIntegrationTest {
     @Autowired
     com.playops.api.repository.ScenarioCaseSettingRepository planRows;
 
+    @Autowired
+    com.playops.api.repository.ExecutionCaseResultRepository caseResults;
+
+    /** 러너 없이 실행 요청까지만 확인하려고 러너 확인만 건너뛴다. */
+    @org.springframework.boot.test.mock.mockito.SpyBean
+    com.playops.api.service.ProjectService projectService;
+
     private static int signups;
     private String admin;
     private String member;
@@ -107,8 +114,37 @@ class RolePermissionIntegrationTest {
     @Test
     void teamMemberSeesDefectsOfTheirProjectOnly() throws Exception {
         JsonNode defects = call(get("/api/projects/example.com/defects"), member, 200);
-        assertThat(defects.get("open").asInt()).isZero();
+        assertThat(defects.has("open")).isTrue();
         assertThat(status(get("/api/projects/google.com/defects"), member)).isEqualTo(403);
+    }
+
+    @Test
+    void teamMemberRerunsDefectsLinkedToTheFailedRun() throws Exception {
+        org.mockito.Mockito.doNothing().when(projectService).ensureDockerRunnerRunning(org.mockito.ArgumentMatchers.any());
+        var spec = projectService.getProjectPath("example.com").resolve("tests/defect-rerun.spec.ts");
+        java.nio.file.Files.createDirectories(spec.getParent());
+        java.nio.file.Files.writeString(spec, "import { test } from '@playwright/test';\ntest('결함 다시 실행 확인', async () => {});\n");
+        JsonNode item = null;
+        for (JsonNode i : call(get("/api/projects/example.com/plan"), member, 200).get("items")) {
+            if (i.get("title").asText().equals("결함 다시 실행 확인")) item = i;
+        }
+        assertThat(item).isNotNull();
+        var failed = new com.playops.api.entity.Execution();
+        failed.setProjectId("example.com");
+        failed.setStatus(com.playops.api.entity.ExecutionStatus.FAILED);
+        failed = executions.save(failed);
+        var result = new com.playops.api.entity.ExecutionCaseResult();
+        result.setExecutionId(failed.getId());
+        result.setSpecPath(item.get("specPath").asText());
+        result.setCaseTitle(item.get("title").asText());
+        result.setStatus("FAILED");
+        caseResults.save(result);
+
+        assertThat(status(post("/api/projects/google.com/defects/rerun").content("{}"), member)).isEqualTo(403);
+        JsonNode run = call(post("/api/projects/example.com/defects/rerun").content("{}"), member, 200);
+        assertThat(run.get("rerunOf").asLong()).isEqualTo(failed.getId());
+        assertThat(run.get("caseTitle").asText()).isEqualTo("결함 다시 실행 1건");
+        assertThat(executions.findById(run.get("id").asLong()).orElseThrow().getRerunOf()).isEqualTo(failed.getId());
     }
 
     @Test

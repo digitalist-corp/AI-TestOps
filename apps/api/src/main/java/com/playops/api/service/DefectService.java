@@ -3,11 +3,14 @@ package com.playops.api.service;
 import com.playops.api.dto.DefectDtos.Defect;
 import com.playops.api.dto.DefectDtos.DefectResponse;
 import com.playops.api.dto.DefectDtos.DefectRun;
+import com.playops.api.dto.ExecutionResponse;
+import com.playops.api.dto.PlanDtos.ItemKey;
 import com.playops.api.dto.PlanDtos.PlanItem;
 import com.playops.api.dto.TestSuiteResponse;
 import com.playops.api.entity.ExecutionCaseResult;
 import com.playops.api.entity.TestSuite;
 import com.playops.api.exception.ApiException;
+import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.repository.TestSuiteRepository;
 import com.playops.api.service.PlanService.Tracked;
 import org.slf4j.Logger;
@@ -16,8 +19,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -36,15 +41,22 @@ public class DefectService {
     public static final String RESOLVED = "RESOLVED";
     /** Playwright 오류 메시지에 섞인 터미널 색 코드 */
     private static final Pattern ANSI = Pattern.compile("\u001B\\[[0-9;]*m");
+    /** executions.grep_filter 길이 */
+    private static final int MAX_GREP = 500;
 
     private final PlanService planService;
     private final SiteCoverageService coverageService;
     private final TestSuiteRepository suiteRepository;
+    private final ExecutionRepository executionRepository;
+    private final ExecutionQueryService executionQueryService;
 
-    public DefectService(PlanService planService, SiteCoverageService coverageService, TestSuiteRepository suiteRepository) {
+    public DefectService(PlanService planService, SiteCoverageService coverageService, TestSuiteRepository suiteRepository,
+                         ExecutionRepository executionRepository, ExecutionQueryService executionQueryService) {
         this.planService = planService;
         this.coverageService = coverageService;
         this.suiteRepository = suiteRepository;
+        this.executionRepository = executionRepository;
+        this.executionQueryService = executionQueryService;
     }
 
     /** 필터는 모두 생략 가능: 상태(OPEN | RESOLVED) · 담당자 계정 · 스위트 · 화면(routeKey). 미해결 먼저, 최근 실행 순. */
@@ -68,7 +80,13 @@ public class DefectService {
         }
         if (!defects.isEmpty()) {
             List<SiteCoverageService.CoverageFlow> flows = flows(projectId);
-            defects = defects.stream().map(d -> d.withRouteKeys(routesOf(d.specPath(), flows))).toList();
+            Map<Long, Long> rerunOf = new HashMap<>();
+            executionRepository.findAllById(defects.stream().flatMap(d -> d.runs().stream()).map(DefectRun::executionId)
+                            .distinct().toList())
+                    .forEach(e -> { if (e.getRerunOf() != null) rerunOf.put(e.getId(), e.getRerunOf()); });
+            defects = defects.stream().map(d -> d.withLinks(routesOf(d.specPath(), flows), d.runs().stream()
+                    .map(r -> new DefectRun(r.executionId(), r.status(), r.at(), rerunOf.get(r.executionId())))
+                    .toList())).toList();
         }
         if (screen != null && !screen.isBlank()) {
             defects = defects.stream().filter(d -> d.routeKeys().contains(screen)).toList();
@@ -80,6 +98,35 @@ public class DefectService {
                 .thenComparing(Defect::title)).toList();
         int open = (int) defects.stream().filter(d -> OPEN.equals(d.status())).count();
         return new DefectResponse(defects, open, defects.size() - open);
+    }
+
+    /**
+     * 결함 다시 실행(#82). items 가 비면 미해결 결함 전부, 있으면 고른 결함(해결된 것도 됨).
+     * 파일로 좁히고 케이스 이름을 --grep 정규식으로 묶어 실행 하나로 돌린다. 원래 실행 = 고른 결함들이 마지막으로 실패한 실행 중 가장 최근.
+     * 성공하면 결과로 계산하는 결함이 저절로 해결로 바뀐다.
+     */
+    public ExecutionResponse rerun(String projectId, List<ItemKey> items) {
+        List<Defect> defects = list(projectId, null, null, null, null).defects();
+        List<Defect> chosen;
+        if (items == null || items.isEmpty()) {
+            chosen = defects.stream().filter(d -> OPEN.equals(d.status())).toList();
+        } else {
+            chosen = new ArrayList<>();
+            for (ItemKey k : items) {
+                chosen.add(defects.stream()
+                        .filter(d -> d.specPath().equals(k.specPath()) && d.grep().equals(k.grep())).findFirst()
+                        .orElseThrow(() -> new ApiException(400, "결함 목록에 없는 케이스입니다: " + k.grep())));
+            }
+        }
+        if (chosen.isEmpty()) throw new ApiException(400, "다시 실행할 결함이 없습니다.");
+        String grep = String.join("|", chosen.stream().map(d -> escapeRegex(d.grep())).distinct().toList());
+        if (grep.length() > MAX_GREP) {
+            throw new ApiException(400, "한 번에 다시 실행할 결함이 너무 많습니다. 나눠서 골라 주세요.");
+        }
+        List<String> specPaths = chosen.stream().map(Defect::specPath).distinct().toList();
+        Long rerunOf = chosen.stream().map(Defect::lastFailedExecutionId).max(Comparator.naturalOrder()).orElse(null);
+        return executionQueryService.triggerRun(projectId, grep, null, specPaths,
+                "결함 다시 실행 " + chosen.size() + "건", false, rerunOf);
     }
 
     /** 화면은 부가 정보라 확인 지도 계산이 실패해도 목록은 돌려준다. */
@@ -118,7 +165,7 @@ public class DefectService {
         List<DefectRun> runs = new ArrayList<>();
         for (int i = firstFail; i >= 0; i--) {
             ExecutionCaseResult r = newestFirst.get(i);
-            runs.add(new DefectRun(r.getExecutionId(), r.getStatus(), r.getCreatedAt()));
+            runs.add(new DefectRun(r.getExecutionId(), r.getStatus(), r.getCreatedAt(), null));
             if (r == resolved) break;
         }
         return new Defect(item.specPath(), item.grep(), item.title(), item.describePath(),
@@ -153,6 +200,11 @@ public class DefectService {
         } catch (PatternSyntaxException e) {
             return full.contains(grep);
         }
+    }
+
+    /** Playwright --grep 은 JS 정규식이라 웹 lib/plan.ts escapeRegex 와 같은 글자를 이스케이프한다. */
+    static String escapeRegex(String s) {
+        return s.replaceAll("[.*+?^${}()|\\[\\]\\\\]", "\\\\$0");
     }
 
     static boolean samePath(String a, String b) {

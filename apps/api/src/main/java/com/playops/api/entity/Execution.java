@@ -81,6 +81,10 @@ public class Execution {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    /** 결함 다시 실행(#82)이면 실패했던 원래 실행. 지우면 null (V20 FK ON DELETE SET NULL) */
+    @Column(name = "rerun_of")
+    private Long rerunOf;
+
     @Column(name = "schedule_id")
     private Long scheduleId;
 
@@ -154,4 +158,7 @@ public class Execution {
 
     public Instant getScheduledFor() { return scheduledFor; }
     public void setScheduledFor(Instant scheduledFor) { this.scheduledFor = scheduledFor; }
+
+    public Long getRerunOf() { return rerunOf; }
+    public void setRerunOf(Long rerunOf) { this.rerunOf = rerunOf; }
 }
