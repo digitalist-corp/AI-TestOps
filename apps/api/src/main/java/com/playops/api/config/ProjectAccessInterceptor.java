@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * 관리자 · PM · 팀원 권한을 한 곳에서 막는다 (#105). AuthInterceptor 다음에 돈다.
  *
  * - 관리자: 모두 통과
- * - 관리자 전용: 사용자 관리 · 러너 · 리소스 · 템플릿 변경 · 프로젝트 생성/삭제
+ * - 관리자 전용: 사용자 관리 · 러너 · 리소스 · 템플릿 변경 · 프로젝트 생성/삭제 · 공지 쓰기
  * - 프로젝트 하위 경로(/api/projects/{id}/**, 실행 · AI 작업 · 첫 테스트 생성 id 경로 포함): 멤버가 아니면 403.
  *   조회(GET)는 멤버 모두, 쓰기는 PM. 팀원은 MEMBER_WRITES(실행 · 재실행 · 취소)만.
  *
@@ -102,7 +102,8 @@ public class ProjectAccessInterceptor implements HandlerInterceptor {
                 || path.startsWith("/api/projects/docker/")
                 || (method.equals("POST") && path.equals("/api/projects"))
                 || (method.equals("DELETE") && path.matches("^/api/projects/[^/]+$"))
-                || (!read && (path.equals("/api/templates") || path.startsWith("/api/templates/")));
+                || (!read && (path.equals("/api/templates") || path.startsWith("/api/templates/")))
+                || (!read && (path.equals("/api/notices") || path.startsWith("/api/notices/")));
     }
 
     private Target target(String path) {

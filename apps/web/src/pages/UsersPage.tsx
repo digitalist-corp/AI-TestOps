@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
-import { cn } from '@/lib/utils';
+import { cn, userRoleLabel } from '@/lib/utils';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -244,7 +244,7 @@ export function UsersPage() {
             p.value === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
           )}
         >
-          {p.value}
+          {userRoleLabel[p.value as UserRole] ?? p.value}
         </span>
       ),
     },
@@ -303,7 +303,7 @@ export function UsersPage() {
         <div>
           <ConsoleEyebrow>ADMIN // USERS</ConsoleEyebrow>
           <h2 className="text-2xl font-bold text-foreground">사용자 관리</h2>
-          <p className="text-sm text-muted-foreground mt-1">Admin 계정 및 사용자 등록 관리</p>
+          <p className="text-sm text-muted-foreground mt-1">관리자 계정 및 사용자 등록 관리</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={loadUsers} disabled={loading}>
@@ -525,8 +525,8 @@ export function UsersPage() {
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
               >
-                <option value="USER">USER</option>
-                <option value="ADMIN">ADMIN</option>
+                <option value="USER">{userRoleLabel.USER}</option>
+                <option value="ADMIN">{userRoleLabel.ADMIN}</option>
               </select>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -557,8 +557,8 @@ export function UsersPage() {
                 disabled={editingUser?.username === 'admin'}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value as UserRole }))}
               >
-                <option value="USER">USER</option>
-                <option value="ADMIN">ADMIN</option>
+                <option value="USER">{userRoleLabel.USER}</option>
+                <option value="ADMIN">{userRoleLabel.ADMIN}</option>
               </select>
               {editingUser?.username === 'admin' && (
                 <p className="text-xs text-muted-foreground">admin 계정의 역할은 변경할 수 없습니다.</p>

@@ -225,7 +225,7 @@ export function AiAnalysisTab({
               ) : (
                 executions.map((e) => (
                   <option key={e.id} value={e.id}>
-                    #{e.id} [{e.status}] - {e.finishedAt ? new Date(e.finishedAt).toLocaleTimeString() : '진행중'} (통과:{e.passedTests}/실패:{e.failedTests})
+                    #{e.id} [{executionStatusLabel[e.status]}] - {e.finishedAt ? new Date(e.finishedAt).toLocaleTimeString() : '진행중'} (통과:{e.passedTests}/실패:{e.failedTests})
                   </option>
                 ))
               )}

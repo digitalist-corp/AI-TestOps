@@ -17,7 +17,7 @@ import {
   Trash2,
   TriangleAlert,
 } from 'lucide-react';
-import type { PlaywrightTemplate, Project, ProjectFormData, SiteCheckResult } from '@/types';
+import type { PlaywrightTemplate, Project, ProjectFormData, ProjectStatus, SiteCheckResult } from '@/types';
 import { DEFAULT_PROJECT_FORM } from '@/types';
 import { api } from '@/api/client';
 import { useAiEnabled } from '@/lib/aiEnabled';
@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/Dialog';
-import { cn } from '@/lib/utils';
+import { cn, projectStatusLabel } from '@/lib/utils';
 import {
   EnvEntry,
   isSecretEnvKey,
@@ -97,40 +97,6 @@ const RUN_MODES: { id: RunMode; title: string; detail: string }[] = [
 function runModeOf(form: ProjectFormData): RunMode {
   if (!form.dockerEnabled) return 'SERVER';
   return form.runnerLifecycle === 'EPHEMERAL' ? 'EPHEMERAL' : 'PERSISTENT';
-}
-
-/** 서버가 받는 ID 규칙 — 영문 소문자 · 숫자 · 하이픈, 3~100자, 양 끝은 영숫자. */
-const PROJECT_ID_RULE = /^[a-z0-9][a-z0-9-]{1,98}[a-z0-9]$/;
-const PROJECT_ID_HELP = '영문 소문자 · 숫자 · 하이픈(-)만, 3~100자';
-
-function slugify(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 100)
-    .replace(/-+$/, '');
-}
-
-/** 주소에서 ID 후보를 만든다 (예: https://gyengju-go.web.app → gyengju-go-web-app) */
-function slugifyHost(baseUrl: string): string {
-  try {
-    return slugify(new URL(baseUrl.trim()).hostname.replace(/^www\./, ''));
-  } catch {
-    return '';
-  }
-}
-
-/**
- * 이름으로 ID를 만들고, 한글 이름처럼 영문이 모자라면 사이트 주소에서 만든다.
- * 둘 다 안 되면 빈 값을 돌려주고 사용자가 직접 적게 한다.
- */
-function autoProjectId(projectName: string, baseUrl: string): string {
-  const fromName = slugify(projectName);
-  if (fromName.length >= 3) return fromName;
-  const fromHost = slugifyHost(baseUrl);
-  return fromHost.length >= 3 ? fromHost : '';
 }
 
 function FormSection({
@@ -263,7 +229,6 @@ export function ProjectFormDialog({
   const [aiBootstrapEnabled, setAiBootstrapEnabled] = useState(true);
   const [aiBootstrapInstruction, setAiBootstrapInstruction] = useState('');
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [projectIdTouched, setProjectIdTouched] = useState(false);
   const [siteCheck, setSiteCheck] = useState<SiteCheckResult | null>(null);
   const [checkingSite, setCheckingSite] = useState(false);
   // AI 키가 없거나 사용자가 AI 스위치를 꺼 두었으면 첫 테스트 생성(AI)은 아예 내놓지 않는다.
@@ -282,7 +247,9 @@ export function ProjectFormDialog({
         projectId: initial.projectId,
         projectName: initial.projectName,
         displayOrder: initial.displayOrder ?? 0,
-        serverType: initial.serverType ?? 'DEV',
+        status: initial.status ?? 'PLANNED',
+        startDate: initial.startDate ?? '',
+        endDate: initial.endDate ?? '',
         description: initial.description ?? '',
         testPurpose: initial.testPurpose ?? '',
         managerName: initial.managerName ?? '',
@@ -322,7 +289,6 @@ export function ProjectFormDialog({
     setSiteCheck(null);
     setCheckingSite(false);
     setAdvancedOpen(false);
-    setProjectIdTouched(Boolean(initial));
     if (!initial) {
       setAiBootstrapEnabled(true);
       setAiBootstrapInstruction('');
@@ -338,11 +304,6 @@ export function ProjectFormDialog({
       }
       if (key === 'dockerEnabled' && value === false) {
         next.runnerLifecycle = 'PERSISTENT';
-      }
-      // 새 프로젝트에서는 이름 · 주소를 적으면 ID를 자동으로 만들어 준다.
-      if (!initial && !projectIdTouched && (key === 'projectName' || key === 'baseUrl')) {
-        const generated = autoProjectId(next.projectName, next.baseUrl);
-        if (generated) next.projectId = generated;
       }
       return next;
     });
@@ -420,13 +381,8 @@ export function ProjectFormDialog({
       setLoading(false);
       return;
     }
-    if (!PROJECT_ID_RULE.test(form.projectId.trim())) {
-      setError(
-        form.projectId.trim()
-          ? `주소로 쓸 프로젝트 ID "${form.projectId.trim()}" 는 사용할 수 없습니다. ${PROJECT_ID_HELP}로 지어주세요.`
-          : `주소로 쓸 프로젝트 ID를 입력하세요. ${PROJECT_ID_HELP}.`
-      );
-      setAdvancedOpen(true);
+    if (form.startDate && form.endDate && form.endDate < form.startDate) {
+      setError('종료일이 시작일보다 앞설 수 없습니다.');
       setLoading(false);
       return;
     }
@@ -461,7 +417,6 @@ export function ProjectFormDialog({
   const creating = !initial;
   const runMode = runModeOf(form);
   // 이름이 한글뿐이면 주소를 자동으로 만들 수 없으므로 ID 칸을 앞에 내놓는다.
-  const needsManualId = creating && Boolean(form.projectName.trim()) && !PROJECT_ID_RULE.test(form.projectId.trim());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -527,28 +482,7 @@ export function ProjectFormDialog({
                   required
                 />
                 {creating && (
-                  needsManualId ? (
-                    <div className="space-y-1.5 rounded-sm border border-border bg-muted p-3">
-                      <Label htmlFor="projectIdInline" className="text-[13px]">
-                        주소로 쓸 이름을 영문으로 지어주세요 ({PROJECT_ID_HELP})
-                      </Label>
-                      <Input
-                        id="projectIdInline"
-                        className="h-10 font-mono text-[13px]"
-                        value={form.projectId}
-                        onChange={(e) => {
-                          setProjectIdTouched(true);
-                          update('projectId', e.target.value);
-                        }}
-                        placeholder="shop-checkout"
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-[13px] text-muted-foreground">
-                      주소: <span className="font-mono">/projects/{form.projectId || '...'}</span>
-                      <span className="ml-1">— 상세 설정에서 바꿀 수 있습니다.</span>
-                    </p>
-                  )
+                  <p className="text-[13px] text-muted-foreground">프로젝트 아이디(예: P0012)는 등록하면 자동으로 붙습니다.</p>
                 )}
               </div>
 
@@ -560,6 +494,30 @@ export function ProjectFormDialog({
                   onChange={(e) => update('managerName', e.target.value)}
                   placeholder="이름"
                 />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="projectStatus">상태</Label>
+                  <select
+                    id="projectStatus"
+                    className={selectClass}
+                    value={form.status}
+                    onChange={(e) => update('status', e.target.value as ProjectStatus)}
+                  >
+                    {(Object.keys(projectStatusLabel) as ProjectStatus[]).map((s) => (
+                      <option key={s} value={s}>{projectStatusLabel[s]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">시작일</Label>
+                  <Input id="startDate" type="date" value={form.startDate} onChange={(e) => update('startDate', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">종료일</Label>
+                  <Input id="endDate" type="date" value={form.endDate} onChange={(e) => update('endDate', e.target.value)} />
+                </div>
               </div>
 
               {!initial && pmCandidates && (
@@ -786,22 +744,13 @@ export function ProjectFormDialog({
                 <div className="space-y-4 border-t border-border bg-background p-5">
                   <FormSection icon={Settings2} title="프로젝트 정보">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
-                      <div className="space-y-2 md:col-span-2">
-                        <Label htmlFor="projectIdField">프로젝트 ID</Label>
-                        <Input
-                          id="projectIdField"
-                          value={form.projectId}
-                          onChange={(e) => {
-                            setProjectIdTouched(true);
-                            update('projectId', e.target.value);
-                          }}
-                          disabled={!creating}
-                          className="font-mono text-[13px]"
-                        />
-                        <p className="text-[13px] text-muted-foreground">
-                          {creating ? PROJECT_ID_HELP : '등록 후에는 바꿀 수 없습니다.'}
-                        </p>
-                      </div>
+                      {!creating && (
+                        <div className="space-y-2 md:col-span-2">
+                          <Label htmlFor="projectIdField">프로젝트 아이디</Label>
+                          <Input id="projectIdField" value={form.projectId} disabled className="font-mono text-[13px]" />
+                          <p className="text-[13px] text-muted-foreground">등록할 때 자동으로 붙고, 바꿀 수 없습니다.</p>
+                        </div>
+                      )}
                       <div className="space-y-2 md:col-span-2">
                         <Label>목록 순서</Label>
                         <Input

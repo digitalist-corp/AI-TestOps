@@ -7,7 +7,7 @@ const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
 const item = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'a.spec.ts', grep: '가입', title: '가입', describePath: '', line: 1, enabled: true, parentEnabled: true, sortOrder: null,
-  assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, ...over,
+  assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, assigneeUserId: null, updatedByName: null, updatedAt: null, ...over,
 });
 
 describe('screenNameByCase', () => {
@@ -82,7 +82,7 @@ describe('planCounts', () => {
 describe('역할별 대시보드 집계', () => {
   const row = (over: Partial<PlanItem>): PlanItem => ({
     specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
-    sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, ...over,
+    sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null, assigneeUserId: null, updatedByName: null, updatedAt: null, ...over,
   });
 
   it('failedRerun: 사용 중인 실패 항목만 파일과 이름(정규식 이스케이프)으로 다시 실행한다', () => {
@@ -96,15 +96,17 @@ describe('역할별 대시보드 집계', () => {
     expect(failedRerun([row({ lastStatus: 'PASSED' })])).toBeNull();
   });
 
-  it('byAssignee: 담당자별 사용 중 항목 · 성공 · 실패를 세고 담당자 없음은 미지정', () => {
+  it('byAssignee: 계정(사용자 id)으로 묶고, 계정 없는 옛 이름 · 담당자 없음(미지정)은 따로 센다', () => {
     expect(byAssignee([
-      row({ assignee: '윤재', lastStatus: 'PASSED' }),
-      row({ assignee: '윤재', lastStatus: 'FAILED' }),
+      row({ assignee: '김윤재', assigneeUserId: 7, lastStatus: 'PASSED' }),
+      row({ assignee: '윤재', assigneeUserId: 7, lastStatus: 'FAILED' }),
+      row({ assignee: '홍길동' }),
       row({ assignee: null }),
-      row({ assignee: '윤재', enabled: false }),
+      row({ assignee: '김윤재', assigneeUserId: 7, enabled: false }),
     ])).toEqual([
-      { assignee: '윤재', total: 2, passed: 1, failed: 1 },
-      { assignee: '미지정', total: 1, passed: 0, failed: 0 },
+      { key: 'u7', assignee: '김윤재', total: 2, passed: 1, failed: 1 },
+      { key: 't홍길동', assignee: '(계정 없음) 홍길동', total: 1, passed: 0, failed: 0 },
+      { key: '', assignee: '미지정', total: 1, passed: 0, failed: 0 },
     ]);
   });
 

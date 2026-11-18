@@ -1,7 +1,7 @@
 package com.playops.api.dto;
 
 import com.playops.api.entity.DockerStatus;
-import com.playops.api.entity.ProjectServerType;
+import com.playops.api.entity.ProjectStatus;
 
 public record RunnerContainerResponse(
         String name,
@@ -12,7 +12,7 @@ public record RunnerContainerResponse(
         String projectId,
         Boolean knownProject,
         Boolean dockerEnabled,
-        ProjectServerType serverType,
+        ProjectStatus projectStatus,
         Boolean activeExecution,
         Boolean reconnectable,
         Boolean removable,

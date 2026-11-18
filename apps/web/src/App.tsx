@@ -4,6 +4,7 @@ import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { HomePage } from '@/pages/HomePage';
+import { NoticesPage } from '@/pages/NoticesPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
 import { ProjectDetailPage } from '@/pages/ProjectDetailPage';
 import { UsersPage } from '@/pages/UsersPage';
@@ -50,6 +51,8 @@ export function App() {
         >
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<HomePage />} />
+          <Route path="notices" element={<NoticesPage />} />
+          <Route path="notices/:noticeId" element={<NoticesPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route
             path="projects/:projectId"

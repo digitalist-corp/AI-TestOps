@@ -1,10 +1,14 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 import java.time.LocalDate;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(
         name = "scenario_case_settings",
         uniqueConstraints = @UniqueConstraint(
@@ -39,22 +43,45 @@ public class ScenarioCaseSetting {
     @Column(length = 100)
     private String assignee;
 
+    /** 담당자 계정 (#119). 있으면 assignee 는 그 사람의 이름, 없으면 assignee 는 이관 전 글자(계정 없음)다. */
+    @Column(name = "assignee_user_id")
+    private Long assigneeUserId;
+
     @Column(name = "due_date")
     private LocalDate dueDate;
 
     @Column(length = 10)
     private String priority;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
     @PrePersist
+    void onCreate() {
+        createdAt = Instant.now();
+        updatedAt = createdAt;
+    }
+
     @PreUpdate
-    void onSave() {
+    void onUpdate() {
         updatedAt = Instant.now();
     }
 
     public Long getId() { return id; }
+    public Long getCreatedBy() { return createdBy; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Long getUpdatedBy() { return updatedBy; }
 
     public String getProjectId() { return projectId; }
     public void setProjectId(String projectId) { this.projectId = projectId; }
@@ -73,6 +100,9 @@ public class ScenarioCaseSetting {
 
     public Integer getSortOrder() { return sortOrder; }
     public void setSortOrder(Integer sortOrder) { this.sortOrder = sortOrder; }
+
+    public Long getAssigneeUserId() { return assigneeUserId; }
+    public void setAssigneeUserId(Long assigneeUserId) { this.assigneeUserId = assigneeUserId; }
 
     public String getAssignee() { return assignee; }
     public void setAssignee(String assignee) { this.assignee = assignee; }

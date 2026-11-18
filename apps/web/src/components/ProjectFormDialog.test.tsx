@@ -15,9 +15,12 @@ describe('ProjectFormDialog — 등록 화면 단순화', () => {
     expect(screen.queryByText(/기본값으로 시작합니다/)).toBeNull();
     // 상세 설정을 펼치지 않아도 담당자 칸이 보인다
     expect(screen.getByLabelText('담당자')).toBeTruthy();
+    // 아이디는 서버가 자동으로 붙인다 (#120)
+    expect(screen.queryByLabelText(/아이디|ID/)).toBeNull();
+    expect(screen.getByText(/등록하면 자동으로 붙습니다/)).toBeTruthy();
   });
 
-  it('환경을 고르지 않아도 기존 기본값(DEV)으로 저장한다', async () => {
+  it('이름 · 사이트 · 담당자만으로 저장한다', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(<ProjectFormDialog open onOpenChange={() => {}} onSubmit={onSubmit} title="프로젝트 등록" />);
 
@@ -27,7 +30,7 @@ describe('ProjectFormDialog — 등록 화면 단순화', () => {
     fireEvent.click(screen.getByRole('button', { name: '등록' }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
-    expect(onSubmit.mock.calls[0][0]).toMatchObject({ serverType: 'DEV', managerName: '홍길동' });
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ managerName: '홍길동' });
   });
 });
 
@@ -51,5 +54,28 @@ describe('ProjectFormDialog — PM 고르기', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     expect(onSubmit.mock.calls[0][0]).toMatchObject({ pmUserId: 7 });
+  });
+});
+
+describe('ProjectFormDialog — 기간 · 상태 (#117)', () => {
+  it('상태 · 시작일 · 종료일을 함께 보내고, 종료일이 시작일보다 앞서면 막는다', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(<ProjectFormDialog open onOpenChange={() => {}} onSubmit={onSubmit} title="프로젝트 등록" />);
+
+    fireEvent.change(screen.getByLabelText(/사이트/), { target: { value: 'https://shop.example.com' } });
+    fireEvent.change(screen.getByLabelText(/프로젝트 이름/), { target: { value: 'shop' } });
+    expect(screen.queryByRole('option', { name: 'PLANNED' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('상태'), { target: { value: 'RUNNING' } });
+    fireEvent.change(screen.getByLabelText('시작일'), { target: { value: '2026-12-01' } });
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-11-01' } });
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
+
+    expect(await screen.findByText('종료일이 시작일보다 앞설 수 없습니다.')).toBeTruthy();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('종료일'), { target: { value: '2026-12-31' } });
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ status: 'RUNNING', startDate: '2026-12-01', endDate: '2026-12-31' });
   });
 });

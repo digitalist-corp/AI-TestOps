@@ -1,9 +1,13 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.time.Instant;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "executions")
 public class Execution {
 
@@ -70,6 +74,10 @@ public class Execution {
     @Column(name = "finished_at")
     private Instant finishedAt;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -85,6 +93,7 @@ public class Execution {
     }
 
     public Long getId() { return id; }
+    public Long getCreatedBy() { return createdBy; }
     public void setId(Long id) { this.id = id; }
 
     public String getProjectId() { return projectId; }

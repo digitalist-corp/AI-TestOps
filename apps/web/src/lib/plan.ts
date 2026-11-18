@@ -75,16 +75,24 @@ export function failedRerun(items: PlanItem[]): RunTestOptions | null {
   };
 }
 
-/** 담당자별 진행 (사용 중 항목만). 담당자가 없으면 '미지정'. */
-export function byAssignee(items: PlanItem[]): { assignee: string; total: number; passed: number; failed: number }[] {
-  const rows = new Map<string, { assignee: string; total: number; passed: number; failed: number }>();
+/** 담당자 표시: 계정이 있으면 이름, 계정과 잇지 못한 옛 이름은 "(계정 없음) 이름", 없으면 빈 문자열 (#119) */
+export function assigneeLabel(i: Pick<PlanItem, 'assignee' | 'assigneeUserId'>): string {
+  if (i.assigneeUserId != null) return i.assignee ?? '';
+  return i.assignee?.trim() ? `(계정 없음) ${i.assignee.trim()}` : '';
+}
+
+type AssigneeRow = { key: string; assignee: string; total: number; passed: number; failed: number };
+
+/** 담당자별 진행 (사용 중 항목만). 계정(사용자 id)으로 묶고, 담당자가 없으면 '미지정'. */
+export function byAssignee(items: PlanItem[]): AssigneeRow[] {
+  const rows = new Map<string, AssigneeRow>();
   for (const i of items.filter((x) => x.enabled)) {
-    const assignee = i.assignee?.trim() || '미지정';
-    const row = rows.get(assignee) ?? { assignee, total: 0, passed: 0, failed: 0 };
+    const key = i.assigneeUserId != null ? `u${i.assigneeUserId}` : i.assignee?.trim() ? `t${i.assignee.trim()}` : '';
+    const row = rows.get(key) ?? { key, assignee: assigneeLabel(i) || '미지정', total: 0, passed: 0, failed: 0 };
     row.total += 1;
     if (i.lastStatus === 'PASSED') row.passed += 1;
     if (i.lastStatus === 'FAILED') row.failed += 1;
-    rows.set(assignee, row);
+    rows.set(key, row);
   }
   return [...rows.values()];
 }

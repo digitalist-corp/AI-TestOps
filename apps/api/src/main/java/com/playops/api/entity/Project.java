@@ -1,10 +1,15 @@
 package com.playops.api.entity;
 
 import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
+@EntityListeners(AuditingEntityListener.class)
 @Table(name = "projects")
 public class Project {
 
@@ -19,8 +24,14 @@ public class Project {
     private Integer displayOrder = 0;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "server_type", length = 20)
-    private ProjectServerType serverType = ProjectServerType.DEV;
+    @Column(name = "status", nullable = false, length = 10)
+    private ProjectStatus status = ProjectStatus.PLANNED;
+
+    @Column(name = "start_date")
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
@@ -139,6 +150,14 @@ public class Project {
     @Column(name = "monthly_ai_budget_usd", precision = 18, scale = 8, nullable = false)
     private BigDecimal monthlyAiBudgetUsd = BigDecimal.ZERO;
 
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
@@ -170,8 +189,17 @@ public class Project {
     public Integer getDisplayOrder() { return displayOrder; }
     public void setDisplayOrder(Integer displayOrder) { this.displayOrder = displayOrder; }
 
-    public ProjectServerType getServerType() { return serverType; }
-    public void setServerType(ProjectServerType serverType) { this.serverType = serverType; }
+    public ProjectStatus getStatus() { return status; }
+    public void setStatus(ProjectStatus status) { this.status = status; }
+
+    public LocalDate getStartDate() { return startDate; }
+    public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+
+    public LocalDate getEndDate() { return endDate; }
+    public void setEndDate(LocalDate endDate) { this.endDate = endDate; }
+
+    public Long getCreatedBy() { return createdBy; }
+    public Long getUpdatedBy() { return updatedBy; }
 
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }

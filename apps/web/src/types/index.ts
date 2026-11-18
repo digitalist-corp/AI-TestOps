@@ -3,13 +3,17 @@ export type DockerStatus = 'STOPPED' | 'RUNNING' | 'ERROR' | 'NOT_CONFIGURED';
 export type RunnerActivity = 'IDLE' | 'TESTING' | 'UNAVAILABLE';
 export type RunnerLifecycle = 'PERSISTENT' | 'EPHEMERAL';
 export type UserRole = 'ADMIN' | 'USER';
-export type ProjectServerType = 'DEV' | 'TEST' | 'PROD';
+/** 프로젝트 상태 (#117): 계획 · 실행 · 종료 */
+export type ProjectStatus = 'PLANNED' | 'RUNNING' | 'CLOSED';
 
 export interface Project {
   projectId: string;
   projectName: string;
   displayOrder: number;
-  serverType: ProjectServerType;
+  status: ProjectStatus;
+  /** YYYY-MM-DD */
+  startDate: string | null;
+  endDate: string | null;
   description: string | null;
   testPurpose: string | null;
   managerName: string | null;
@@ -41,6 +45,9 @@ export interface Project {
   latestExecutionDurationMs: number | null;
   createdAt: string;
   updatedAt: string;
+  /** 최근 수정한 사람 (#118). 기존 데이터면 null */
+  updatedBy: number | null;
+  updatedByName: string | null;
 }
 
 export interface RunnerContainer {
@@ -52,7 +59,8 @@ export interface RunnerContainer {
   projectId: string;
   knownProject: boolean;
   dockerEnabled: boolean;
-  serverType: ProjectServerType | null;
+  /** 프로젝트 상태 (러너가 프로젝트 것일 때) */
+  projectStatus: ProjectStatus | null;
   activeExecution: boolean;
   reconnectable: boolean;
   removable: boolean;
@@ -148,6 +156,21 @@ export interface AppNotification {
   createdAt: string;
 }
 
+/** 공지사항 (#116). 게시 기간은 비우면 제한 없음 */
+export interface Notice {
+  id: number;
+  title: string;
+  content: string;
+  pinned: boolean;
+  visibleFrom: string | null;
+  visibleUntil: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type NoticeRequest = Pick<Notice, 'title' | 'content' | 'pinned' | 'visibleFrom' | 'visibleUntil'>;
+
 export type ServiceStatus = 'ONLINE' | 'OFFLINE' | 'DEGRADED';
 
 export interface ServiceHealthItem {
@@ -171,7 +194,10 @@ export interface ProjectFormData {
   projectId: string;
   projectName: string;
   displayOrder: number;
-  serverType: ProjectServerType;
+  status: ProjectStatus;
+  /** YYYY-MM-DD, 비우면 서버에서도 비운다 */
+  startDate: string;
+  endDate: string;
   description: string;
   testPurpose: string;
   managerName: string;
@@ -481,7 +507,9 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   projectId: '',
   projectName: '',
   displayOrder: 0,
-  serverType: 'DEV',
+  status: 'PLANNED',
+  startDate: '',
+  endDate: '',
   description: '',
   testPurpose: '',
   managerName: '',
@@ -1150,12 +1178,17 @@ export interface PlanItem {
   /** 파일 · 상위 묶음이 모두 사용 중인지. false 면 이 행만 켜도 실행되지 않는다. */
   parentEnabled: boolean;
   sortOrder: number | null;
+  /** 담당자 이름. assigneeUserId 가 없으면 계정과 잇지 못한 옛 이름 (#119) */
   assignee: string | null;
+  assigneeUserId: number | null;
   /** YYYY-MM-DD */
   dueDate: string | null;
   priority: PlanPriority | null;
   lastStatus: 'PASSED' | 'FAILED' | null;
   lastRunAt: string | null;
+  /** 계획 칸을 마지막으로 고친 사람 · 때 (#118). 고친 적이 없으면 null */
+  updatedByName: string | null;
+  updatedAt: string | null;
 }
 
 /** passed · failed · notRun 은 사용 중 항목만. completionRate 0~1 */
@@ -1182,6 +1215,8 @@ export interface PlanItemKey {
 export interface PlanItemPatch extends PlanItemKey {
   enabled?: boolean;
   assignee: string | null;
+  /** 프로젝트 멤버. null 이면 assignee 글자만 남는다 */
+  assigneeUserId: number | null;
   dueDate: string | null;
   priority: PlanPriority | null;
 }

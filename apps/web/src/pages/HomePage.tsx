@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Loader2, RotateCcw } from 'lucide-react';
+import { Loader2, Pin, RotateCcw } from 'lucide-react';
 import { api } from '@/api/client';
-import type { PlanItem, Project } from '@/types';
+import type { Notice, PlanItem, Project } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
-import { isRunnerReady } from '@/components/project/ProjectCard';
+import { ProjectStatusChip, isRunnerReady, projectPeriod } from '@/components/project/ProjectCard';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { useAccess } from '@/lib/access';
-import { byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
+import { assigneeLabel, byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
+import { formatRelative } from '@/lib/utils';
 
 const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (현지 날짜)
 
@@ -31,6 +32,16 @@ function Tile({ children }: { children: React.ReactNode }) {
   return <div className="rounded-xl border border-border bg-card px-5 py-4 text-[17px] font-bold text-foreground">{children}</div>;
 }
 
+/** 상태 배지 + 기간 (#117) */
+function StatusAndPeriod({ project }: { project: Project }) {
+  return (
+    <span className="flex shrink-0 items-center gap-2 text-[13px] text-muted-foreground">
+      <ProjectStatusChip status={project.status ?? 'PLANNED'} />
+      {projectPeriod(project) && <span>{projectPeriod(project)}</span>}
+    </span>
+  );
+}
+
 function ProgressBar({ value }: { value: number }) {
   return (
     <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
@@ -42,16 +53,17 @@ function ProgressBar({ value }: { value: number }) {
 /**
  * 첫 화면 — 역할마다 다르다 (#107).
  * 팀원: 내 프로젝트의 성공 · 실패 · 미수행과 실패 재실행 / PM: 진척률 · 팀원별 진행 · 기한 지난 항목 /
- * 관리자: 전체 프로젝트 · 사용자 수 · 러너 상태. 한 사람이 프로젝트마다 PM · 팀원일 수 있어 두 묶음이 같이 보일 수 있다.
+ * 관리자: 전체 프로젝트 · 사용자 수 · 러너 상태. 모두에게 맨 위에 최근 공지 3개 (#116). 한 사람이 프로젝트마다 PM · 팀원일 수 있어 두 묶음이 같이 보일 수 있다.
  */
 export function HomePage() {
   const navigate = useNavigate();
-  const { admin, roleIn } = useAccess();
+  const { admin, me, roleIn } = useAccess();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [plans, setPlans] = useState<Record<string, PlanItem[]>>({});
   const [userCount, setUserCount] = useState<number | null>(null);
   const [runners, setRunners] = useState<{ running: number; total: number } | null>(null);
   const [rerunId, setRerunId] = useState<string | null>(null);
+  const [notices, setNotices] = useState<Notice[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -69,6 +81,10 @@ export function HomePage() {
     return () => {
       alive = false;
     };
+  }, []);
+
+  useEffect(() => {
+    api.notices.list().then((list) => setNotices(list.slice(0, 3))).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -114,6 +130,10 @@ export function HomePage() {
 
   const pmProjects = admin ? [] : projects.filter((p) => roleIn(p.projectId) === 'PM');
   const memberProjects = admin ? [] : projects.filter((p) => roleIn(p.projectId) === 'MEMBER');
+  // 팀원 홈: 내 계정이 담당자인 사용 중 항목 (#119)
+  const mine = memberProjects.flatMap((p) => (plans[p.projectId] ?? [])
+    .filter((i) => i.enabled && me?.id != null && i.assigneeUserId === me.id)
+    .map((item) => ({ project: p, item })));
 
   return (
     <div className="@container space-y-8 p-6">
@@ -121,6 +141,23 @@ export function HomePage() {
         <ConsoleEyebrow>WORKSPACE // HOME</ConsoleEyebrow>
         <h2 className="text-[24px] font-bold leading-tight text-foreground">홈</h2>
       </div>
+
+      {notices.length > 0 && (
+        <Section title="공지사항">
+          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+            {notices.map((n) => (
+              <li key={n.id}>
+                <Link to={`/notices/${n.id}`} className="flex items-center gap-2 px-5 py-3 hover:bg-muted">
+                  {n.pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-primary" aria-label="고정" />}
+                  <span className="min-w-0 flex-1 truncate font-medium text-foreground">{n.title}</span>
+                  <span className="shrink-0 text-sm text-muted-foreground">{formatRelative(n.createdAt)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link to="/notices" className="inline-block text-sm text-muted-foreground hover:underline">공지 전체 보기</Link>
+        </Section>
+      )}
 
       {admin && (
         <Section title="전체 현황">
@@ -134,9 +171,12 @@ export function HomePage() {
               const items = plans[p.projectId];
               return (
                 <li key={p.projectId} className="grid grid-cols-[minmax(0,1fr)_200px_80px] items-center gap-4 px-5 py-3">
-                  <Link to={projectTabPath(p.projectId, 'dashboard')} className="truncate font-medium text-foreground hover:underline">
-                    {p.projectName}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Link to={projectTabPath(p.projectId, 'dashboard')} className="truncate font-medium text-foreground hover:underline">
+                      {p.projectName}
+                    </Link>
+                    <StatusAndPeriod project={p} />
+                  </div>
                   <ProgressBar value={items ? progressOf(items) : 0} />
                   <span className="text-right text-sm text-muted-foreground">{items ? `${progressOf(items)}%` : '-'}</span>
                 </li>
@@ -154,9 +194,12 @@ export function HomePage() {
             return (
               <div key={p.projectId} className="space-y-4 rounded-xl border border-border bg-card p-5">
                 <div className="flex items-center justify-between gap-4">
-                  <Link to={projectTabPath(p.projectId, 'plan')} className="text-[17px] font-bold text-foreground hover:underline">
-                    {p.projectName}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Link to={projectTabPath(p.projectId, 'plan')} className="truncate text-[17px] font-bold text-foreground hover:underline">
+                      {p.projectName}
+                    </Link>
+                    <StatusAndPeriod project={p} />
+                  </div>
                   <span className="text-sm font-medium text-foreground">진척률 {progressOf(items)}%</span>
                 </div>
                 <ProgressBar value={progressOf(items)} />
@@ -174,7 +217,7 @@ export function HomePage() {
                     </thead>
                     <tbody>
                       {byAssignee(items).map((row) => (
-                        <tr key={row.assignee} className="border-t border-border">
+                        <tr key={row.key} className="border-t border-border">
                           <td className="py-1.5 text-foreground">{row.assignee}</td>
                           <td className="py-1.5 text-right">{row.passed} / {row.total}</td>
                           <td className="py-1.5 text-right text-destructive">{row.failed || ''}</td>
@@ -188,7 +231,7 @@ export function HomePage() {
                       {late.slice(0, 5).map((i) => (
                         <li key={`${i.specPath}\n${i.grep}`} className="flex justify-between gap-3">
                           <span className="truncate text-foreground">{i.title}</span>
-                          <span className="shrink-0 text-destructive">{i.dueDate} · {i.assignee ?? '미지정'}</span>
+                          <span className="shrink-0 text-destructive">{i.dueDate} · {assigneeLabel(i) || '미지정'}</span>
                         </li>
                       ))}
                     </ul>
@@ -209,9 +252,10 @@ export function HomePage() {
               const counts = planCounts(items);
               return (
                 <li key={p.projectId} className="flex items-center gap-4 px-5 py-3">
-                  <Link to={projectTabPath(p.projectId, 'plan')} className="min-w-0 flex-1 truncate font-medium text-foreground hover:underline">
+                  <Link to={projectTabPath(p.projectId, 'plan')} className="min-w-0 truncate font-medium text-foreground hover:underline">
                     {p.projectName}
                   </Link>
+                  <span className="flex-1"><StatusAndPeriod project={p} /></span>
                   <span className="text-sm text-muted-foreground">
                     성공 {counts.passed} · 실패 {counts.failed} · 미수행 {counts.notRun}
                   </span>
@@ -230,6 +274,24 @@ export function HomePage() {
                 </li>
               );
             })}
+          </ul>
+        </Section>
+      )}
+
+      {mine.length > 0 && (
+        <Section title="나에게 배정된 항목">
+          <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+            {mine.map(({ project: p, item: i }) => (
+              <li key={`${p.projectId}\n${i.specPath}\n${i.grep}`} className="flex items-center gap-4 px-5 py-3 text-sm">
+                <Link to={projectTabPath(p.projectId, 'plan')} className="min-w-0 flex-1 truncate font-medium text-foreground hover:underline">
+                  {p.projectName} · {i.title}
+                </Link>
+                {i.dueDate && <span className="shrink-0 text-muted-foreground">마감 {i.dueDate}</span>}
+                <span className="shrink-0 text-muted-foreground">
+                  {i.lastStatus === 'PASSED' ? '성공' : i.lastStatus === 'FAILED' ? '실패' : '미수행'}
+                </span>
+              </li>
+            ))}
           </ul>
         </Section>
       )}
