@@ -535,6 +535,15 @@ export const api = {
       }),
   },
 
+  defects: {
+    list: (projectId: string, filter: import('@/types').DefectFilter = {}) => {
+      const q = new URLSearchParams(
+        Object.entries(filter).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)]),
+      ).toString();
+      return request<import('@/types').DefectResponse>(`/api/projects/${projectId}/defects${q ? `?${q}` : ''}`);
+    },
+  },
+
   rounds: {
     list: (projectId: string) => request<import('@/types').TestRound[]>(`/api/projects/${projectId}/rounds`),
     get: (projectId: string, executionId: number) =>

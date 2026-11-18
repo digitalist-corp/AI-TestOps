@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { SourceExplorerTab } from '@/components/project/SourceExplorerTab';
 import { ProjectDashboardTab } from '@/components/project/ProjectDashboardTab';
+import { DefectsTab } from '@/components/project/DefectsTab';
 import { PlanTab } from '@/components/project/PlanTab';
 import { MembersTab } from '@/components/project/MembersTab';
 import { useAccess } from '@/lib/access';
@@ -724,6 +725,16 @@ export function ProjectDetailPage() {
               onDelete={handleDeleteExecution}
               onReset={handleResetExecutions}
               selectedId={selectedExecutionId}
+            />
+          )}
+
+          {activeTab === 'defects' && projectId && (
+            <DefectsTab
+              projectId={projectId}
+              refreshKey={executions.map((e) => `${e.id}:${e.status}`).join(',')}
+              runDisabled={running || !!activeRun}
+              onRun={(options) => handleRun(options)}
+              onOpenExecution={handleSelectExecution}
             />
           )}
 

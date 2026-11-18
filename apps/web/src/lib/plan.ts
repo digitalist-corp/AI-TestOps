@@ -1,4 +1,4 @@
-import type { PlanItem, PlanPriority, RunTestOptions, TestRoundCase, TestSuite } from '@/types';
+import type { PlanItem, PlanItemKey, PlanPriority, RunTestOptions, TestRoundCase, TestSuite } from '@/types';
 import { samePath, type ScreenCases } from '@/lib/rounds';
 
 export const PRIORITY_LABEL: Record<PlanPriority, string> = { HIGH: '높음', MEDIUM: '보통', LOW: '낮음' };
@@ -65,14 +65,18 @@ export function planCounts(items: PlanItem[]): { passed: number; failed: number;
 
 const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** 사용 중인 실패 항목만 다시 실행하는 옵션. 파일로 좁히고 케이스 이름을 --grep 정규식으로 묶는다. 실패가 없으면 null. */
-export function failedRerun(items: PlanItem[]): RunTestOptions | null {
-  const failed = items.filter((i) => i.enabled && i.lastStatus === 'FAILED');
-  if (failed.length === 0) return null;
+/** 고른 케이스만 다시 실행하는 옵션. 파일로 좁히고 케이스 이름을 --grep 정규식으로 묶는다. 고른 게 없으면 null. */
+export function rerunOptions(keys: PlanItemKey[]): RunTestOptions | null {
+  if (keys.length === 0) return null;
   return {
-    specPaths: [...new Set(failed.map((i) => i.specPath))],
-    grep: failed.map((i) => escapeRegex(i.grep)).join('|'),
+    specPaths: [...new Set(keys.map((i) => i.specPath))],
+    grep: keys.map((i) => escapeRegex(i.grep)).join('|'),
   };
+}
+
+/** 사용 중인 실패 항목만 다시 실행하는 옵션. 실패가 없으면 null. */
+export function failedRerun(items: PlanItem[]): RunTestOptions | null {
+  return rerunOptions(items.filter((i) => i.enabled && i.lastStatus === 'FAILED'));
 }
 
 /** 담당자 표시: 계정이 있으면 이름, 계정과 잇지 못한 옛 이름은 "(계정 없음) 이름", 없으면 빈 문자열 (#119) */

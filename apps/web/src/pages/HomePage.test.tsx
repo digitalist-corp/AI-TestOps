@@ -15,6 +15,7 @@ vi.mock('@/api/client', () => ({
   api: {
     getProjects: vi.fn(),
     plan: { get: vi.fn() },
+    defects: { list: vi.fn() },
     getUsers: vi.fn(),
     getRunnerContainers: vi.fn(),
     runTests: vi.fn(),
@@ -40,6 +41,7 @@ beforeEach(() => {
     items,
     summary: { total: 3, enabled: 3, disabled: 0, passed: 1, failed: 1, notRun: 1, completionRate: 1 / 3 },
   });
+  vi.mocked(api.defects.list).mockResolvedValue({ defects: [], open: 1, resolved: 0 });
   vi.mocked(api.notices.list).mockResolvedValue([1, 2, 3, 4].map((id) => ({ id, title: `공지 ${id}`, pinned: id === 1, createdAt: '2026-11-17T00:00:00Z' }) as never));
   vi.mocked(api.getUsers).mockResolvedValue([{ id: 1 }, { id: 2 }] as never);
   vi.mocked(api.getRunnerContainers).mockResolvedValue([
@@ -68,6 +70,8 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
 
     expect(await screen.findByRole('heading', { name: '내 프로젝트' })).toBeTruthy();
     expect(screen.getByText('성공 1 · 실패 1 · 미수행 1')).toBeTruthy();
+    // 미해결 결함 수는 결함 리스트와 같은 API에서 온다 (#81)
+    expect((await screen.findByRole('link', { name: '미해결 결함 1' })).getAttribute('href')).toBe('/projects/shop/defects');
     expect(screen.getByRole('heading', { name: '나에게 배정된 항목' })).toBeTruthy();
     expect(screen.getByText('쇼핑몰 · 탈퇴')).toBeTruthy();
     expect(screen.queryByText('쇼핑몰 · 결제')).toBeNull();
@@ -83,6 +87,7 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
 
     expect(await screen.findByRole('heading', { name: '내가 맡은 프로젝트' })).toBeTruthy();
     expect(screen.getByText('진척률 33%')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: '미해결 결함 1' })).toBeTruthy();
     expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
     expect(screen.getByText('2026-11-01 ~')).toBeTruthy();
     expect(screen.getByText('(계정 없음) 윤재')).toBeTruthy();
@@ -99,6 +104,7 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     expect(await screen.findByText('프로젝트 1개')).toBeTruthy();
     expect(screen.getByText('사용자 2명')).toBeTruthy();
     expect(screen.getByText('러너 1 / 2 실행 중')).toBeTruthy();
+    expect(await screen.findByRole('link', { name: '미해결 결함 1' })).toBeTruthy();
     expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
   });
 

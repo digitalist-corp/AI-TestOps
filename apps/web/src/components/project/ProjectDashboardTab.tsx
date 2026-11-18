@@ -55,6 +55,7 @@ export function ProjectDashboardTab({
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [schedules, setSchedules] = useState<ExecutionSchedule[] | null>(null);
   const [plan, setPlan] = useState<PlanResponse | null>(null);
+  const [openDefects, setOpenDefects] = useState<number | null>(null);
 
   // 실행 목록은 화면이 자주 다시 읽는다. 실행이 생기거나 상태가 바뀔 때만 차수와 지도를 다시 읽는다.
   const runKey = executions.map((e) => `${e.id}:${e.status}`).join(',');
@@ -63,6 +64,7 @@ export function ProjectDashboardTab({
     let alive = true;
     api.rounds.list(projectId).then((list) => alive && setRounds(list)).catch(() => alive && setRounds([]));
     api.plan.get(projectId).then((p) => alive && setPlan(p)).catch(() => {});
+    api.defects.list(projectId).then((d) => alive && setOpenDefects(d.open)).catch(() => {});
     api.getSiteMapCoverage(projectId).then((c) => alive && setCoverage(c)).catch(() => {});
     return () => {
       alive = false;
@@ -167,7 +169,7 @@ export function ProjectDashboardTab({
         </div>
       </div>
 
-      <PlanMetrics projectId={projectId} summary={plan?.summary ?? null} failing={failing} />
+      <PlanMetrics projectId={projectId} summary={plan?.summary ?? null} failing={failing} openDefects={openDefects} />
 
       <SummaryCards
         projectId={projectId}

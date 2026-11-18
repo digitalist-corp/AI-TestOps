@@ -11,10 +11,13 @@ export function PlanMetrics({
   projectId,
   summary,
   failing,
+  openDefects = null,
 }: {
   projectId: string;
   summary: PlanSummary | null;
   failing: { name: string; failed: number }[] | null;
+  /** 미해결 결함 수 — 결함 리스트와 같은 API (#81) */
+  openDefects?: number | null;
 }) {
   return (
     <section
@@ -27,9 +30,14 @@ export function PlanMetrics({
             <ClipboardList className="h-4 w-4 text-primary" />
             품질 현황 (계획 기준)
           </h4>
-          <Link to={`/projects/${projectId}/plan`} className="text-xs font-medium text-primary hover:underline">
-            계획 표 열기 →
-          </Link>
+          <span className="flex items-center gap-3">
+            <Link to={`/projects/${projectId}/defects`} className="text-xs font-medium text-destructive hover:underline">
+              미해결 결함 {openDefects ?? '-'}건 →
+            </Link>
+            <Link to={`/projects/${projectId}/plan`} className="text-xs font-medium text-primary hover:underline">
+              계획 표 열기 →
+            </Link>
+          </span>
         </div>
         {summary ? (
           <>

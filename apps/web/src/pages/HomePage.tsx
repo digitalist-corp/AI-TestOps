@@ -42,6 +42,19 @@ function StatusAndPeriod({ project }: { project: Project }) {
   );
 }
 
+/** 미해결 결함 수 — 결함 리스트와 같은 API (#81). 누르면 결함 탭 */
+function OpenDefects({ projectId, count }: { projectId: string; count: number | undefined }) {
+  if (count === undefined) return null;
+  return (
+    <Link
+      to={projectTabPath(projectId, 'defects')}
+      className={`shrink-0 text-sm hover:underline ${count > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}
+    >
+      미해결 결함 {count}
+    </Link>
+  );
+}
+
 function ProgressBar({ value }: { value: number }) {
   return (
     <div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100}>
@@ -60,6 +73,7 @@ export function HomePage() {
   const { admin, me, roleIn } = useAccess();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [plans, setPlans] = useState<Record<string, PlanItem[]>>({});
+  const [defects, setDefects] = useState<Record<string, number>>({});
   const [userCount, setUserCount] = useState<number | null>(null);
   const [runners, setRunners] = useState<{ running: number; total: number } | null>(null);
   const [rerunId, setRerunId] = useState<string | null>(null);
@@ -74,6 +88,9 @@ export function HomePage() {
         for (const p of list) {
           api.plan.get(p.projectId)
             .then((plan) => alive && setPlans((prev) => ({ ...prev, [p.projectId]: plan.items })))
+            .catch(() => {});
+          api.defects.list(p.projectId)
+            .then((d) => alive && setDefects((prev) => ({ ...prev, [p.projectId]: d.open })))
             .catch(() => {});
         }
       })
@@ -176,6 +193,7 @@ export function HomePage() {
                       {p.projectName}
                     </Link>
                     <StatusAndPeriod project={p} />
+                    <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
                   </div>
                   <ProgressBar value={items ? progressOf(items) : 0} />
                   <span className="text-right text-sm text-muted-foreground">{items ? `${progressOf(items)}%` : '-'}</span>
@@ -200,7 +218,10 @@ export function HomePage() {
                     </Link>
                     <StatusAndPeriod project={p} />
                   </div>
-                  <span className="text-sm font-medium text-foreground">진척률 {progressOf(items)}%</span>
+                  <span className="flex shrink-0 items-center gap-4">
+                    <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
+                    <span className="text-sm font-medium text-foreground">진척률 {progressOf(items)}%</span>
+                  </span>
                 </div>
                 <ProgressBar value={progressOf(items)} />
                 {items.length === 0 ? (
@@ -259,6 +280,7 @@ export function HomePage() {
                   <span className="text-sm text-muted-foreground">
                     성공 {counts.passed} · 실패 {counts.failed} · 미수행 {counts.notRun}
                   </span>
+                  <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
                   {counts.failed > 0 && (
                     <Button
                       size="sm"

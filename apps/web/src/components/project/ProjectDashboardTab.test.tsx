@@ -12,6 +12,7 @@ vi.mock('@/components/dashboard/ChartBox', () => ({
 vi.mock('@/api/client', () => ({
   api: {
     plan: { get: vi.fn() },
+    defects: { list: vi.fn() },
     rounds: { list: vi.fn(), get: vi.fn() },
     getScenarios: vi.fn(),
     getSiteMap: vi.fn(),
@@ -124,6 +125,7 @@ describe('ProjectDashboardTab', () => {
       ],
     });
     vi.mocked(api.schedules.listByProject).mockResolvedValue([]);
+    vi.mocked(api.defects.list).mockResolvedValue({ defects: [], open: 1, resolved: 0 });
 
     render(
       <MemoryRouter>
@@ -149,6 +151,7 @@ describe('ProjectDashboardTab', () => {
     expect(metrics.textContent).toMatch(/성공\s*6/);
     expect(metrics.textContent).toMatch(/실패\s*1/);
     expect(metrics.textContent).toMatch(/미수행\s*1/);
+    expect((await screen.findByRole('link', { name: '미해결 결함 1건 →' })).getAttribute('href')).toBe('/projects/p1/defects');
     // 오류 난 화면: 로그인 화면에 실패 1건
     const failing = screen.getByRole('list', { name: '오류 난 화면' });
     expect(failing.textContent).toContain('로그인');
