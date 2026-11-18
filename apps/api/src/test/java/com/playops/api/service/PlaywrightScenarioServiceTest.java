@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import com.playops.api.util.PlaywrightGrep;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -57,7 +59,8 @@ class PlaywrightScenarioServiceTest {
 
         // JS 정규식 (#135): 케이스는 제목 끝까지, 묶음은 그 아래 전부
         assertThat(service.disabledGrepPatterns("demo", List.of("tests/menu.spec.ts")))
-                .containsExactly("(?:^| )menu smoke(?: @\\S+)*$", "(?:^| )결제\\(카드\\)(?: |$)");
+                .containsExactly(PlaywrightGrep.testTitle("tests/menu.spec.ts", "menu smoke"),
+                        PlaywrightGrep.describeTitle("tests/menu.spec.ts", "결제(카드)"));
     }
 
     private ScenarioCaseSetting disabledSpec(String specPath) {
