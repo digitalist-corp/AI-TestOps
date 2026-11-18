@@ -29,3 +29,6 @@ apps/web/scratch_headings.txt
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# graphify 코드 그래프 (로컬 전용)
+graphify-out/
