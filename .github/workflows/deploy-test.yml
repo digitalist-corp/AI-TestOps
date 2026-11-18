@@ -82,7 +82,7 @@ jobs:
           if [ -z "$CUR_LOGIN_PASSWORD" ] || [ "$CUR_LOGIN_PASSWORD" = admin ]; then
             sed -i '/^LOGIN_PASSWORD=/d' .env
             echo "LOGIN_PASSWORD=$(openssl rand -hex 16)" >> .env
-            echo "::notice::관리자 기본 비밀번호를 서버 .env 의 무작위 값으로 바꿨습니다 (LOGIN_PASSWORD, 값은 서버에서 확인)"
+            echo "::notice::서버 .env 의 LOGIN_PASSWORD 를 무작위 값으로 바꿨습니다. DB 관리자 비밀번호가 아직 admin 이면 기동할 때 이 값으로 바뀝니다 (값은 서버에서 확인)"
           fi
           unset CUR_LOGIN_PASSWORD
           # 셀프 회귀 전용 계정: 없거나 비었을 때만 만든다
