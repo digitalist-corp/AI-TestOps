@@ -155,7 +155,9 @@ export function ResultsTab({ detail, loading, focus }: Props) {
 
       <div>
         <h3 className="mb-2 font-medium text-foreground">단계별 실행 기록</h3>
+        {/* 실행이 끝나면 상태가 바뀌어 다시 읽는다 — 도는 중에는 단계 기록이 아직 없다 */}
         <StepTimeline
+          key={`${ex.id}-${ex.status}`}
           projectId={ex.projectId}
           executionId={ex.id}
           focus={focus}

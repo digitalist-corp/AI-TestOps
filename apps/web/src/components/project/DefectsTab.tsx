@@ -223,7 +223,11 @@ export function DefectsTab({
                         type="button"
                         className="text-left font-medium text-foreground hover:underline"
                         title="실패한 단계 보기"
-                        onClick={() => onOpenExecution(lastFailedOf(d), { specPath: d.specPath, title: d.title })}
+                        onClick={() => onOpenExecution(lastFailedOf(d), {
+                          specPath: d.specPath,
+                          // 같은 파일의 다른 묶음에 같은 제목이 있어도 하나만 펼치게 묶음까지
+                          title: [d.describePath, d.title].filter(Boolean).join(' > '),
+                        })}
                       >
                         {d.title}
                       </button>

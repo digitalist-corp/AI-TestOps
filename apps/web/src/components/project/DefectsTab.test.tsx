@@ -138,4 +138,11 @@ describe('결함 탭', () => {
     // 결과 화면이 이 케이스의 실패 단계를 바로 펼치도록 케이스도 넘긴다 (#85)
     expect(onOpenExecution).toHaveBeenCalledWith(4, { specPath: 'tests/a.spec.ts', title: '로그인' });
   });
+
+  it('묶음 안의 결함은 묶음까지 넘겨 같은 제목의 다른 케이스와 헷갈리지 않는다', async () => {
+    vi.mocked(api.defects.list).mockResolvedValue({ defects: [defect({ describePath: '관리자' })], open: 1, resolved: 0 });
+    const { onOpenExecution } = renderTab();
+    fireEvent.click(await screen.findByRole('button', { name: '로그인' }));
+    expect(onOpenExecution).toHaveBeenCalledWith(4, { specPath: 'tests/a.spec.ts', title: '관리자 > 로그인' });
+  });
 });
