@@ -45,6 +45,7 @@ import { ZoomControls } from './ZoomControls';
 import { SCREEN_H, SCREEN_W, connectionCounts, connectionLevel, groupBoxes, layoutGraph, nodeStatus, type Point } from './layoutGraph';
 import { useMediaQuery } from './useMediaQuery';
 import { buildConnectivity, usePathSelection } from './usePathSelection';
+import { useAccess } from '@/lib/access';
 
 type GraphNode = ScreenFlowNode | LayoutGroupFlowNode;
 
@@ -145,6 +146,8 @@ function GraphCanvas({
   const flow = useReactFlow<GraphNode, PathFlowEdge>();
   const { theme } = useTheme();
   const { active: aiActive } = useAiEnabled();
+  // 팀원은 보기만: 경로로 테스트 만들기 · 막힌 곳 고치기는 PM (서버가 막는 쓰기)
+  const canManage = useAccess().canManage(projectId);
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const canvasRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -860,13 +863,14 @@ function GraphCanvas({
           playingSpec={playing?.flow.specPath ?? null}
           onPlay={(target) => (playing?.flow.specPath === target.specPath ? replay() : startPlay(target))}
           aiActive={aiActive}
+          canManage={canManage}
           onAction={onIssueAction}
           busyKey={busyKey}
           onSelectScreen={focusScreen}
         />
       </div>
 
-      <PathBar
+      {canManage && <PathBar
         chips={path.chips}
         segments={path.segments}
         brokenCount={path.brokenCount}
@@ -880,7 +884,7 @@ function GraphCanvas({
         onClear={path.clear}
         onFocus={jumpTo}
         onGenerate={generate}
-      />
+      />}
 
       <Dialog open={created != null} onOpenChange={(open) => !open && setCreated(null)}>
         <DialogContent>

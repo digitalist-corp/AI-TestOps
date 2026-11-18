@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { ElementTable } from './ElementTable';
 import { IssueList, type IssueActionHandler } from './IssueList';
 import { CoverageBar, STATE_ICON } from './ScreenNode';
+import { useAccess } from '@/lib/access';
 
 export const DETAIL_PANEL_WIDTH = 392;
 
@@ -71,6 +72,8 @@ export function ScreenDetailPanel({
   loadDetail?: (projectId: string, routeKey: string) => Promise<SiteMapNodeDetail>;
 }) {
   const { active: aiActive } = useAiEnabled();
+  // 팀원은 보기만: 경로에 추가 · 삭제 · 메모 · 제외는 PM (서버가 막는 쓰기)
+  const canManage = useAccess().canManage(projectId);
   const [detail, setDetail] = useState<SiteMapNodeDetail | null>(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
@@ -180,7 +183,7 @@ export function ScreenDetailPanel({
             <X className="h-4 w-4" />
           </Button>
         </div>
-        <div className="mt-3 flex items-center gap-2">
+        {canManage && <div className="mt-3 flex items-center gap-2">
           <Button variant="secondary" size="xs" className="flex-1" onClick={() => onAdd(routeKey)}>
             <Plus className="h-4 w-4" /> 경로에 추가
           </Button>
@@ -194,7 +197,7 @@ export function ScreenDetailPanel({
           >
             <Trash2 className="h-3.5 w-3.5 mr-1" /> 삭제
           </Button>
-        </div>
+        </div>}
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -274,11 +277,13 @@ export function ScreenDetailPanel({
 
             {issues.length > 0 && onIssueAction && (
               <Section title="막힌 곳" right={<span className="text-xs tabular-nums text-destructive">{issues.length}곳</span>}>
-                <IssueList items={issues} aiActive={aiActive} onAction={onIssueAction} busyKey={busyKey} />
+                <IssueList items={issues} aiActive={aiActive} canManage={canManage} onAction={onIssueAction} busyKey={busyKey} />
               </Section>
             )}
 
             <Section title="메모">
+              {canManage ? (
+                <>
               <textarea
                 value={note}
                 maxLength={500}
@@ -310,6 +315,10 @@ export function ScreenDetailPanel({
                   />
                 </label>
               </div>
+                </>
+              ) : (
+                <p className="whitespace-pre-wrap text-[13px] text-foreground">{node.note || '메모가 없습니다.'}</p>
+              )}
             </Section>
 
             <Section title="연결된 테스트" right={<span className="text-xs tabular-nums text-muted-foreground">{detail.tests.length}개</span>}>

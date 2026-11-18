@@ -343,7 +343,12 @@ export function isBlockingIssue(issue: Pick<CoverageIssue, 'kind'>) {
  * - AI 로 고치기는 AI 가 켜져 있고 실패한 실행 · 테스트를 알 때만. 안 되면 다시 녹화하기로 바꾼다.
  * - 다시 실행은 테스트를 알 때만. 요소를 못 찾은 경우엔 고친 뒤 다시 돌려 볼 수 있게 덧붙인다.
  */
-export function issueActions(issue: CoverageIssue, aiActive: boolean): Exclude<CoverageAction, 'NONE'>[] {
+export function issueActions(
+  issue: CoverageIssue,
+  aiActive: boolean,
+  /** 팀원은 서버가 허용하는 다시 실행만 (고치기 · 녹화 · 로그인 정보는 PM) */
+  canManage = true,
+): Exclude<CoverageAction, 'NONE'>[] {
   const actions: Exclude<CoverageAction, 'NONE'>[] = [];
   const push = (action: CoverageAction) => {
     if (action !== 'NONE' && !actions.includes(action)) actions.push(action);
@@ -353,7 +358,7 @@ export function issueActions(issue: CoverageIssue, aiActive: boolean): Exclude<C
   if (primary === 'RERUN' && !issue.specPath) primary = 'NONE';
   push(primary);
   if (issue.kind === 'SELECTOR_FAILED' && issue.specPath) push('RERUN');
-  return actions;
+  return canManage ? actions : actions.filter((a) => a === 'RERUN');
 }
 
 /** 다시 녹화하기: 녹화 탭을 그 화면 주소로 연다. */

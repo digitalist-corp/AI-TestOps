@@ -14,6 +14,7 @@ import { cn, dockerStatusLabel, executionStatusLabel, formatDuration, formatRela
 import { resolveEnvRequirementState, ENV_ASK_PM } from '@/lib/envVariables';
 import { parseRunProgress } from '@/lib/runProgress';
 import { useExecutionLogStream } from '@/components/project/ExecutionLogPanel';
+import { useAccess } from '@/lib/access';
 
 const runnerActivityLabel: Record<RunnerActivity, string> = {
   IDLE: '대기',
@@ -154,6 +155,8 @@ export function ProjectCard({
   onEnv?: () => void;
   onGo: (tab: 'results' | 'runs' | 'source') => void;
 }) {
+  // 코드 편집기는 PM (관리 전용 탭)
+  const canManage = useAccess().canManage(project.projectId);
   const state = envState(project);
   const missingEnv = state === 'required-missing';
   const status = project.latestExecutionStatus;
@@ -310,9 +313,9 @@ export function ProjectCard({
           <IconButton title="결과 리포트" onClick={() => onGo('results')}>
             <BarChart3 className="h-4 w-4" />
           </IconButton>
-          <IconButton title="소스" onClick={() => onGo('source')}>
+          {canManage && <IconButton title="소스" onClick={() => onGo('source')}>
             <FileCode className="h-4 w-4" />
-          </IconButton>
+          </IconButton>}
           {onEnv && (
             <IconButton
               title="환경변수"

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { FileCode2, Globe, Loader2, MousePointerClick, Network, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAccess } from '@/lib/access';
 
 const CHOICE_CLASS =
   'flex h-full flex-col items-start gap-1.5 rounded-lg border border-border bg-card p-4 text-left transition-colors';
@@ -55,6 +56,8 @@ export function StructureEmptyState({
   onFindByCode: () => void;
   onAddNode?: () => void;
 }) {
+  // 화면 찾기 · 녹화 · 직접 추가는 PM (서버가 막는 쓰기). 팀원에게는 안내만.
+  const canManage = useAccess().canManage(projectId);
   const locked = busy || running;
   const siteDisabled = locked || !siteReady;
   const codeDisabled = locked || sourceHint != null;
@@ -75,10 +78,13 @@ export function StructureEmptyState({
           ? urlRun
             ? '대상 사이트를 열어 링크를 따라가며 화면 · 버튼을 모으고 있습니다. 클릭이나 폼 제출은 하지 않으며 최대 3분 걸립니다.'
             : '저장소를 받아 화면을 찾고 있습니다. 화면 하나에 10초쯤 걸립니다.'
-          : '테스트할 앱에 어떤 화면과 버튼이 있는지 찾아 두면 여기에 지도로 보입니다. 찾는 방법을 골라 주세요.'}
+          : canManage
+            ? '테스트할 앱에 어떤 화면과 버튼이 있는지 찾아 두면 여기에 지도로 보입니다. 찾는 방법을 골라 주세요.'
+            : 'PM이 화면을 찾으면 여기에 보여요.'}
       </p>
 
       {/* 카드가 4개(화면 직접 추가 포함)면 2 × 2, 3개면 한 줄 — 3 + 1로 어긋나지 않게 (#108) */}
+      {canManage && (
       <div className={cn('mt-6 grid grid-cols-1 gap-3 text-left', onAddNode ? '@3xl:grid-cols-2' : '@3xl:grid-cols-3')}>
         <button
           type="button"
@@ -132,6 +138,7 @@ export function StructureEmptyState({
           </button>
         )}
       </div>
+      )}
     </section>
   );
 }

@@ -69,6 +69,11 @@ export function visibleTabs(tabs: ProjectTabId[], canManage = true): ProjectTabI
   return canManage ? tabs : tabs.filter((tab) => !MANAGE_ONLY_TABS.includes(tab));
 }
 
+/** 주소로 탭을 열 때의 가드 — 팀원이 링크로 관리 전용 탭에 들어가 403 버튼만 보게 되지 않게. */
+export function canOpenTab(tab: ProjectTabId, canManage: boolean): boolean {
+  return canManage || !MANAGE_ONLY_TABS.includes(tab);
+}
+
 export function visibleWorkspaceGroups(aiActive: boolean, canManage = true): WorkspaceGroup[] {
   return WORKSPACE_GROUPS
     .filter((group) => aiActive || !group.aiOnly)

@@ -5,6 +5,14 @@ import com.playops.api.dto.PlanDtos.PlanItem;
 import com.playops.api.dto.PlanDtos.PlanResponse;
 import com.playops.api.entity.Project;
 import com.playops.api.repository.ProjectRepository;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.mockito.ArgumentCaptor;
+import com.playops.api.repository.ProjectMemberRepository;
+import com.playops.api.entity.ProjectRole;
+import com.playops.api.entity.ProjectMember;
+import com.playops.api.entity.UserRole;
+import com.playops.api.entity.User;
 import com.playops.api.repository.UserRepository;
 import com.playops.api.service.PlanService;
 import com.playops.api.service.PlaywrightTemplateService;
@@ -35,19 +43,32 @@ class DemoDataSeederTest {
     private PlanService planService;
     private PlaywrightTemplateService templateService;
     private DemoDataSeeder seeder;
+    private UserRepository users;
+    private ProjectMemberRepository members;
+    private PasswordEncoder encoder;
+    private ProjectRepository projects;
+    private ProjectService projectService;
+
+    private DemoDataSeeder seeder(String demoPmPassword) {
+        return new DemoDataSeeder(projects, projectService, templateService, planService, users, members, encoder,
+                "admin", "guest", "demo-pm", demoPmPassword);
+    }
 
     @BeforeEach
     void setUp() {
-        ProjectRepository projects = mock(ProjectRepository.class);
+        projects = mock(ProjectRepository.class);
         when(projects.findById("example.com")).thenReturn(Optional.of(new Project()));
-        ProjectService projectService = mock(ProjectService.class);
+        projectService = mock(ProjectService.class);
         when(projectService.getProjectPath("example.com")).thenReturn(dir);
         planService = mock(PlanService.class);
         when(planService.get("example.com")).thenReturn(new PlanResponse(List.of(
                 new PlanItem("tests/demo.spec.ts", "시연 확인 문의하기 링크가 보인다", "문의하기 링크가 보인다", "시연 확인", 1,
                         true, true, null, null, null, null, null, null, null, null, null)), null));
         templateService = mock(PlaywrightTemplateService.class);
-        seeder = new DemoDataSeeder(projects, projectService, templateService, planService, mock(UserRepository.class), "admin", "guest");
+        users = mock(UserRepository.class);
+        members = mock(ProjectMemberRepository.class);
+        encoder = new BCryptPasswordEncoder(4);
+        seeder = seeder("pw-1234-abcd");
     }
 
     private Path demo() throws Exception {
@@ -78,5 +99,72 @@ class DemoDataSeederTest {
 
         assertThat(Files.readString(demo)).isEqualTo("// 사람이 고친 시연 spec\n");
         verify(planService, never()).patch(any(), any());
+    }
+
+    // ── 시연용 PM 계정 (3차 5번): 비밀번호는 .env(DEMO_PM_PASSWORD)로만 ──
+
+    @Test
+    void noPasswordNoDemoPm() throws Exception {
+        seeder("").run();
+
+        verify(users, never()).save(any());
+    }
+
+    @Test
+    void createsDemoPmAsPmOfTheDemoProject() throws Exception {
+        when(users.findByUsername("demo-pm")).thenReturn(Optional.empty());
+        when(users.save(any())).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(42L);
+            return u;
+        });
+
+        seeder.run();
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(users).save(saved.capture());
+        assertThat(saved.getValue().getRole()).isEqualTo(UserRole.USER);
+        assertThat(saved.getValue().getDisplayName()).isEqualTo("시연 PM");
+        assertThat(encoder.matches("pw-1234-abcd", saved.getValue().getPassword())).isTrue();
+        ArgumentCaptor<ProjectMember> member = ArgumentCaptor.forClass(ProjectMember.class);
+        verify(members).save(member.capture());
+        assertThat(member.getValue().getProjectId()).isEqualTo("example.com");
+        assertThat(member.getValue().getRole()).isEqualTo(ProjectRole.PM);
+    }
+
+    @Test
+    void changedEnvPasswordIsAppliedOnNextBoot() throws Exception {
+        User existing = demoPm("old-password");
+        when(users.findByUsername("demo-pm")).thenReturn(Optional.of(existing));
+        when(members.findByProjectIdAndUserId("example.com", 42L)).thenReturn(Optional.of(new ProjectMember()));
+
+        seeder.run();
+
+        assertThat(encoder.matches("pw-1234-abcd", existing.getPassword())).isTrue();
+        verify(users).save(existing);
+        verify(members, never()).save(any());
+    }
+
+    @Test
+    void anotherPersonsAccountWithTheSameIdIsNotTouched() throws Exception {
+        User someone = demoPm("their-password");
+        someone.setDisplayName("김민지");
+        String before = someone.getPassword();
+        when(users.findByUsername("demo-pm")).thenReturn(Optional.of(someone));
+
+        seeder.run();
+
+        assertThat(someone.getPassword()).isEqualTo(before);
+        verify(users, never()).save(any());
+    }
+
+    private User demoPm(String password) {
+        User u = new User();
+        u.setId(42L);
+        u.setUsername("demo-pm");
+        u.setDisplayName("시연 PM");
+        u.setRole(UserRole.USER);
+        u.setPassword(encoder.encode(password));
+        return u;
     }
 }
