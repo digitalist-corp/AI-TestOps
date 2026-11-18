@@ -36,7 +36,7 @@ class PlaywrightScenarioServiceTest {
     }
 
     @Test
-    void disabledGrepsIgnoresDisabledSpecsAndKeepsDisabledCases() {
+    void disabledGrepPatternsIgnoreDisabledSpecsAndKeepDisabledCasesAndGroups() {
         FileStorageService fileStorageService = mock(FileStorageService.class);
         ProjectService projectService = mock(ProjectService.class);
         ScenarioCaseSettingRepository repository = mock(ScenarioCaseSettingRepository.class);
@@ -46,14 +46,18 @@ class PlaywrightScenarioServiceTest {
                 repository
         );
 
+        ScenarioCaseSetting describe = disabledCase("tests/menu.spec.ts", "결제(카드)");
+        describe.setNodeType("DESCRIBE");
         when(repository.findByProjectId("demo")).thenReturn(List.of(
                 disabledSpec("tests/menu.spec.ts"),
                 disabledCase("tests/menu.spec.ts", "menu smoke"),
+                describe,
                 disabledCase("tests/other.spec.ts", "other smoke")
         ));
 
-        assertThat(service.disabledGreps("demo", List.of("tests/menu.spec.ts")))
-                .containsExactly("menu smoke");
+        // JS 정규식 (#135): 케이스는 제목 끝까지, 묶음은 그 아래 전부
+        assertThat(service.disabledGrepPatterns("demo", List.of("tests/menu.spec.ts")))
+                .containsExactly("(?:^| )menu smoke(?: @\\S+)*$", "(?:^| )결제\\(카드\\)(?: |$)");
     }
 
     private ScenarioCaseSetting disabledSpec(String specPath) {

@@ -6,6 +6,7 @@ import com.playops.api.dto.ScenarioTreeResponse;
 import com.playops.api.entity.ScenarioCaseSetting;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.ScenarioCaseSettingRepository;
+import com.playops.api.util.PlaywrightGrep;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -99,7 +100,8 @@ public class PlaywrightScenarioService {
         scenarioCaseSettingRepository.save(setting);
     }
 
-    public List<String> disabledGreps(String projectId, List<String> specPaths) {
+    /** 꺼 둔 묶음 · 케이스를 빼는 --grep-invert 패턴들 (JS 정규식, #135). 묶음은 그 아래 전부, 케이스는 그 제목만. */
+    public List<String> disabledGrepPatterns(String projectId, List<String> specPaths) {
         Set<String> selectedSpecs = specPaths == null || specPaths.isEmpty()
                 ? Set.of()
                 : specPaths.stream().map(this::normalizeSpecPath).collect(Collectors.toSet());
@@ -109,7 +111,9 @@ public class PlaywrightScenarioService {
                 .filter(setting -> !"SPEC".equals(setting.getNodeType()))
                 .filter(setting -> setting.getGrepFilter() != null && !setting.getGrepFilter().isBlank())
                 .filter(setting -> selectedSpecs.isEmpty() || selectedSpecs.contains(normalizeSpecPath(setting.getSpecPath())))
-                .map(ScenarioCaseSetting::getGrepFilter)
+                .map(setting -> "DESCRIBE".equals(setting.getNodeType())
+                        ? PlaywrightGrep.describeTitle(setting.getGrepFilter())
+                        : PlaywrightGrep.testTitle(setting.getGrepFilter()))
                 .distinct()
                 .toList();
     }

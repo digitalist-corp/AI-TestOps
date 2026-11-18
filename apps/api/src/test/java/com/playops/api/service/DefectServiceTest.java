@@ -186,7 +186,7 @@ class DefectServiceTest {
 
         service.rerun("p1", null);
 
-        verify(executionQueryService).triggerRun(eq("p1"), eq("결제|로그인\\(관리자\\)"), isNull(),
+        verify(executionQueryService).triggerRun(eq("p1"), eq("(?:^| )결제(?: @\\S+)*$|(?:^| )로그인\\(관리자\\)(?: @\\S+)*$"), isNull(),
                 eq(List.of("tests/b.spec.ts", "tests/a.spec.ts")), eq("결함 다시 실행 2건"), eq(false), eq(4L));
     }
 
@@ -195,7 +195,7 @@ class DefectServiceTest {
         threeDefects();
 
         service.rerun("p1", List.of(new ItemKey("tests/a.spec.ts", "해결됨")));
-        verify(executionQueryService).triggerRun(eq("p1"), eq("해결됨"), isNull(),
+        verify(executionQueryService).triggerRun(eq("p1"), eq("(?:^| )해결됨(?: @\\S+)*$"), isNull(),
                 eq(List.of("tests/a.spec.ts")), eq("결함 다시 실행 1건"), eq(false), eq(1L));
 
         assertThatThrownBy(() -> service.rerun("p1", List.of(new ItemKey("tests/a.spec.ts", "없는 케이스"))))
@@ -244,7 +244,7 @@ class DefectServiceTest {
         when(planService.tracked("p1")).thenReturn(many);
         service.rerun("p1", null);
         // 파일 목록도 넘치면 사용 중 전체를 이름으로 거른다
-        verify(executionQueryService).triggerRun(eq("p1"), eq("가"), isNull(),
+        verify(executionQueryService).triggerRun(eq("p1"), eq("(?:^| )가(?: @\\S+)*$"), isNull(),
                 eq(List.of()), eq("결함 다시 실행 40건"), eq(false), eq(1L));
     }
 }
