@@ -120,7 +120,7 @@ public class DefectService {
             }
         }
         if (chosen.isEmpty()) throw new ApiException(400, "다시 실행할 결함이 없습니다.");
-        String grep = PlaywrightGrep.anyOf(chosen.stream().map(d -> PlaywrightGrep.testTitle(d.grep())).distinct().toList());
+        String grep = PlaywrightGrep.anyOf(chosen.stream().map(d -> PlaywrightGrep.testTitle(d.specPath(), d.grep())).distinct().toList());
         List<String> specPaths = chosen.stream().map(Defect::specPath).distinct().toList();
         // 칸을 넘으면 막지 않고 넓혀서 돌린다: 이름이 넘치면 파일 단위, 파일 목록이 넘치면 사용 중 전체(이름으로 거름).
         // 더 많이 돌 뿐 결과는 맞다 — 사이트가 죽어 전부 실패했을 때 "실패만 다시 실행"이 막히지 않게.
