@@ -58,7 +58,7 @@ class DefectServiceTest {
             ExecutionCaseResult r = new ExecutionCaseResult();
             r.setExecutionId((long) (newestFirst.length - i));
             r.setStatus(newestFirst[i].equals("F") ? "FAILED" : "PASSED");
-            r.setErrorMessage(newestFirst[i].equals("F") ? "오류 " + (newestFirst.length - i) : null);
+            r.setErrorMessage(newestFirst[i].equals("F") ? "\u001B[31m오류 " + (newestFirst.length - i) + "\u001B[39m" : null);
             out.add(r);
         }
         return out;

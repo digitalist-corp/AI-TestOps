@@ -34,6 +34,8 @@ public class DefectService {
 
     public static final String OPEN = "OPEN";
     public static final String RESOLVED = "RESOLVED";
+    /** Playwright 오류 메시지에 섞인 터미널 색 코드 */
+    private static final Pattern ANSI = Pattern.compile("\u001B\\[[0-9;]*m");
 
     private final PlanService planService;
     private final SiteCoverageService coverageService;
@@ -125,7 +127,8 @@ public class DefectService {
                 first.getExecutionId(), first.getCreatedAt(),
                 last.getExecutionId(), last.getCreatedAt(),
                 resolved == null ? null : resolved.getExecutionId(), resolved == null ? null : resolved.getCreatedAt(),
-                lastFailed.getErrorMessage(), List.of(), runs);
+                lastFailed.getErrorMessage() == null ? null : ANSI.matcher(lastFailed.getErrorMessage()).replaceAll(""),
+                List.of(), runs);
     }
 
     /** 이 파일을 지나는 흐름들의 화면, 지나는 순서대로 중복 없이. 경로는 뒷부분이 같으면 같은 파일로 본다. */
