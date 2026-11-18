@@ -16,7 +16,7 @@ public interface ExecutionRepository extends JpaRepository<Execution, Long> {
     /** 채팅 도구(search_logs)가 최근 실행 몇 개만 볼 때 쓴다. 전체를 읽으면 실행마다 붙은 긴 로그까지 따라온다. */
     List<Execution> findTop5ByProjectIdOrderByCreatedAtDesc(String projectId);
 
-    List<Execution> findByProjectIdAndGrepFilterOrderByCreatedAtDesc(String projectId, String grepFilter);
+    List<Execution> findByProjectIdAndGrepFilterInOrderByCreatedAtDesc(String projectId, Collection<String> grepFilters);
 
     boolean existsByProjectIdAndStatusIn(String projectId, Collection<ExecutionStatus> statuses);
 

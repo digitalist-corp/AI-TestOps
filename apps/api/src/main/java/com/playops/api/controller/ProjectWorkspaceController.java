@@ -1,6 +1,7 @@
 package com.playops.api.controller;
 
 import com.playops.api.dto.*;
+import com.playops.api.exception.ApiException;
 import com.playops.api.util.PlaywrightGrep;
 import com.playops.api.service.ExecutionQueryService;
 import com.playops.api.service.FileStorageService;
@@ -85,9 +86,9 @@ public class ProjectWorkspaceController {
         String specPath = request != null ? request.specPath() : null;
         List<String> specPaths = request != null ? request.specPaths() : null;
         if (request != null && request.cases() != null && !request.cases().isEmpty()) {
+            specPaths = casesSpecPaths(request.cases());
             grep = casesGrep(request.cases());
             specPath = null;
-            specPaths = request.cases().stream().map(RunTestRequest.CaseKey::specPath).distinct().toList();
         }
         String caseTitle = request != null ? request.caseTitle() : null;
         boolean sequential = request != null && Boolean.TRUE.equals(request.sequential());
@@ -97,13 +98,28 @@ public class ProjectWorkspaceController {
     @GetMapping("/executions/history")
     public List<ExecutionResponse> executionHistory(
             @PathVariable String projectId,
-            @RequestParam String grep
+            @RequestParam String grep,
+            @RequestParam(required = false) String specPath
     ) {
-        return executionQueryService.historyByGrep(projectId, grep);
+        return executionQueryService.historyByGrep(projectId, grep, specPath);
     }
 
-    /** executions.grep_filter 칸 길이 (V1 VARCHAR(500), ai_ro 뷰가 써서 넓히지 않는다) */
+    /** executions.grep_filter · spec_path 칸 길이 (V1 VARCHAR(500), ai_ro 뷰가 써서 넓히지 않는다) */
     private static final int MAX_GREP = 500;
+
+    /**
+     * 고른 케이스의 파일들. 파일이나 이름이 빈 키는 400. 목록이 칸(500자)을 넘으면 비운다 —
+     * 정확 일치 패턴이 이미 파일마다 고정하므로 결과는 같고, 패턴도 넘치면 사용 중 전체가 돈다 (결함 다시 실행과 같은 처리).
+     */
+    static List<String> casesSpecPaths(List<RunTestRequest.CaseKey> cases) {
+        for (RunTestRequest.CaseKey c : cases) {
+            if (c.specPath() == null || c.specPath().isBlank() || c.grep() == null || c.grep().isBlank()) {
+                throw new ApiException(400, "실행할 케이스의 파일과 이름이 필요합니다.");
+            }
+        }
+        List<String> paths = cases.stream().map(RunTestRequest.CaseKey::specPath).distinct().toList();
+        return String.join("\n", paths).length() > MAX_GREP ? List.of() : paths;
+    }
 
     /**
      * 고른 케이스 · 묶음을 #135 정확 일치 패턴으로 — 비슷한 제목의 다른 케이스는 같이 돌지 않는다.
