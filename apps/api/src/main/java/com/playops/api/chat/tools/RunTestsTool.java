@@ -113,6 +113,8 @@ public class RunTestsTool implements ChatTool {
                 pattern = "DESCRIBE".equals(m.node().type())
                         ? PlaywrightGrep.describeTitle(m.specPath(), m.node().grep())
                         : PlaywrightGrep.testTitle(m.specPath(), m.node().grep());
+                // executions.grep_filter(500자)를 넘는 아주 긴 묶음 이름이면 그 파일 전체로 (#155)
+                if (pattern.length() > 500) pattern = null;
             }
             // 케이스 이름으로 좁힌 실행은 이력에 그 이름이 보이도록 caseTitle 도 함께 남긴다.
             ExecutionResponse started = executionQueryService.triggerRun(projectId, pattern, specPath, null, grep, false);
