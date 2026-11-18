@@ -240,13 +240,13 @@ jobs:
       - name: 시연 데이터 (시연 프로젝트 첫 실행)
         continue-on-error: true
         run: |
-          set -uo pipefail
+          set +e -uo pipefail  # 중간 실패로 끊지 않고 끝까지 로그를 남긴다
           cd /home/playops/playops
           API=http://localhost:8080
           LOGIN_USER=$(grep -E '^LOGIN_USERNAME=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_USER=${LOGIN_USER:-admin}
           LOGIN_PASS=$(grep -E '^LOGIN_PASSWORD=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_PASS=${LOGIN_PASS:-admin}
-          TOKEN=$(curl -sf -X POST "$API/api/auth/login" -H 'Content-Type: application/json' \
-            -d "{\"username\":\"$LOGIN_USER\",\"password\":\"$LOGIN_PASS\"}" | jq -r '.token // empty' | tr -d '\r\n')
+          TOKEN=$(jq -n --arg u "$LOGIN_USER" --arg p "$LOGIN_PASS" '{username:$u,password:$p}' \
+            | curl -sf -X POST "$API/api/auth/login" -H 'Content-Type: application/json' -d @- | jq -r '.token // empty' | tr -d '\r\n')
           [ -n "$TOKEN" ] || { echo "::warning::시연 데이터: 로그인 실패"; exit 1; }
           H="Authorization: Bearer $TOKEN"
 
@@ -258,6 +258,7 @@ jobs:
           else
             EXEC_ID=$(curl -sf -X POST -H "$H" -H 'Content-Type: application/json' -d '{}' \
               "$API/api/projects/example.com/executions" | jq -r '.id // empty')
+            [ -n "$EXEC_ID" ] || { echo "::warning::시연 데이터: 실행을 시작하지 못했습니다"; exit 1; }
             echo "시연 프로젝트 실행 시작: execution #$EXEC_ID"
             for i in $(seq 1 36); do
               STATUS=$(curl -sf -H "$H" "$API/api/executions/$EXEC_ID" | jq -r '.execution.status')
