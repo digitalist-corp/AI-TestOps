@@ -127,4 +127,10 @@ describe('PlanTab — 팀원(보기 전용)', () => {
     expect(screen.getByRole('button', { name: /체크한 2건 실행/ })).toBeTruthy();
     expect(screen.queryByText(/칸을 두 번 눌러 고치고/)).toBeNull();
   });
+
+  it('실행 중이면 실행 버튼을 누를 수 없다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} runDisabled />);
+    const button = (await screen.findByRole('button', { name: /실행 중/ })) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
 });
