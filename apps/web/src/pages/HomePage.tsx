@@ -8,7 +8,7 @@ import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 import { ProjectStatusChip, isRunnerReady, projectPeriod } from '@/components/project/ProjectCard';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { useAccess } from '@/lib/access';
-import { assigneeLabel, byAssignee, failedRerun, overdue, planCounts } from '@/lib/plan';
+import { assigneeLabel, byAssignee, overdue, planCounts } from '@/lib/plan';
 import { formatRelative } from '@/lib/utils';
 
 const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD (현지 날짜)
@@ -115,9 +115,9 @@ export function HomePage() {
       .catch(() => {});
   }, [admin]);
 
+  /** 미해결 결함 전부를 결함 다시 실행 API로 — 새 실행이 실패했던 실행에 이어진다 (#83) */
   const rerunFailed = async (project: Project, items: PlanItem[]) => {
-    const options = failedRerun(items);
-    if (!options) return;
+    if (planCounts(items).failed === 0) return;
     if (!window.confirm(`'${project.projectName}'의 실패 ${planCounts(items).failed}건을 다시 실행할까요?`)) return;
     setRerunId(project.projectId);
     try {
@@ -128,7 +128,7 @@ export function HomePage() {
         }
         await api.startDocker(project.projectId);
       }
-      await api.runTests(project.projectId, options);
+      await api.defects.rerun(project.projectId, []);
       navigate(projectTabPath(project.projectId, 'runs'));
     } catch (err) {
       alert(err instanceof Error ? err.message : '다시 실행하지 못했습니다.');

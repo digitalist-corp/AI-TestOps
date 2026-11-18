@@ -311,7 +311,11 @@ export function ProjectDetailPage() {
     }
   }, [activeTab, selectedExecutionId, executions, executionDetail?.execution.id]);
 
-  const handleRun = async (options?: { grep?: string; specPath?: string; specPaths?: string[]; caseTitle?: string; sequential?: boolean }) => {
+  /** start: 기본 실행 API 대신 쓸 실행 요청 (결함 다시 실행 #83). 러너 · 환경 확인은 같다. */
+  const handleRun = async (
+    options?: { grep?: string; specPath?: string; specPaths?: string[]; caseTitle?: string; sequential?: boolean },
+    start?: () => Promise<Execution>,
+  ) => {
     if (!projectId) return;
     if (!project) return;
     // 같은 프로젝트를 겹쳐 돌리지 않는다 — 상단 · 대시보드 · 계획 표 · 선택 실행이 모두 여기로 온다.
@@ -348,7 +352,7 @@ export function ProjectDetailPage() {
           return;
         }
       }
-      const ex = await api.runTests(projectId, options);
+      const ex = start ? await start() : await api.runTests(projectId, options);
       setActiveExecutionId(ex.id);
       setSelectedExecutionId(ex.id);
       goTab('runs');
@@ -733,7 +737,7 @@ export function ProjectDetailPage() {
               projectId={projectId}
               refreshKey={executions.map((e) => `${e.id}:${e.status}`).join(',')}
               runDisabled={running || !!activeRun}
-              onRun={(options) => handleRun(options)}
+              onRerun={(items) => handleRun({}, () => api.defects.rerun(projectId, items))}
               onOpenExecution={handleSelectExecution}
             />
           )}

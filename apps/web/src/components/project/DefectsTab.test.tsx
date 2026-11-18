@@ -18,7 +18,7 @@ const defect = (over: Partial<Defect>): Defect => ({
   assignee: '윤재', assigneeUserId: 7, failCount: 2,
   firstFailedExecutionId: 3, firstFailedAt: null, lastExecutionId: 4, lastRunAt: null,
   resolvedExecutionId: null, resolvedAt: null, errorMessage: 'Timeout\n자세히', routeKeys: ['/login'],
-  runs: [{ executionId: 3, status: 'FAILED', at: null }, { executionId: 4, status: 'FAILED', at: null }],
+  runs: [{ executionId: 3, status: 'FAILED', at: null, rerunOf: null }, { executionId: 4, status: 'FAILED', at: null, rerunOf: 3 }],
   ...over,
 });
 
@@ -39,9 +39,9 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderTab(onRun = vi.fn(), onOpenExecution = vi.fn()) {
-  render(<DefectsTab projectId="p1" refreshKey="" onRun={onRun} onOpenExecution={onOpenExecution} />);
-  return { onRun, onOpenExecution };
+function renderTab(onRerun = vi.fn(), onOpenExecution = vi.fn()) {
+  render(<DefectsTab projectId="p1" refreshKey="" onRerun={onRerun} onOpenExecution={onOpenExecution} />);
+  return { onRerun, onOpenExecution };
 }
 
 describe('결함 탭', () => {
@@ -67,9 +67,9 @@ describe('결함 탭', () => {
     );
   });
 
-  it('고른 결함만 파일과 이름(정규식 이스케이프)으로 다시 실행한다', async () => {
+  it('고른 결함만 키(파일 · 이름)로 다시 실행한다', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { onRun } = renderTab();
+    const { onRerun } = renderTab();
     await screen.findByText('결제(카드)');
     const button = screen.getByRole('button', { name: /고른 0건 다시 실행/ }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
@@ -77,21 +77,58 @@ describe('결함 탭', () => {
     fireEvent.click(screen.getByLabelText('모두 고르기'));
     fireEvent.click(screen.getByRole('button', { name: /고른 2건 다시 실행/ }));
 
-    expect(onRun).toHaveBeenCalledWith({ specPaths: ['tests/a.spec.ts', 'tests/b.spec.ts'], grep: '로그인|결제\\(카드\\)' });
+    expect(onRerun).toHaveBeenCalledWith([
+      { specPath: 'tests/a.spec.ts', grep: '로그인' },
+      { specPath: 'tests/b.spec.ts', grep: '결제(카드)' },
+    ]);
+  });
+
+  it('실패만 다시 실행은 필터와 상관없이 미해결 전부를 빈 목록으로 보낸다', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { onRerun } = renderTab();
+    await screen.findByText('결제(카드)');
+    fireEvent.click(screen.getByRole('button', { name: /실패만 다시 실행/ }));
+    await waitFor(() => expect(onRerun).toHaveBeenCalledWith([]));
+    expect(confirm).toHaveBeenCalledWith('미해결 결함 2건을 모두 다시 실행할까요?');
+  });
+
+  it('실행 흐름 칸: 발견 → 다시 실행 → 해결, 누르면 그 실행으로', async () => {
+    vi.mocked(api.defects.list).mockResolvedValue({
+      defects: [defect({
+        status: 'RESOLVED', resolvedExecutionId: 5,
+        runs: [
+          { executionId: 3, status: 'FAILED', at: null, rerunOf: null },
+          { executionId: 4, status: 'FAILED', at: null, rerunOf: 3 },
+          { executionId: 5, status: 'PASSED', at: null, rerunOf: 4 },
+        ],
+      })],
+      open: 0,
+      resolved: 1,
+    });
+    const { onOpenExecution } = renderTab();
+    const flow = await screen.findByRole('list', { name: '로그인 실행 흐름' });
+    expect(flow.textContent).toBe('#3 발견→#4 실패 · 다시→#5 해결 · 다시');
+    fireEvent.click(screen.getByRole('button', { name: '#5 해결 · 다시' }));
+    expect(onOpenExecution).toHaveBeenCalledWith(5);
   });
 
   it('실행 중이면 다시 실행을 잠근다', async () => {
-    render(<DefectsTab projectId="p1" refreshKey="" runDisabled onRun={vi.fn()} onOpenExecution={vi.fn()} />);
+    render(<DefectsTab projectId="p1" refreshKey="" runDisabled onRerun={vi.fn()} onOpenExecution={vi.fn()} />);
     await screen.findByText('결제(카드)');
     fireEvent.click(screen.getByLabelText('모두 고르기'));
     expect((screen.getByRole('button', { name: /고른 2건 다시 실행/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /실패만 다시 실행/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('케이스 이름을 누르면 마지막으로 실패한 실행 결과로 간다', async () => {
     vi.mocked(api.defects.list).mockResolvedValue({
       defects: [defect({
         status: 'RESOLVED', lastExecutionId: 9, resolvedExecutionId: 5,
-        runs: [{ executionId: 3, status: 'FAILED', at: null }, { executionId: 4, status: 'FAILED', at: null }, { executionId: 5, status: 'PASSED', at: null }],
+        runs: [
+          { executionId: 3, status: 'FAILED', at: null, rerunOf: null },
+          { executionId: 4, status: 'FAILED', at: null, rerunOf: null },
+          { executionId: 5, status: 'PASSED', at: null, rerunOf: null },
+        ],
       })],
       open: 0,
       resolved: 1,
@@ -99,6 +136,5 @@ describe('결함 탭', () => {
     const { onOpenExecution } = renderTab();
     fireEvent.click(await screen.findByRole('button', { name: '로그인' }));
     expect(onOpenExecution).toHaveBeenCalledWith(4);
-    expect(screen.getByText('#5에서 해결')).toBeTruthy();
   });
 });

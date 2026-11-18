@@ -542,6 +542,9 @@ export const api = {
       ).toString();
       return request<import('@/types').DefectResponse>(`/api/projects/${projectId}/defects${q ? `?${q}` : ''}`);
     },
+    /** 고른 결함만 다시 실행하고 원래 실행에 잇는다. 빈 배열이면 미해결 결함 전부(실패만 다시 실행) (#82) */
+    rerun: (projectId: string, items: import('@/types').PlanItemKey[]) =>
+      request<Execution>(`/api/projects/${projectId}/defects/rerun`, { method: 'POST', body: JSON.stringify({ items }) }),
   },
 
   rounds: {

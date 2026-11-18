@@ -323,6 +323,8 @@ export interface Execution {
   startedAt: string | null;
   finishedAt: string | null;
   createdAt: string;
+  /** 결함 다시 실행이면 실패했던 원래 실행 (#82) */
+  rerunOf?: number | null;
 }
 
 /** N차 테스트. 사용자가 돌린 실행을 순서대로 센 것 (실행 이력에서 계산). */
@@ -1219,6 +1221,8 @@ export interface DefectRun {
   executionId: number;
   status: 'PASSED' | 'FAILED';
   at: string | null;
+  /** 결함 다시 실행이면 원래 실행 */
+  rerunOf: number | null;
 }
 
 export interface Defect extends PlanItemKey {

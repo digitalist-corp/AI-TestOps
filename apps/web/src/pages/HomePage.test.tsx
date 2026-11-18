@@ -15,7 +15,7 @@ vi.mock('@/api/client', () => ({
   api: {
     getProjects: vi.fn(),
     plan: { get: vi.fn() },
-    defects: { list: vi.fn() },
+    defects: { list: vi.fn(), rerun: vi.fn() },
     getUsers: vi.fn(),
     getRunnerContainers: vi.fn(),
     runTests: vi.fn(),
@@ -65,7 +65,7 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
   it('팀원: 내 프로젝트의 성공 · 실패 · 미수행과 실패 재실행', async () => {
     me = user('USER', [{ projectId: 'shop', role: 'MEMBER' }]);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    vi.mocked(api.runTests).mockResolvedValue({ id: 1 } as never);
+    vi.mocked(api.defects.rerun).mockResolvedValue({ id: 1 } as never);
     renderHome();
 
     expect(await screen.findByRole('heading', { name: '내 프로젝트' })).toBeTruthy();
@@ -77,7 +77,8 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     expect(screen.queryByText('쇼핑몰 · 결제')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: '쇼핑몰 실패 1건 다시 실행' }));
 
-    await waitFor(() => expect(api.runTests).toHaveBeenCalledWith('shop', { specPaths: ['a.spec.ts'], grep: '결제' }));
+    // 실패만 다시 실행 = 결함 다시 실행 API(빈 목록)로 원래 실행에 잇는다 (#83)
+    await waitFor(() => expect(api.defects.rerun).toHaveBeenCalledWith('shop', []));
     expect(screen.queryByRole('heading', { name: '전체 현황' })).toBeNull();
   });
 

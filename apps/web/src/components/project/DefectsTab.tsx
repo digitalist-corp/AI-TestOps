@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { api } from '@/api/client';
-import type { Defect, DefectFilter, DefectResponse, DefectStatus, ProjectMember, RunTestOptions, SiteMapNode, TestSuite } from '@/types';
+import type { Defect, DefectFilter, DefectResponse, DefectStatus, PlanItemKey, ProjectMember, SiteMapNode, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { screenName } from '@/lib/coverage';
-import { assigneeLabel, planKey, rerunOptions } from '@/lib/plan';
+import { assigneeLabel, planKey } from '@/lib/plan';
 import { cn, formatRelative } from '@/lib/utils';
 
 const selectClass = 'h-9 rounded-sm border border-border bg-card px-3 text-sm text-foreground hover:border-border-strong';
@@ -14,20 +14,21 @@ const lastFailedOf = (d: Defect) => [...d.runs].reverse().find((r) => r.status =
 
 /**
  * 통합 결함 리스트(F-4, #81). 결함 = 사용 중 계획 항목의 실패. 미해결 수는 첫 화면 · 대시보드와 같은 API(필터 없음)의 open 이다.
- * 골라서 다시 실행하면 기존 실행 경로(handleRun)를 쓴다.
+ * 다시 실행은 결함 다시 실행 API(#82)로 원래 실행에 잇는다. 빈 목록이면 미해결 전부(실패만 다시 실행).
  */
 export function DefectsTab({
   projectId,
   refreshKey,
   runDisabled = false,
-  onRun,
+  onRerun,
   onOpenExecution,
 }: {
   projectId: string;
   /** 실행이 생기거나 끝날 때 바뀌는 값. 바뀌면 다시 읽는다. */
   refreshKey: string;
   runDisabled?: boolean;
-  onRun: (options: RunTestOptions) => void;
+  /** 고른 결함. 빈 배열이면 미해결 결함 전부 */
+  onRerun: (items: PlanItemKey[]) => void;
   onOpenExecution: (executionId: number) => void;
 }) {
   const [filter, setFilter] = useState<DefectFilter>({ status: 'OPEN' });
@@ -81,11 +82,18 @@ export function DefectsTab({
 
   const set = (patch: Partial<DefectFilter>) => setFilter((f) => ({ ...f, ...patch }));
 
-  const rerun = () => {
-    const options = rerunOptions(picked);
-    if (!options) return;
+  const rerunPicked = () => {
+    if (picked.length === 0) return;
     if (!window.confirm(`고른 결함 ${picked.length}건을 다시 실행할까요?`)) return;
-    onRun(options);
+    onRerun(picked.map(({ specPath, grep }) => ({ specPath, grep })));
+  };
+
+  const rerunOpen = async () => {
+    // 필터와 상관없이 미해결 전부를 돌리므로 전체 수를 다시 센다.
+    const open = await api.defects.list(projectId).then((r) => r.open).catch(() => data?.open ?? 0);
+    if (open === 0) return;
+    if (!window.confirm(`미해결 결함 ${open}건을 모두 다시 실행할까요?`)) return;
+    onRerun([]);
   };
 
   return (
@@ -97,10 +105,16 @@ export function DefectsTab({
             계획 항목의 최근 실행이 실패면 미해결, 그 뒤 실행에서 성공하면 해결로 바뀌어요.
           </p>
         </div>
-        <Button size="sm" disabled={picked.length === 0 || runDisabled} onClick={rerun}>
-          <RotateCcw className="h-4 w-4" />
-          고른 {picked.length}건 다시 실행
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={runDisabled} onClick={rerunOpen}>
+            <RotateCcw className="h-4 w-4" />
+            실패만 다시 실행
+          </Button>
+          <Button size="sm" disabled={picked.length === 0 || runDisabled} onClick={rerunPicked}>
+            <RotateCcw className="h-4 w-4" />
+            고른 {picked.length}건 다시 실행
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -174,7 +188,7 @@ export function DefectsTab({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[960px] text-sm">
+          <table className="w-full min-w-[1120px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-muted-foreground">
                 <th className="w-10 px-3 py-2">
@@ -191,7 +205,7 @@ export function DefectsTab({
                 <th className="px-3 py-2 font-medium">담당자</th>
                 <th className="px-3 py-2 text-right font-medium">실패</th>
                 <th className="px-3 py-2 font-medium">처음 발견</th>
-                <th className="px-3 py-2 font-medium">마지막 실행</th>
+                <th className="px-3 py-2 font-medium">실행 흐름</th>
                 <th className="px-3 py-2 font-medium">오류</th>
               </tr>
             </thead>
@@ -239,11 +253,8 @@ export function DefectsTab({
                       <ExecutionLink id={d.firstFailedExecutionId} onOpen={onOpenExecution} />
                       <span className="ml-1 text-xs text-muted-foreground">{formatRelative(d.firstFailedAt)}</span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      <ExecutionLink id={d.lastExecutionId} onOpen={onOpenExecution} />
-                      {d.resolvedExecutionId != null && (
-                        <span className="ml-1 text-xs text-success">#{d.resolvedExecutionId}에서 해결</span>
-                      )}
+                    <td className="px-3 py-2">
+                      <RunFlow defect={d} onOpen={onOpenExecution} />
                     </td>
                     <td className="max-w-[240px] px-3 py-2">
                       <p className="truncate text-xs text-muted-foreground" title={d.errorMessage ?? ''}>
@@ -258,6 +269,31 @@ export function DefectsTab({
         </div>
       )}
     </div>
+  );
+}
+
+/** 발견 실행 → 다시 실행 → 해결. 다시 실행한 실행에는 "다시" 표시, 해결한 실행에는 "해결". */
+function RunFlow({ defect, onOpen }: { defect: Defect; onOpen: (id: number) => void }) {
+  return (
+    <ol aria-label={`${defect.title} 실행 흐름`} className="flex flex-wrap items-center gap-1 text-xs">
+      {defect.runs.map((r, i) => (
+        <li key={r.executionId} className="flex items-center gap-1">
+          {i > 0 && <span className="text-muted-foreground">→</span>}
+          <button
+            type="button"
+            onClick={() => onOpen(r.executionId)}
+            title={r.rerunOf ? `#${r.rerunOf}의 실패를 다시 실행` : undefined}
+            className={cn(
+              'rounded px-1.5 py-0.5 font-medium hover:underline',
+              r.status === 'FAILED' ? 'bg-destructive/10 text-destructive' : 'bg-success/10 text-success',
+            )}
+          >
+            #{r.executionId} {r.status === 'FAILED' ? (i === 0 ? '발견' : '실패') : '해결'}
+            {r.rerunOf ? ' · 다시' : ''}
+          </button>
+        </li>
+      ))}
+    </ol>
   );
 }
 
