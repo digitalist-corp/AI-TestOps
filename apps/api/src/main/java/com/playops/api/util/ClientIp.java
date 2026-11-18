@@ -16,8 +16,12 @@ public final class ClientIp {
 
     private ClientIp() {}
 
-    /** IP 문자만 — 이름이면 InetAddress 가 DNS 를 찾지 않게 걸러 낸다 */
-    private static final Pattern IP_LITERAL = Pattern.compile("(\\d{1,3}\\.){3}\\d{1,3}|[0-9a-fA-F]*:[0-9a-fA-F:.]*");
+    /**
+     * 주소 모양만 — 이름이나 범위를 넘는 IPv4(999.1.1.1)는 InetAddress 가 DNS 를 찾으므로 걸러 낸다.
+     * ':' 가 든 값은 InetAddress 가 IPv6 리터럴로만 읽는다.
+     */
+    private static final Pattern IP_LITERAL = Pattern.compile(
+            "((25[0-5]|2[0-4]\\d|1?\\d?\\d)\\.){3}(25[0-5]|2[0-4]\\d|1?\\d?\\d)|[0-9a-fA-F]*:[0-9a-fA-F:.]*");
 
     public static String of(HttpServletRequest request) {
         String remote = request.getRemoteAddr();

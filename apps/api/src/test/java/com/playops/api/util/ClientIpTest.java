@@ -49,5 +49,7 @@ class ClientIpTest {
         assertThat(ip("172.18.0.2", "unknown, 203.0.113.7")).isEqualTo("203.0.113.7");
         assertThat(ip("172.18.0.2", "not-an-ip")).isEqualTo("172.18.0.2");
         assertThat(ip("172.18.0.2", "cafe")).isEqualTo("172.18.0.2"); // 헥사 글자뿐인 이름도 주소로 보지 않는다 (DNS 조회 없음)
+        // 범위를 넘는 IPv4 모양은 주소가 아니다 — InetAddress 가 이름으로 보고 DNS 를 찾지 않게 (최종 리뷰)
+        assertThat(ip("172.18.0.2", "999.1.1.1")).isEqualTo("172.18.0.2");
     }
 }
