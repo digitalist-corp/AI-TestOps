@@ -35,9 +35,16 @@ const login = async (page: Page) => {
   await page.goto('/login');
   await page.fill('#username', SELFTEST_USERNAME);
   await fillSecret(page, '#password', SELFTEST_PASSWORD);
-  await page.click('button[type="submit"]');
-  // 로그인하면 역할별 첫 화면(/home)으로 간다. 이 스위트는 프로젝트 목록에서 시작한다.
-  await page.waitForURL('**/home');
+  try {
+    await page.click('button[type="submit"]');
+    // 로그인하면 역할별 첫 화면(/home)으로 간다. 이 스위트는 프로젝트 목록에서 시작한다.
+    await page.waitForURL('**/home');
+  } catch (err) {
+    // 실패하면 Playwright 가 페이지 접근성 스냅샷(error-context)을 리포트에 붙이는데, 비밀번호 칸 값이 그대로 들어간다 (#157).
+    // 로그인 화면에 남아 있으면 칸을 비우고 다시 던진다.
+    await fillSecret(page, '#password', '').catch(() => {});
+    throw err;
+  }
   await page.goto('/projects');
   await expect(page.locator('h2:has-text("프로젝트")')).toBeVisible();
 };
