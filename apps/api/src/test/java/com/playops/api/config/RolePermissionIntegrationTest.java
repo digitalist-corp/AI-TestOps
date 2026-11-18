@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "playops.projects-root=build/tmp/roles-projects",
         "playops.storage-root=build/tmp/roles-storage",
         "LOGIN_USERNAME=admin",
-        "LOGIN_PASSWORD=admin"
+        "LOGIN_PASSWORD=admin-test-pass-1"
 })
 @AutoConfigureMockMvc
 class RolePermissionIntegrationTest {
@@ -82,9 +82,18 @@ class RolePermissionIntegrationTest {
         return mvc.perform(req.contentType(MediaType.APPLICATION_JSON)).andReturn().getResponse().getStatus();
     }
 
+    /**
+     * 앱이 뜨기 전에 프로젝트 폴더를 비운다. 지난 실행의 시연 spec 이 남아 있으면 DemoDataSeeder 가
+     * 계획 칸(담당자 · 마감일)을 채우지 않아 두 번째 실행부터 실패한다.
+     */
+    @org.junit.jupiter.api.BeforeAll
+    static void cleanProjectsRoot() throws Exception {
+        org.springframework.util.FileSystemUtils.deleteRecursively(java.nio.file.Path.of("build/tmp/roles-projects"));
+    }
+
     @BeforeEach
     void setUp() throws Exception {
-        admin = call(post("/api/auth/login").content("{\"username\":\"admin\",\"password\":\"admin\"}"), null, 200)
+        admin = call(post("/api/auth/login").content("{\"username\":\"admin\",\"password\":\"admin-test-pass-1\"}"), null, 200)
                 .get("token").asText();
         String name = "m" + UUID.randomUUID().toString().substring(0, 8);
         // 가입은 IP당 분당 5회라 테스트마다 다른 주소에서 가입한다
@@ -247,6 +256,60 @@ class RolePermissionIntegrationTest {
         assertThat(status(delete("/api/projects/example.com"), member)).isEqualTo(403);
     }
 
+    /**
+     * "게스트로 시작"은 비밀번호 없이 누구나 들어오는 공용 계정이라 둘러보기만 한다 (자체 리뷰 1위).
+     * 시연 실행을 취소하거나 AI 비용을 쓰지 못하게 서버가 막는다. 자기 알림 비우기 · 로그아웃은 된다.
+     */
+    @Test
+    void guestCanOnlyLookAround() throws Exception {
+        String guest = call(post("/api/auth/guest"), null, 200).get("token").asText();
+
+        call(get("/api/projects/example.com"), guest, 200);
+        JsonNode run = call(post("/api/projects/example.com/executions").content("{}"), guest, 403);
+        assertThat(run.get("error").get("code").asText()).isEqualTo("GUEST_READ_ONLY");
+        for (MockHttpServletRequestBuilder write : List.of(
+                post("/api/projects/example.com/execution/1/cancel"),
+                post("/api/ai/chat").content("{\"message\":\"hi\"}"),
+                delete("/api/ai/chat/sessions/1"),
+                put("/api/projects/example.com").content("{}"),
+                delete("/api/notifications-settings"))) {
+            assertThat(call(write, guest, 403).get("error").get("code").asText()).isEqualTo("GUEST_READ_ONLY");
+        }
+
+        assertThat(status(delete("/api/notifications"), guest)).isEqualTo(204);
+        assertThat(status(post("/api/auth/logout"), guest)).isEqualTo(204);
+    }
+
+    /** 'AI로 만들기' 의 spec 경로가 프로젝트 밖(절대 경로)을 가리키면 거절한다 (자체 리뷰 2위). */
+    @Test
+    void aiGeneratedSpecPathMustStayInsideTheProject() throws Exception {
+        for (String path : List.of("/etc/cron.d/x.spec.ts", "tests/../../x.spec.ts")) {
+            JsonNode res = call(post("/api/projects/example.com/ai-jobs/template-generate")
+                    .content("{\"targetSpecPath\":\"" + path + "\",\"instruction\":\"첫 화면\"}"), admin, 400);
+            assertThat(res.get("message").asText()).as(path).contains("프로젝트 안");
+        }
+        // 같은 구멍의 다른 입구: 실패 수정(CODE_FIX) 작업 · 편집 도움 확인 실행. 러너가 root 로 경로를 그대로 쓴다.
+        JsonNode fix = call(post("/api/projects/example.com/ai-jobs")
+                .content("{\"targetSpecPath\":\"../other/tests/x.spec.ts\",\"instruction\":\"고쳐\"}"), admin, 400);
+        assertThat(fix.get("message").asText()).contains("프로젝트 안");
+        JsonNode verify = call(post("/api/projects/example.com/ai/edit-assist/verify")
+                .content("{\"filePath\":\"/tmp/x.spec.ts\",\"proposedContent\":\"x\"}"), admin, 400);
+        assertThat(verify.get("message").asText()).contains("프로젝트 안");
+    }
+
+    /** AI 제공자 키는 관리자만 보고 바꾼다 (3-1 보안). 팀원도, 프로젝트 PM 도 403. */
+    @Test
+    void aiProviderSettingsAreAdminOnly() throws Exception {
+        assertThat(status(get("/api/admin/ai-provider-settings"), member)).isEqualTo(403);
+        assertThat(status(put("/api/admin/ai-provider-settings").content("{}"), member)).isEqualTo(403);
+
+        call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
+        assertThat(status(get("/api/admin/ai-provider-settings"), member)).isEqualTo(403);
+        assertThat(status(put("/api/admin/ai-provider-settings").content("{}"), member)).isEqualTo(403);
+
+        assertThat(status(get("/api/admin/ai-provider-settings"), admin)).isEqualTo(200);
+    }
+
     @Test
     void pmCanEditThePlanButNotDeleteTheProject() throws Exception {
         call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
@@ -314,8 +377,9 @@ class RolePermissionIntegrationTest {
 
     @Test
     void pmSetsProjectPeriodAndStatusButTeamMemberCannot() throws Exception {
-        assertThat(call(get("/api/projects/example.com"), member, 200).get("status").asText()).isEqualTo("PLANNED");
-        assertThat(status(put("/api/projects/example.com").content("{\"status\":\"RUNNING\"}"), member)).isEqualTo(403);
+        // 시연 프로젝트는 '실행' 상태로 채워진다 (3-1)
+        assertThat(call(get("/api/projects/example.com"), member, 200).get("status").asText()).isEqualTo("RUNNING");
+        assertThat(status(put("/api/projects/example.com").content("{\"status\":\"CLOSED\"}"), member)).isEqualTo(403);
 
         call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
         JsonNode saved = call(put("/api/projects/example.com")

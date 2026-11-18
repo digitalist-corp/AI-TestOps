@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
     boolean existsByUsername(String username);
+    boolean existsByRole(com.playops.api.entity.UserRole role);
     long countByRole(UserRole role);
     long countByRoleAndEnabledTrue(UserRole role);
 

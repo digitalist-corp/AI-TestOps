@@ -112,6 +112,10 @@ public class AiJobService {
 
     public AiJob createCodeFixJob(String projectId, Long failedExecutionId, String targetSpecPath, String instruction, Long requestedBy) {
         Project project = projectService.getProject(projectId);
+        // 러너는 이 경로를 그대로 써서 반복 중에 파일을 고친다. 프로젝트 밖이면 승인 전에 다른 프로젝트 파일이 바뀐다.
+        if (targetSpecPath != null && !targetSpecPath.isBlank() && escapesProject(targetSpecPath.trim())) {
+            throw new ApiException(400, "spec 경로는 프로젝트 안의 상대 경로여야 합니다 (예: tests/login.spec.ts).");
+        }
 
         AiJob job = new AiJob();
         job.setProjectId(projectId);
@@ -185,8 +189,8 @@ public class AiJobService {
             throw new ApiException(400, "생성할 spec 파일 경로를 입력하세요.");
         }
         String normalizedPath = targetSpecPath.trim();
-        if (normalizedPath.contains("..")) {
-            throw new ApiException(400, "spec 경로에 '..'를 사용할 수 없습니다.");
+        if (escapesProject(normalizedPath)) {
+            throw new ApiException(400, "spec 경로는 프로젝트 안의 상대 경로여야 합니다 (예: tests/login.spec.ts).");
         }
         if (instruction == null || instruction.isBlank()) {
             throw new ApiException(400, "생성할 시나리오에 대한 요구사항을 입력하세요.");
@@ -464,6 +468,19 @@ public class AiJobService {
         }
     }
 
+    /** AI 가 바꾸는 파일 경로가 프로젝트 폴더 밖(절대 경로, ../)을 가리키는가. 생성 요청 · 러너 결과 · 반영이 함께 쓴다. */
+    static boolean escapesProject(String file) {
+        if (file == null || file.isBlank()) return true;
+        try {
+            Path base = Path.of("/project");
+            Path path = Path.of(file);
+            Path resolved = base.resolve(path).normalize();
+            return path.isAbsolute() || !resolved.startsWith(base) || resolved.equals(base);
+        } catch (java.nio.file.InvalidPathException e) {
+            return true;
+        }
+    }
+
     private String safeFileName(String targetSpecPath) {
         return targetSpecPath.replace("/", "__").replace("\\", "__");
     }
@@ -499,6 +516,12 @@ public class AiJobService {
      */
     private void applyDiff(AiJob job, Project project) {
         List<String> changedFiles = parseChangedFiles(job);
+        // 반영은 여기서 한다. 앞 단계를 어떻게 지나왔든 프로젝트 밖에는 쓰지 않는다. 일부만 반영되지 않게 먼저 전부 본다.
+        for (String file : changedFiles) {
+            if (escapesProject(file)) {
+                throw new ApiException(400, "프로젝트 안의 파일만 반영할 수 있습니다: " + file);
+            }
+        }
         Path snapshotDir = aiRunnerDockerService.aiJobDir(job.getId()).resolve("pre-apply-snapshot");
         try {
             Files.createDirectories(snapshotDir);
@@ -537,6 +560,10 @@ public class AiJobService {
         List<String> violations = new ArrayList<>();
 
         for (String file : changedFiles) {
+            if (escapesProject(file)) {
+                violations.add(file);
+                continue;
+            }
             Path relative = Path.of(file);
             boolean isDenied = denied.stream().anyMatch(glob -> matches(relative, glob));
             boolean isAllowed = allowed.isEmpty() || allowed.stream().anyMatch(glob -> matches(relative, glob));

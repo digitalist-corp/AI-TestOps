@@ -26,12 +26,16 @@ services:
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-playops}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-playops}
       LOGIN_USERNAME: ${LOGIN_USERNAME:-admin}
-      LOGIN_PASSWORD: ${LOGIN_PASSWORD:-admin}
+      # 비었거나 admin 이면 관리자를 admin 으로 만들고 첫 로그인에 비밀번호를 바꾸게 한다 (최초 생성에만 씀)
+      LOGIN_PASSWORD: ${LOGIN_PASSWORD:-}
       GUEST_USERNAME: ${GUEST_USERNAME:-guest}
       GUEST_PASSWORD: ${GUEST_PASSWORD:-}
       # 시연용 PM 계정 (시연 프로젝트 PM). 비밀번호가 비면 만들지 않는다
       DEMO_PM_USERNAME: ${DEMO_PM_USERNAME:-demo-pm}
       DEMO_PM_PASSWORD: ${DEMO_PM_PASSWORD:-}
+      # 셀프 회귀(playops-self) 전용 관리자 계정. 비밀번호가 비면 만들지 않는다
+      SELFTEST_USERNAME: ${SELFTEST_USERNAME:-selftest}
+      SELFTEST_PASSWORD: ${SELFTEST_PASSWORD:-}
       PLAYOPS_PROJECTS_ROOT: /playwright-projects
       PLAYOPS_STORAGE_ROOT: /storage
       PLAYOPS_DOCKER_ENABLED: ${PLAYOPS_DOCKER_ENABLED:-true}

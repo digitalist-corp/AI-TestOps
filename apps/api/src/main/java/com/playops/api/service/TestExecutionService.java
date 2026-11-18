@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -60,6 +61,27 @@ public class TestExecutionService {
     private final LoginSessionService loginSessionService;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final Map<Long, Process> activeProcesses = new ConcurrentHashMap<>();
+
+    /** 셀프 회귀(playops-self) 전용 계정. DataLoader 가 같은 값으로 계정을 만든다 (3-1 보안). */
+    @org.springframework.beans.factory.annotation.Value("${SELFTEST_USERNAME:selftest}")
+    private String selftestUsername = "selftest";
+
+    @org.springframework.beans.factory.annotation.Value("${SELFTEST_PASSWORD:}")
+    private String selftestPassword = "";
+
+    /**
+     * playops-self 실행에만 셀프 회귀 계정을 넘긴다. 비밀번호 값은 docker exec 인자(ps · 로그에 보임)에 넣지 않고
+     * 이 프로세스의 환경에 두어 `-e SELFTEST_PASSWORD` 로 이름만 넘긴다 (#157).
+     */
+    static void addSelfTestCredentials(String projectId, List<String> command, Map<String, String> processEnv,
+                                       String username, String password) {
+        if (!"playops-self".equals(projectId) || password == null || password.isBlank()) return;
+        command.add("-e");
+        command.add("SELFTEST_USERNAME=" + username);
+        command.add("-e");
+        command.add("SELFTEST_PASSWORD");
+        processEnv.put("SELFTEST_PASSWORD", password);
+    }
 
     public TestExecutionService(
             ExecutionRepository executionRepository,
@@ -375,6 +397,8 @@ public class TestExecutionService {
             command.add("-e");
             command.add(entry.getKey() + "=" + entry.getValue());
         }
+        Map<String, String> processEnv = new HashMap<>();
+        addSelfTestCredentials(project.getProjectId(), command, processEnv, selftestUsername, selftestPassword);
         command.add("-e");
         command.add("NODE_VERSION=" + (project.getNodeVersion() != null ? project.getNodeVersion() : ""));
         command.add("-e");
@@ -399,6 +423,7 @@ public class TestExecutionService {
         }
 
         ProcessBuilder pb = new ProcessBuilder(command);
+        pb.environment().putAll(processEnv);
         pb.redirectErrorStream(true);
         Process process = pb.start();
         activeProcesses.put(execution.getId(), process);

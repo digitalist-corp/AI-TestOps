@@ -9,6 +9,7 @@
 #   2. 계획 표의 모든 항목을 '사용'으로 되돌린다
 #   3. 시연 프로젝트를 한 번 실행하고(실행 중이면 끝날 때까지 기다림) 끝나기를 기다린다
 #   4. 미해결 결함이 1건('문의하기 링크가 보인다')인지 확인한다 — 아니면 실패로 끝낸다
+#   그 밖에 프로젝트 상태를 '실행'으로 두고, 끝나면 게스트 계정의 알림을 비운다 (3-1)
 # 비밀번호는 화면 · 로그에 찍지 않는다.
 set -euo pipefail
 
@@ -30,6 +31,9 @@ TOKEN=$(jq -n --arg u "$USERNAME" --arg p "$PASSWORD" '{username:$u,password:$p}
 [ -n "$TOKEN" ] || { echo "시연 PM 로그인 실패 ($USERNAME)" >&2; exit 1; }
 AUTH="Authorization: Bearer $TOKEN"
 API="$BASE_URL/api/projects/$PROJECT"
+
+echo "0/4 프로젝트 상태 '실행'"
+curl -sf -X PUT "$API" -H "$AUTH" -H 'Content-Type: application/json' -d '{"status":"RUNNING"}' >/dev/null
 
 echo "1/4 시연 spec 되돌리기"
 jq -n --rawfile c "$SPEC_SOURCE" '{content:$c}' \
@@ -63,4 +67,12 @@ OPEN=$(jq '.open' <<<"$DEFECTS")
 echo "   미해결 결함 ${OPEN}건: $(jq -r '[.defects[].title] | join(", ")' <<<"$DEFECTS")"
 [ "$OPEN" = 1 ] && [ "$(jq -r '.defects[0].title' <<<"$DEFECTS")" = "문의하기 링크가 보인다" ] \
   || { echo "원래 상태(미해결 결함 1건)가 아닙니다." >&2; exit 1; }
+# 게스트로 들어가 게스트 알림을 비운다 (시연 · 리허설 실행마다 쌓여 9+ 로 보이던 것)
+GUEST_TOKEN=$(curl -sf -X POST "$BASE_URL/api/auth/guest" | jq -r '.token // empty' || true)
+if [ -n "$GUEST_TOKEN" ]; then
+  curl -sf -X DELETE "$BASE_URL/api/notifications" -H "Authorization: Bearer $GUEST_TOKEN" >/dev/null && echo "   게스트 알림 비움"
+  curl -sf -X POST "$BASE_URL/api/auth/logout" -H "Authorization: Bearer $GUEST_TOKEN" >/dev/null || true
+else
+  echo "   게스트 계정이 없어 알림 정리를 건너뜀"
+fi
 echo "되돌림 완료"

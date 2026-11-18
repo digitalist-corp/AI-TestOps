@@ -76,6 +76,23 @@ jobs:
             echo "::notice::시연 PM 비밀번호를 서버 .env 에 새로 만들었습니다 (DEMO_PM_PASSWORD, 값은 서버에서 확인)"
           fi
 
+          # 관리자 기본 비밀번호 제거(3-1): LOGIN_PASSWORD 가 없거나 비었거나 admin 일 때만 무작위 값으로 바꾼다.
+          # 다른 값이면 절대 건드리지 않는다. 기동할 때 DB 관리자 비밀번호가 아직 admin 이면 이 값으로 바뀐다(DataLoader).
+          CUR_LOGIN_PASSWORD=$(grep -E '^LOGIN_PASSWORD=' .env | tail -1 | cut -d= -f2- | tr -d "\r\"'" || true)
+          if [ -z "$CUR_LOGIN_PASSWORD" ] || [ "$CUR_LOGIN_PASSWORD" = admin ]; then
+            sed -i '/^LOGIN_PASSWORD=/d' .env
+            echo "LOGIN_PASSWORD=$(openssl rand -hex 16)" >> .env
+            echo "::notice::서버 .env 의 LOGIN_PASSWORD 를 무작위 값으로 바꿨습니다. DB 관리자 비밀번호가 아직 admin 이면 기동할 때 이 값으로 바뀝니다 (값은 서버에서 확인)"
+          fi
+          unset CUR_LOGIN_PASSWORD
+          # 셀프 회귀 전용 계정: 없거나 비었을 때만 만든다
+          grep -qE '^SELFTEST_USERNAME=.+' .env || { sed -i '/^SELFTEST_USERNAME=/d' .env; echo "SELFTEST_USERNAME=selftest" >> .env; }
+          if ! grep -qE '^SELFTEST_PASSWORD=.+' .env; then
+            sed -i '/^SELFTEST_PASSWORD=/d' .env
+            echo "SELFTEST_PASSWORD=$(openssl rand -hex 16)" >> .env
+            echo "::notice::셀프 회귀 계정 비밀번호를 서버 .env 에 새로 만들었습니다 (SELFTEST_PASSWORD)"
+          fi
+
           MISSING=$(comm -23 \
             <(grep -oE '^[A-Z_][A-Z0-9_]*' .env.example | sort -u) \
             <(grep -oE '^[A-Z_][A-Z0-9_]*' .env | sort -u) || true)
@@ -180,12 +197,12 @@ jobs:
             exit 1
           fi
 
-          LOGIN_USER=$(grep -E '^LOGIN_USERNAME=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_USER=${LOGIN_USER:-admin}
-          LOGIN_PASS=$(grep -E '^LOGIN_PASSWORD=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_PASS=${LOGIN_PASS:-admin}
+          # 셀프 회귀 전용 계정으로 로그인한다 (진짜 관리자 계정은 쓰지 않는다, 3-1)
+          LOGIN_USER=$(grep -E '^SELFTEST_USERNAME=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_USER=${LOGIN_USER:-selftest}
+          LOGIN_PASS=$(grep -E '^SELFTEST_PASSWORD=' .env | cut -d= -f2- | tr -d '\r\n' || true)
 
-          TOKEN=$(curl -sf -X POST "$API/api/auth/login" \
-            -H 'Content-Type: application/json' \
-            -d "{\"username\":\"$LOGIN_USER\",\"password\":\"$LOGIN_PASS\"}" | jq -r '.token // empty' | tr -d '\r\n')
+          TOKEN=$(jq -n --arg u "$LOGIN_USER" --arg p "$LOGIN_PASS" '{username:$u,password:$p}' \
+            | curl -sf -X POST "$API/api/auth/login" -H 'Content-Type: application/json' -d @- | jq -r '.token // empty' | tr -d '\r\n')
 
           if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
             echo "::error::self-test 게이트: 로그인 실패, 토큰을 받지 못했습니다."
@@ -254,8 +271,9 @@ jobs:
           set +e -uo pipefail  # 중간 실패로 끊지 않고 끝까지 로그를 남긴다
           cd /home/playops/playops
           API=http://localhost:8080
-          LOGIN_USER=$(grep -E '^LOGIN_USERNAME=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_USER=${LOGIN_USER:-admin}
-          LOGIN_PASS=$(grep -E '^LOGIN_PASSWORD=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_PASS=${LOGIN_PASS:-admin}
+          # 시연 PM 으로 로그인한다 (시연 프로젝트 PM, 관리자 계정은 쓰지 않는다, 3-1)
+          LOGIN_USER=$(grep -E '^DEMO_PM_USERNAME=' .env | cut -d= -f2- | tr -d '\r\n' || true); LOGIN_USER=${LOGIN_USER:-demo-pm}
+          LOGIN_PASS=$(grep -E '^DEMO_PM_PASSWORD=' .env | cut -d= -f2- | tr -d '\r\n' || true)
           TOKEN=$(jq -n --arg u "$LOGIN_USER" --arg p "$LOGIN_PASS" '{username:$u,password:$p}' \
             | curl -sf -X POST "$API/api/auth/login" -H 'Content-Type: application/json' -d @- | jq -r '.token // empty' | tr -d '\r\n')
           [ -n "$TOKEN" ] || { echo "::warning::시연 데이터: 로그인 실패"; exit 1; }
