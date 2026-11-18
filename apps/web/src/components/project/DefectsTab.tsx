@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, RotateCcw } from 'lucide-react';
 import { api } from '@/api/client';
-import type { Defect, DefectFilter, DefectResponse, DefectStatus, PlanItemKey, ProjectMember, SiteMapNode, TestSuite } from '@/types';
+import type { CaseFocus, Defect, DefectFilter, DefectResponse, DefectStatus, PlanItemKey, ProjectMember, SiteMapNode, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { screenName } from '@/lib/coverage';
 import { assigneeLabel, planKey } from '@/lib/plan';
@@ -29,7 +29,8 @@ export function DefectsTab({
   runDisabled?: boolean;
   /** 고른 결함. 빈 배열이면 미해결 결함 전부 */
   onRerun: (items: PlanItemKey[]) => void;
-  onOpenExecution: (executionId: number) => void;
+  /** focus 가 있으면 결과 화면에서 그 케이스의 실패 단계로 바로 간다 (#85) */
+  onOpenExecution: (executionId: number, focus?: CaseFocus) => void;
 }) {
   const [filter, setFilter] = useState<DefectFilter>({ status: 'OPEN' });
   const [data, setData] = useState<DefectResponse | null>(null);
@@ -221,8 +222,12 @@ export function DefectsTab({
                       <button
                         type="button"
                         className="text-left font-medium text-foreground hover:underline"
-                        title="실패한 실행 결과 보기"
-                        onClick={() => onOpenExecution(lastFailedOf(d))}
+                        title="실패한 단계 보기"
+                        onClick={() => onOpenExecution(lastFailedOf(d), {
+                          specPath: d.specPath,
+                          // 같은 파일의 다른 묶음에 같은 제목이 있어도 하나만 펼치게 묶음까지
+                          title: [d.describePath, d.title].filter(Boolean).join(' > '),
+                        })}
                       >
                         {d.title}
                       </button>

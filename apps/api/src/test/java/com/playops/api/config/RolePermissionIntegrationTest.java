@@ -163,6 +163,25 @@ class RolePermissionIntegrationTest {
         assertThat(status(get("/api/projects/example.com/executions/" + other.getId() + "/steps"), member)).isEqualTo(404);
     }
 
+    /** 시연 데이터 (#87): 기본 점검 3 + 시연 2, 계획 칸이 채워지고 실패할 케이스는 기한 지남 · 높음 */
+    @Test
+    void demoProjectIsSeededWithPlanColumns() throws Exception {
+        JsonNode items = call(get("/api/projects/example.com/plan"), member, 200).get("items");
+        List<String> titles = new ArrayList<>();
+        items.forEach(i -> titles.add(i.get("title").asText()));
+        assertThat(titles).contains("첫 화면이 열린다", "첫 화면에 스크립트 오류가 없다", "첫 화면의 내부 링크가 열린다",
+                "본문 제목이 보인다", "문의하기 링크가 보인다");
+        for (JsonNode i : items) {
+            if (i.get("title").asText().equals("결함 다시 실행 확인")) continue; // 다른 테스트가 만든 파일
+            assertThat(i.get("assigneeUserId").isNull()).as(i.get("title").asText()).isFalse();
+            assertThat(i.get("dueDate").isNull()).isFalse();
+            if (i.get("title").asText().equals("문의하기 링크가 보인다")) {
+                assertThat(java.time.LocalDate.parse(i.get("dueDate").asText())).isBefore(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+                assertThat(i.get("priority").asText()).isEqualTo("HIGH");
+            }
+        }
+    }
+
     @Test
     void teamMemberCannotEditThePlan() throws Exception {
         assertThat(status(patch("/api/projects/example.com/plan/items")

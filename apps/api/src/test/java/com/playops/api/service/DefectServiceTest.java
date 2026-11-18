@@ -11,6 +11,7 @@ import com.playops.api.entity.TestSuite;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.repository.TestSuiteRepository;
+import com.playops.api.util.PlaywrightGrep;
 import com.playops.api.service.PlanService.Tracked;
 import com.playops.api.service.SiteCoverageService.Coverage;
 import com.playops.api.service.SiteCoverageService.CoverageFlow;
@@ -186,7 +187,7 @@ class DefectServiceTest {
 
         service.rerun("p1", null);
 
-        verify(executionQueryService).triggerRun(eq("p1"), eq("결제|로그인\\(관리자\\)"), isNull(),
+        verify(executionQueryService).triggerRun(eq("p1"), eq(PlaywrightGrep.testTitle("tests/b.spec.ts", "결제") + "|" + PlaywrightGrep.testTitle("tests/a.spec.ts", "로그인(관리자)")), isNull(),
                 eq(List.of("tests/b.spec.ts", "tests/a.spec.ts")), eq("결함 다시 실행 2건"), eq(false), eq(4L));
     }
 
@@ -195,7 +196,7 @@ class DefectServiceTest {
         threeDefects();
 
         service.rerun("p1", List.of(new ItemKey("tests/a.spec.ts", "해결됨")));
-        verify(executionQueryService).triggerRun(eq("p1"), eq("해결됨"), isNull(),
+        verify(executionQueryService).triggerRun(eq("p1"), eq(PlaywrightGrep.testTitle("tests/a.spec.ts", "해결됨")), isNull(),
                 eq(List.of("tests/a.spec.ts")), eq("결함 다시 실행 1건"), eq(false), eq(1L));
 
         assertThatThrownBy(() -> service.rerun("p1", List.of(new ItemKey("tests/a.spec.ts", "없는 케이스"))))
@@ -243,8 +244,8 @@ class DefectServiceTest {
         }
         when(planService.tracked("p1")).thenReturn(many);
         service.rerun("p1", null);
-        // 파일 목록도 넘치면 사용 중 전체를 이름으로 거른다
-        verify(executionQueryService).triggerRun(eq("p1"), eq("가"), isNull(),
+        // 이름 · 파일 목록이 둘 다 넘치면 사용 중 전체를 돌린다 (더 돌 뿐 결과는 맞다)
+        verify(executionQueryService).triggerRun(eq("p1"), isNull(), isNull(),
                 eq(List.of()), eq("결함 다시 실행 40건"), eq(false), eq(1L));
     }
 }

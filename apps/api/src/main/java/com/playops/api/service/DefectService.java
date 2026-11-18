@@ -12,6 +12,7 @@ import com.playops.api.entity.TestSuite;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.repository.TestSuiteRepository;
+import com.playops.api.util.PlaywrightGrep;
 import com.playops.api.service.PlanService.Tracked;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -119,7 +120,7 @@ public class DefectService {
             }
         }
         if (chosen.isEmpty()) throw new ApiException(400, "다시 실행할 결함이 없습니다.");
-        String grep = String.join("|", chosen.stream().map(d -> escapeRegex(d.grep())).distinct().toList());
+        String grep = PlaywrightGrep.anyOf(chosen.stream().map(d -> PlaywrightGrep.testTitle(d.specPath(), d.grep())).distinct().toList());
         List<String> specPaths = chosen.stream().map(Defect::specPath).distinct().toList();
         // 칸을 넘으면 막지 않고 넓혀서 돌린다: 이름이 넘치면 파일 단위, 파일 목록이 넘치면 사용 중 전체(이름으로 거름).
         // 더 많이 돌 뿐 결과는 맞다 — 사이트가 죽어 전부 실패했을 때 "실패만 다시 실행"이 막히지 않게.
@@ -201,11 +202,6 @@ public class DefectService {
         } catch (PatternSyntaxException e) {
             return full.contains(grep);
         }
-    }
-
-    /** Playwright --grep 은 JS 정규식이라 웹 lib/plan.ts escapeRegex 와 같은 글자를 이스케이프한다. */
-    static String escapeRegex(String s) {
-        return s.replaceAll("[.*+?^${}()|\\[\\]\\\\]", "\\\\$0");
     }
 
     static boolean samePath(String a, String b) {

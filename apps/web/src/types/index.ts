@@ -1214,6 +1214,45 @@ export interface PlanItemKey {
   grep: string;
 }
 
+/** 케이스별 단계 기록 (#84 · #85). 문장은 서버가 규칙으로 만든다. offsetMs: 테스트 시작부터 그 단계까지 */
+export interface StepRecord {
+  text: string;
+  category: string;
+  status: 'PASSED' | 'FAILED';
+  error: string | null;
+  offsetMs: number | null;
+}
+
+/** path 는 실행 아티팩트 경로 */
+export interface StepAttachment {
+  name: string;
+  contentType: string;
+  path: string;
+}
+
+export interface CaseSteps {
+  specPath: string;
+  /** "파일 > 묶음 > 케이스" */
+  title: string;
+  status: 'PASSED' | 'FAILED' | 'SKIPPED';
+  /** 실패한 단계 번호(0부터) */
+  failedStep: number | null;
+  steps: StepRecord[];
+  attachments: StepAttachment[];
+}
+
+/** recorded=false: 단계 기록을 붙이기 전 실행 */
+export interface StepsResponse {
+  recorded: boolean;
+  cases: CaseSteps[];
+}
+
+/** 결과 화면에서 펼쳐 보일 케이스 (결함을 눌렀을 때) */
+export interface CaseFocus {
+  specPath: string;
+  title: string;
+}
+
 /** 통합 결함 리스트(F-4). 결함 = 사용 중 계획 항목의 실패. OPEN 미해결 · RESOLVED 실패 뒤 통과 */
 export type DefectStatus = 'OPEN' | 'RESOLVED';
 

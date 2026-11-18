@@ -10,6 +10,7 @@ import com.playops.api.entity.Project;
 import com.playops.api.exception.ApiException;
 import com.playops.api.repository.ExecutionCaseResultRepository;
 import com.playops.api.repository.ExecutionRepository;
+import com.playops.api.util.PlaywrightGrep;
 import com.playops.api.util.ProjectEnvVariables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -635,12 +636,8 @@ public class TestExecutionService {
         if (grep != null && !grep.isBlank()) {
             testCmd += " --grep " + shellQuote(grep);
         } else {
-            List<String> disabledGreps = scenarioService.disabledGreps(project.getProjectId(), specPaths);
-            if (!disabledGreps.isEmpty()) {
-                String grepInvert = disabledGreps.stream()
-                        .map(Pattern::quote)
-                        .reduce((left, right) -> left + "|" + right)
-                        .orElse("");
+            String grepInvert = PlaywrightGrep.anyOf(scenarioService.disabledGrepPatterns(project.getProjectId(), specPaths));
+            if (grepInvert != null) {
                 testCmd += " --grep-invert " + shellQuote(grepInvert);
             }
         }
