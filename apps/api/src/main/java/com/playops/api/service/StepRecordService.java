@@ -11,7 +11,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -55,14 +57,16 @@ public class StepRecordService {
     }
 
     static List<CaseSteps> parse(JsonNode root) {
-        List<CaseSteps> out = new ArrayList<>();
+        // 재시도 · 여러 브라우저면 같은 케이스가 여러 번 온다. 결과 표처럼 마지막 시도를 쓴다.
+        Map<String, CaseSteps> out = new LinkedHashMap<>();
         for (JsonNode c : root) {
             String file = c.path("file").asText("");
             List<String> titles = new ArrayList<>();
             c.path("titlePath").forEach(t -> titles.add(t.asText()));
-            // titlePath 앞의 프로젝트 이름(chromium 등)은 빼고 파일 이름부터 쓴다 — 결과 표의 케이스 제목과 같게
-            String base = file.substring(file.lastIndexOf('/') + 1);
-            int from = titles.indexOf(base);
+            // titlePath 앞의 프로젝트 이름(chromium 등)은 빼고 파일부터 쓴다 — 결과 표의 케이스 제목과 같게.
+            // 파일 제목은 testDir 기준 경로(auth/login.spec.ts)라 경로로 먼저 찾는다.
+            int from = titles.indexOf(file);
+            if (from < 0) from = titles.indexOf(file.substring(file.lastIndexOf('/') + 1));
             String title = String.join(" > ", from < 0 ? titles : titles.subList(from, titles.size()));
 
             List<Step> steps = new ArrayList<>();
@@ -78,9 +82,10 @@ public class StepRecordService {
                 case "skipped" -> "SKIPPED";
                 default -> "FAILED"; // failed · timedOut · interrupted
             };
-            out.add(new CaseSteps(file, title, status, "FAILED".equals(status) ? lastError : null, steps));
+            out.remove(title);
+            out.put(title, new CaseSteps(file, title, status, "FAILED".equals(status) ? lastError : null, steps));
         }
-        return out;
+        return new ArrayList<>(out.values());
     }
 
     private static String firstLine(String s) {

@@ -7,11 +7,13 @@ const path = require('path');
 
 const KEEP = new Set(['pw:api', 'expect', 'test.step']);
 const MASK = '****';
-const SECRET_KEY = /pass|pwd|secret|token|key/i;
+// 이름의 한 마디가 비밀번호류인 환경변수 (LOGIN_PASSWORD · API_KEY · DB_PW). 셸의 PWD · OLDPWD(작업 폴더)는 뺀다.
+const SECRET_KEY = /(^|_)(PASSWORD|PASSWD|PASS|PWD|PW|SECRET|TOKEN|KEY)(_|$)/i;
+const NOT_SECRET = new Set(['PWD', 'OLDPWD']);
 const SECRET_TARGET = /pass|pwd|비밀번호|암호/i;
 
 const secrets = Object.entries(process.env)
-  .filter(([k, v]) => SECRET_KEY.test(k) && v && v.length >= 4)
+  .filter(([k, v]) => SECRET_KEY.test(k) && !NOT_SECRET.has(k.toUpperCase()) && v && v.length >= 4)
   .map(([, v]) => v);
 
 const lines = new Map();

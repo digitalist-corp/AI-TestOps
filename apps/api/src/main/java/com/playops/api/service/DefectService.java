@@ -41,8 +41,8 @@ public class DefectService {
     public static final String RESOLVED = "RESOLVED";
     /** Playwright 오류 메시지에 섞인 터미널 색 코드 */
     private static final Pattern ANSI = Pattern.compile("\u001B\\[[0-9;]*m");
-    /** executions.grep_filter 길이 */
-    private static final int MAX_GREP = 500;
+    /** executions.grep_filter · spec_path 칸 길이 (V1 VARCHAR(500), ai_ro 뷰가 써서 넓히지 않는다) */
+    private static final int MAX_COLUMN = 500;
 
     private final PlanService planService;
     private final SiteCoverageService coverageService;
@@ -120,10 +120,11 @@ public class DefectService {
         }
         if (chosen.isEmpty()) throw new ApiException(400, "다시 실행할 결함이 없습니다.");
         String grep = String.join("|", chosen.stream().map(d -> escapeRegex(d.grep())).distinct().toList());
-        if (grep.length() > MAX_GREP) {
-            throw new ApiException(400, "한 번에 다시 실행할 결함이 너무 많습니다. 나눠서 골라 주세요.");
-        }
         List<String> specPaths = chosen.stream().map(Defect::specPath).distinct().toList();
+        // 칸을 넘으면 막지 않고 넓혀서 돌린다: 이름이 넘치면 파일 단위, 파일 목록이 넘치면 사용 중 전체(이름으로 거름).
+        // 더 많이 돌 뿐 결과는 맞다 — 사이트가 죽어 전부 실패했을 때 "실패만 다시 실행"이 막히지 않게.
+        if (grep.length() > MAX_COLUMN) grep = null;
+        if (String.join("\n", specPaths).length() > MAX_COLUMN) specPaths = List.of();
         Long rerunOf = chosen.stream().map(Defect::lastFailedExecutionId).max(Comparator.naturalOrder()).orElse(null);
         return executionQueryService.triggerRun(projectId, grep, null, specPaths,
                 "결함 다시 실행 " + chosen.size() + "건", false, rerunOf);

@@ -333,17 +333,20 @@ public class TestExecutionService {
         lines.add("echo " + shellQuote("[playops] test command=" + testCmd));
         lines.add("echo '[test] 시작'");
         lines.add("export PLAYWRIGHT_JSON_OUTPUT_NAME=" + shellQuote(reportDirInApiContainer + "/results.json"));
+        // 단계 기록 리포터(#84)는 러너에서 읽힐 때만 붙인다. 못 찾는 리포터를 넘기면 Playwright 가 테스트를 하나도 돌리지 않는다.
+        lines.add("PLAYOPS_REPORTERS=line,json,html");
         String stepsReporter = stepsReporterPath();
         if (stepsReporter != null) {
-            lines.add("export PLAYOPS_STEPS_OUTPUT=" + shellQuote(reportDirInApiContainer + "/" + StepRecordService.FILE));
+            lines.add("if [ -r " + shellQuote(stepsReporter) + " ]; then PLAYOPS_REPORTERS=\"$PLAYOPS_REPORTERS\","
+                    + shellQuote(stepsReporter) + "; export PLAYOPS_STEPS_OUTPUT="
+                    + shellQuote(reportDirInApiContainer + "/" + StepRecordService.FILE) + "; fi");
         }
         lines.add("export PLAYWRIGHT_HTML_OUTPUT_DIR=" + shellQuote("playwright-report"));
         if (loginSessionConfigured) {
             lines.add("export PLAYWRIGHT_STORAGE_STATE=" + shellQuote(storageStateFileInApiContainer));
         }
         lines.add("set +e");
-        String reporters = "line,json,html" + (stepsReporter != null ? "," + stepsReporter : "");
-        lines.add(testCmd + " --reporter=" + shellQuote(reporters) + " 2>&1 | tee " + reportDirInApiContainer + "/run.log");
+        lines.add(testCmd + " --reporter=\"$PLAYOPS_REPORTERS\" 2>&1 | tee " + reportDirInApiContainer + "/run.log");
         lines.add("EXIT_CODE=${PIPESTATUS[0]}");
         lines.add("set -e");
         lines.add("cp -r playwright-report " + reportDirInApiContainer + "/ 2>/dev/null || true");
@@ -464,8 +467,12 @@ public class TestExecutionService {
             if (in == null) return null;
             Files.createDirectories(file.getParent());
             Path tmp = Files.createTempFile(file.getParent(), "steps-reporter", ".tmp");
-            Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
-            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            try {
+                Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } finally {
+                Files.deleteIfExists(tmp);
+            }
             return file.toString().replace('\\', '/');
         } catch (IOException | RuntimeException e) {
             log.warn("단계 기록 리포터를 두지 못해 리포터 없이 실행합니다: {}", e.getMessage());

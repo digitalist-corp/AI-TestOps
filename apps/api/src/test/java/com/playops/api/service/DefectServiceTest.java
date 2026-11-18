@@ -224,4 +224,27 @@ class DefectServiceTest {
         assertThat(d.runs()).extracting(DefectRun::executionId, DefectRun::rerunOf)
                 .containsExactly(tuple(1L, null), tuple(2L, 1L));
     }
+
+    @Test
+    void tooManyDefectsFallBackToFilesThenToTheWholePlanInsteadOfFailing() {
+        String longName = "가".repeat(300);
+        when(planService.tracked("p1")).thenReturn(List.of(
+                new Tracked(item("tests/a.spec.ts", longName + "1", true, null), history("F")),
+                new Tracked(item("tests/b.spec.ts", longName + "2", true, null), history("F"))));
+
+        service.rerun("p1", null);
+        // 이름이 칸(500자)을 넘으면 이름 없이 파일 단위로 — 더 돌 뿐 결과는 맞다
+        verify(executionQueryService).triggerRun(eq("p1"), isNull(), isNull(),
+                eq(List.of("tests/a.spec.ts", "tests/b.spec.ts")), eq("결함 다시 실행 2건"), eq(false), eq(1L));
+
+        List<Tracked> many = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            many.add(new Tracked(item("tests/very/long/folder/name/case-" + i + ".spec.ts", "가", true, null), history("F")));
+        }
+        when(planService.tracked("p1")).thenReturn(many);
+        service.rerun("p1", null);
+        // 파일 목록도 넘치면 사용 중 전체를 이름으로 거른다
+        verify(executionQueryService).triggerRun(eq("p1"), eq("가"), isNull(),
+                eq(List.of()), eq("결함 다시 실행 40건"), eq(false), eq(1L));
+    }
 }

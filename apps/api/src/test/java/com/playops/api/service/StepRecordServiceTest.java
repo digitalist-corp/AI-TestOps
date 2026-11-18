@@ -44,6 +44,23 @@ class StepRecordServiceTest {
     }
 
     @Test
+    void subfolderFilesKeepTheirPathInTheTitleAndRetriesKeepTheLastAttempt() throws Exception {
+        var root = new ObjectMapper().readTree("""
+                [{"file":"auth/login.spec.ts","titlePath":["chromium","auth/login.spec.ts","로그인"],"status":"failed",
+                  "steps":[{"category":"pw:api","title":"Navigate to \\"/login\\"","error":"Error: 실패"}]},
+                 {"file":"auth/login.spec.ts","titlePath":["chromium","auth/login.spec.ts","로그인"],"status":"passed",
+                  "steps":[{"category":"pw:api","title":"Navigate to \\"/login\\""}]}]
+                """);
+
+        List<CaseSteps> cases = StepRecordService.parse(root);
+
+        assertThat(cases).hasSize(1);
+        assertThat(cases.get(0).title()).isEqualTo("auth/login.spec.ts > 로그인");
+        assertThat(cases.get(0).status()).isEqualTo("PASSED");
+        assertThat(cases.get(0).failedStep()).isNull();
+    }
+
+    @Test
     void executionOfAnotherProjectIsNotFoundAndOldRunsHaveNoRecord(@TempDir Path dir) throws Exception {
         ExecutionRepository executions = mock(ExecutionRepository.class);
         ExecutionLogService logs = mock(ExecutionLogService.class);

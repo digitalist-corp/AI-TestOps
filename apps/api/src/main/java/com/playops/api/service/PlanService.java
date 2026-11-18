@@ -212,12 +212,6 @@ public class PlanService {
         return out;
     }
 
-    /** 계획 항목의 마지막 결과. 없으면 null. */
-    static ExecutionCaseResult latestFor(PlanItem item, Map<String, List<ExecutionCaseResult>> byLeaf) {
-        List<ExecutionCaseResult> history = historyFor(item, byLeaf);
-        return history.isEmpty() ? null : history.get(0);
-    }
-
     /**
      * 계획 항목의 결과 이력, 최신 실행부터 실행마다 하나. 리포트 경로는 testDir 기준이라 저장 경로의 뒷부분과 맞춘다
      * (SiteCoverageService 와 같은 규칙). 같은 제목이 다른 묶음에 있으면 "묶음 > 제목"으로 끝나는 결과만 쓴다.
