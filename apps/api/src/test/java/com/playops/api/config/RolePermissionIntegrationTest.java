@@ -256,6 +256,19 @@ class RolePermissionIntegrationTest {
         assertThat(status(delete("/api/projects/example.com"), member)).isEqualTo(403);
     }
 
+    /** AI 제공자 키는 관리자만 보고 바꾼다 (3-1 보안). 팀원도, 프로젝트 PM 도 403. */
+    @Test
+    void aiProviderSettingsAreAdminOnly() throws Exception {
+        assertThat(status(get("/api/admin/ai-provider-settings"), member)).isEqualTo(403);
+        assertThat(status(put("/api/admin/ai-provider-settings").content("{}"), member)).isEqualTo(403);
+
+        call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
+        assertThat(status(get("/api/admin/ai-provider-settings"), member)).isEqualTo(403);
+        assertThat(status(put("/api/admin/ai-provider-settings").content("{}"), member)).isEqualTo(403);
+
+        assertThat(status(get("/api/admin/ai-provider-settings"), admin)).isEqualTo(200);
+    }
+
     @Test
     void pmCanEditThePlanButNotDeleteTheProject() throws Exception {
         call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
