@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { useAiEnabled } from '@/lib/aiEnabled';
 import { NODE_STATE_META } from '@/lib/coverage';
 import { ElementTable } from './ElementTable';
+import { useAccess } from '@/lib/access';
 
 /**
  * 화면 목록 보기. 화면을 펼쳐 요소를 보고, 그 화면 하나로 테스트를 만든다.
@@ -23,6 +24,7 @@ export function StructureList({ projectId, siteMap, onError, states, loadDetail 
   /** 화면 상세를 읽는 함수 (개발용 가짜 응답에서 바꿔 낀다) */
   loadDetail?: (projectId: string, routeKey: string) => Promise<SiteMapNodeDetail>;
 }) {
+  const canManage = useAccess().canManage(projectId);
   const { active: aiActive } = useAiEnabled();
   const [busy, setBusy] = useState(false);
   const [openRoute, setOpenRoute] = useState<string | null>(null);
@@ -182,7 +184,8 @@ export function StructureList({ projectId, siteMap, onError, states, loadDetail 
                       <ElementTable elements={detail.elements} origin={node.origin} />
                     )}
                     {/* AI를 끄면 테스트 생성 입력만 숨기고, 화면 · 요소 보기는 그대로 둔다 */}
-                    {aiActive && detail && detail.elements.some((element) => element.selector) && (
+                    {/* 테스트 만들기는 PM (서버가 막는 쓰기) */}
+                    {canManage && aiActive && detail && detail.elements.some((element) => element.selector) && (
                       <div className="mt-3 flex flex-col gap-2 border-t border-border pt-3 @3xl:flex-row @3xl:items-center">
                         {createdJob ? (
                           <p className="text-xs text-foreground">

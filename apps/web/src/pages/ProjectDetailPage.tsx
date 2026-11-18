@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Pencil, Play, RefreshCw, Settings2, Square, Terminal, Trash2, Upload } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthStateStatus, CaseFocus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
+import type { AuthStateStatus, CaseFocus, Execution, RunTestOptions, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
 import { SourceExplorerTab } from '@/components/project/SourceExplorerTab';
 import { ProjectDashboardTab } from '@/components/project/ProjectDashboardTab';
 import { DefectsTab } from '@/components/project/DefectsTab';
+import { caseRun, groupRun } from '@/lib/caseRun';
 import { PlanTab } from '@/components/project/PlanTab';
 import { MembersTab } from '@/components/project/MembersTab';
 import { useAccess } from '@/lib/access';
@@ -43,7 +44,7 @@ import {
   PROJECT_WORKSPACE_TABS,
   type ProjectTabId,
 } from '@/config/projectWorkspace';
-import { groupOfTab } from '@/config/shellNav';
+import { canOpenTab, groupOfTab } from '@/config/shellNav';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const dockerStatusLabel: Record<Project['dockerStatus'], string> = {
@@ -103,10 +104,6 @@ function envButtonTitle(project: Project): string {
   return '환경변수 설정';
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 function isHiddenSourcePath(path: string) {
   return path
     .replaceAll('\\', '/')
@@ -159,11 +156,16 @@ export function ProjectDetailPage() {
       navigate(projectTabPath(projectId, DEFAULT_PROJECT_TAB), { replace: true });
       return;
     }
+    // 팀원이 링크로 관리 전용 탭을 열면 기본 탭으로. 권한을 받아오기 전(id 0)에는 PM 을 잘못 내보내지 않게 기다린다.
+    if (access.me && access.me.id !== 0 && !canOpenTab(activeTab, canManage)) {
+      navigate(projectTabPath(projectId, DEFAULT_PROJECT_TAB), { replace: true });
+      return;
+    }
     // 키 확인이 끝나기 전에는 active 가 잠깐 false 라서, 확인한 뒤에만 AI 탭에서 내보낸다.
     if (isAiTab && aiChecked && !aiActive) {
       navigate(projectTabPath(projectId, 'dashboard'), { replace: true });
     }
-  }, [projectId, tabParam, isAiTab, aiActive, aiChecked, navigate]);
+  }, [projectId, tabParam, isAiTab, aiActive, aiChecked, navigate, access.me, activeTab, canManage]);
 
   const goTab = (tab: ProjectTabId) => {
     if (projectId) navigate(projectTabPath(projectId, tab));
@@ -314,7 +316,7 @@ export function ProjectDetailPage() {
 
   /** start: 기본 실행 API 대신 쓸 실행 요청 (결함 다시 실행 #83). 러너 · 환경 확인은 같다. */
   const handleRun = async (
-    options?: { grep?: string; specPath?: string; specPaths?: string[]; caseTitle?: string; sequential?: boolean },
+    options?: RunTestOptions,
     start?: () => Promise<Execution>,
   ) => {
     if (!projectId) return;
@@ -381,32 +383,15 @@ export function ProjectDetailPage() {
     }
   };
 
-  const handleRunCase = (selected: SelectedCase) => {
-    handleRun({
-      grep: selected.grep,
-      specPath: selected.specPath,
-      caseTitle: selected.title,
-    });
-  };
+  // 고른 케이스 · 묶음은 키만 보내고 서버가 정확 일치 패턴을 만든다 (비슷한 제목이 같이 돌지 않게)
+  const handleRunCase = (selected: SelectedCase) => handleRun(caseRun([selected]));
 
   const handleRunCases = (selected: SelectedCase[]) => {
     if (selected.length === 0) return;
-    const specPaths = [...new Set(selected.map((item) => item.specPath))];
-    const grep = selected.map((item) => escapeRegex(item.grep)).join('|');
-    handleRun({
-      grep: `(?:${grep})`,
-      specPaths,
-      caseTitle: `선택 케이스 ${selected.length}건`,
-    });
+    handleRun(caseRun(selected));
   };
 
-  const handleRunScenario = (selected: SelectedScenario) => {
-    handleRun({
-      grep: selected.grep ?? undefined,
-      specPath: selected.specPath,
-      caseTitle: selected.title,
-    });
-  };
+  const handleRunScenario = (selected: SelectedScenario) => handleRun(groupRun(selected));
 
   const handleRunSuite = (suite: TestSuite) => {
     handleRun({
@@ -552,14 +537,17 @@ export function ProjectDetailPage() {
           )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={() => requestScenarioAction('pick')}
-          title="실행할 케이스를 골라 묶어서 실행합니다"
-        >
-          <ListChecks className="h-4 w-4" />
-          선택 실행
-        </Button>
+        {/* 케이스 고르기는 테스트 탭(PM)에서 — 팀원은 전체 실행 · 결함 다시 실행 · 계획 표 실행 */}
+        {canManage && (
+          <Button
+            variant="outline"
+            onClick={() => requestScenarioAction('pick')}
+            title="실행할 케이스를 골라 묶어서 실행합니다"
+          >
+            <ListChecks className="h-4 w-4" />
+            선택 실행
+          </Button>
+        )}
         {activeRun ? (
           <Button
             variant="outline"

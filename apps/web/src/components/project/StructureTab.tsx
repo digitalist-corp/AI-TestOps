@@ -33,6 +33,7 @@ import { IssueList, issueActionKey, type IssueActionHandler } from './structure/
 import { StructureEmptyState } from './structure/StructureEmptyState';
 import { StructureList } from './structure/StructureList';
 import { GRAPH_MEDIA_QUERY, useMediaQuery } from './structure/useMediaQuery';
+import { useAccess } from '@/lib/access';
 
 // 그래프 시각화 라이브러리(@xyflow/react · dagre · dnd-kit)는 그래프를 열 때만 내려받는다.
 const StructureGraph = lazy(() => import('./structure/StructureGraph'));
@@ -109,6 +110,8 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
 }) {
   const navigate = useNavigate();
   const { active: aiActive } = useAiEnabled();
+  // 팀원은 보기 · 다시 실행만: 화면 찾기 · 로그인 탐색 · 고치기는 PM (서버가 막는 쓰기)
+  const canManage = useAccess().canManage(projectId);
   const [mockWanted] = useState(wantsCoverageMock);
   const [data, setData] = useState<StructureSource | null>(() => (mockWanted ? null : SERVER_SOURCE));
   const [siteMap, setSiteMap] = useState<SiteMap | null>(null);
@@ -468,9 +471,11 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
           )}
 
           {mode === 'map' ? (
-            <Link to={projectTabPath(projectId, 'input')} className="ml-auto text-xs font-medium text-primary hover:underline">
-              화면 다시 찾기는 입력 단계에서 →
-            </Link>
+            canManage && (
+              <Link to={projectTabPath(projectId, 'input')} className="ml-auto text-xs font-medium text-primary hover:underline">
+                화면 다시 찾기는 입력 단계에서 →
+              </Link>
+            )
           ) : (
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button
@@ -593,7 +598,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
           </ul>
         )}
 
-        {(analysis.warnings.some((w) => w.includes('로그인')) || (siteMap.nodes.length === 1 && siteMap.nodes[0].routeKey === '/')) && (
+        {canManage && (analysis.warnings.some((w) => w.includes('로그인')) || (siteMap.nodes.length === 1 && siteMap.nodes[0].routeKey === '/')) && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
             <div className="flex items-start gap-2">
               <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
@@ -677,7 +682,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
           {issues.length > 0 && (
             <section ref={viewRef} className="scroll-mt-4 rounded-lg border border-border bg-card p-4">
               <h3 className="mb-3 text-sm font-semibold text-foreground">막힌 곳 {issues.length}곳</h3>
-              <IssueList items={issues} aiActive={aiActive} onAction={handleIssueAction} busyKey={busyKey} />
+              <IssueList items={issues} aiActive={aiActive} canManage={canManage} onAction={handleIssueAction} busyKey={busyKey} />
             </section>
           )}
           <StructureList

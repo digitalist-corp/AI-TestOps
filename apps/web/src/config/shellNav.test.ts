@@ -3,6 +3,7 @@ import { PROJECT_WORKSPACE_TABS } from '@/config/projectWorkspace';
 import {
   RAIL_ITEMS,
   WORKSPACE_GROUPS,
+  canOpenTab,
   groupOfTab,
   tabLabel,
   visibleWorkspaceGroups,
@@ -68,5 +69,19 @@ describe('팀원에게 보이는 탭', () => {
 
   it('PM · 관리자는 모든 탭을 본다', () => {
     expect(visibleWorkspaceGroups(true, true)).toEqual(visibleWorkspaceGroups(true));
+  });
+});
+
+describe('관리 전용 탭 주소를 직접 열 때', () => {
+  it('팀원은 관리 전용 탭(코드 편집기 · 테스트 · 예약 · 녹화 · 입력 · AI 검토)을 열 수 없다', () => {
+    for (const tab of ['source', 'scenarios', 'schedules', 'recorder', 'input', 'ai-review', 'ai-generate'] as const) {
+      expect(canOpenTab(tab, false)).toBe(false);
+    }
+    expect(canOpenTab('plan', false)).toBe(true);
+    expect(canOpenTab('defects', false)).toBe(true);
+  });
+
+  it('PM · 관리자는 모두 연다', () => {
+    expect(canOpenTab('source', true)).toBe(true);
   });
 });

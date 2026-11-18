@@ -398,6 +398,8 @@ export interface RunTestOptions {
   specPaths?: string[];
   caseTitle?: string;
   sequential?: boolean;
+  /** 테스트 탭에서 고른 케이스 · 묶음. 서버가 정확 일치 패턴을 만든다 */
+  cases?: { specPath: string; grep: string; nodeType: 'TEST' | 'DESCRIBE' }[];
 }
 
 export interface ScenarioUsageRequest {

@@ -4,6 +4,11 @@ import com.playops.api.dto.PlanDtos.ItemPatch;
 import com.playops.api.dto.PlanDtos.PlanItem;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.User;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import com.playops.api.repository.ProjectMemberRepository;
+import com.playops.api.entity.UserRole;
+import com.playops.api.entity.ProjectRole;
+import com.playops.api.entity.ProjectMember;
 import com.playops.api.repository.ProjectRepository;
 import com.playops.api.repository.UserRepository;
 import com.playops.api.service.PlanService;
@@ -55,21 +60,32 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final PlaywrightTemplateService templateService;
     private final PlanService planService;
     private final UserRepository userRepository;
+    private final ProjectMemberRepository memberRepository;
+    private final PasswordEncoder passwordEncoder;
     private final String loginUsername;
     private final String guestUsername;
+    private final String demoPmUsername;
+    private final String demoPmPassword;
 
     public DemoDataSeeder(ProjectRepository projectRepository, ProjectService projectService,
                           PlaywrightTemplateService templateService, PlanService planService,
-                          UserRepository userRepository,
+                          UserRepository userRepository, ProjectMemberRepository memberRepository,
+                          PasswordEncoder passwordEncoder,
                           @Value("${LOGIN_USERNAME:admin}") String loginUsername,
-                          @Value("${GUEST_USERNAME:guest}") String guestUsername) {
+                          @Value("${GUEST_USERNAME:guest}") String guestUsername,
+                          @Value("${DEMO_PM_USERNAME:demo-pm}") String demoPmUsername,
+                          @Value("${DEMO_PM_PASSWORD:}") String demoPmPassword) {
         this.projectRepository = projectRepository;
         this.projectService = projectService;
         this.templateService = templateService;
         this.planService = planService;
         this.userRepository = userRepository;
+        this.memberRepository = memberRepository;
+        this.passwordEncoder = passwordEncoder;
         this.loginUsername = loginUsername;
         this.guestUsername = guestUsername;
+        this.demoPmUsername = demoPmUsername;
+        this.demoPmPassword = demoPmPassword;
     }
 
     @Override
@@ -77,6 +93,12 @@ public class DemoDataSeeder implements CommandLineRunner {
         try {
             Project project = projectRepository.findById(PROJECT).orElse(null);
             if (project == null) return;
+            // 시연 PM 은 시연 파일과 따로 — 한쪽이 실패해도 다른 쪽은 채운다
+            try {
+                seedDemoPm();
+            } catch (RuntimeException e) {
+                log.warn("시연 PM 계정을 준비하지 못했습니다: {}", e.getMessage());
+            }
             Path dir = projectService.getProjectPath(PROJECT);
             Path demo = dir.resolve("tests/demo.spec.ts");
             if (Files.isRegularFile(demo) && OLD_DEMO_SHA256.equals(sha256(demo))) {
@@ -94,6 +116,35 @@ public class DemoDataSeeder implements CommandLineRunner {
             log.info("시연 프로젝트 {} 기본 데이터를 채웠습니다.", PROJECT);
         } catch (IOException | RuntimeException e) {
             log.warn("시연 프로젝트 기본 데이터를 채우지 못했습니다: {}", e.getMessage());
+        }
+    }
+
+    static final String DEMO_PM_NAME = "시연 PM";
+
+    /**
+     * 시연용 PM 계정 (3차 5번). 시연은 계정 전환 없이 이 계정 하나로 한다. 비밀번호는 .env(DEMO_PM_PASSWORD)로만 받고, 비면 만들지 않는다.
+     * .env 의 값이 바뀌면 다음 기동에 반영한다. 같은 아이디의 다른 사람 계정(표시 이름이 '시연 PM'이 아님)은 건드리지 않는다.
+     */
+    private void seedDemoPm() {
+        if (demoPmPassword == null || demoPmPassword.isBlank() || demoPmUsername.isBlank()) return;
+        User user = userRepository.findByUsername(demoPmUsername).orElse(null);
+        if (user == null) {
+            user = new User();
+            user.setUsername(demoPmUsername);
+            user.setDisplayName(DEMO_PM_NAME);
+            user.setRole(UserRole.USER);
+            user.setPassword(passwordEncoder.encode(demoPmPassword));
+            user = userRepository.save(user);
+        } else if (!DEMO_PM_NAME.equals(user.getDisplayName())) {
+            log.warn("아이디 {} 는 다른 사람 계정이라 시연 PM 으로 쓰지 않습니다. DEMO_PM_USERNAME 을 바꾸세요.", demoPmUsername);
+            return;
+        } else if (!passwordEncoder.matches(demoPmPassword, user.getPassword())) {
+            user.setPassword(passwordEncoder.encode(demoPmPassword));
+            userRepository.save(user);
+        }
+        Long id = user.getId();
+        if (memberRepository.findByProjectIdAndUserId(PROJECT, id).isEmpty()) {
+            memberRepository.save(ProjectMember.of(PROJECT, id, ProjectRole.PM, null));
         }
     }
 

@@ -23,9 +23,11 @@ export function issueActionKey(item: IssueItem, action: IssueAction) {
  * 막힌 곳 카드 목록. 화면 이름 · 쉬운 이유 · 추천 행동 버튼을 보여 주고,
  * 셀렉터 · 테스트 파일 같은 개발자 정보는 "자세히" 안에 접어 둔다.
  */
-export function IssueList({ items, aiActive, onAction, busyKey, onSelect, emptyText = '막힌 곳이 없어요.' }: {
+export function IssueList({ items, aiActive, canManage, onAction, busyKey, onSelect, emptyText = '막힌 곳이 없어요.' }: {
   items: IssueItem[];
   aiActive: boolean;
+  /** 팀원(false)에게는 다시 실행만 보인다 */
+  canManage: boolean;
   onAction: IssueActionHandler;
   busyKey: string | null;
   /** 카드를 누르면 지도에서 그 화면으로 이동한다 */
@@ -39,7 +41,7 @@ export function IssueList({ items, aiActive, onAction, busyKey, onSelect, emptyT
     <ul className="space-y-2" aria-label="막힌 곳">
       {items.map((item, index) => {
         const { issue } = item;
-        const actions = issueActions(issue, aiActive);
+        const actions = issueActions(issue, aiActive, canManage);
         const blocking = isBlockingIssue(issue);
         return (
           <li

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { AiMarkdown } from '@/components/ai/AiMarkdown';
 import { useAiChat } from '@/hooks/useAiChat';
 import { cn, executionStatusLabel, formatDuration } from '@/lib/utils';
+import { useAccess } from '@/lib/access';
 
 const aiJobStatusLabel: Record<AiJob['status'], string> = {
   PROPOSED: '수정 제안',
@@ -84,6 +85,8 @@ export function AiAnalysisTab({
   selectedExecutionId,
   onSelectExecution,
 }: AiAnalysisTabProps) {
+  // AI로 수정 시도는 PM (서버가 막는 쓰기)
+  const canManage = useAccess().canManage(projectId);
   const [userLevel, setUserLevel] = useState<UserLevel>('JUNIOR');
   const [targetExecutionId, setTargetExecutionId] = useState<number | null>(
     selectedExecutionId ?? (executions.length > 0 ? executions[0].id : null)
@@ -301,7 +304,7 @@ export function AiAnalysisTab({
       )}
 
       {/* Sandbox 자율 수정 루프 (CODE_FIX) 트리거 */}
-      {currentExec?.status === 'FAILED' && (
+      {canManage && currentExec?.status === 'FAILED' && (
         <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 space-y-3">
           <div className="flex items-center gap-2 text-warning font-bold text-xs">
             <Wrench className="h-4 w-4" />

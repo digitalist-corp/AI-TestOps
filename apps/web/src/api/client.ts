@@ -571,6 +571,7 @@ export const api = {
         specPaths: options?.specPaths ?? null,
         caseTitle: options?.caseTitle ?? null,
         sequential: options?.sequential ?? false,
+        cases: options?.cases ?? null,
       }),
     }),
 

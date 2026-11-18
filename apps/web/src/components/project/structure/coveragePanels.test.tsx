@@ -33,16 +33,24 @@ describe('확인 지도 패널', () => {
   it('막힌 곳: 로그인 막힘이 먼저, AI 가 꺼지면 AI 로 고치기 대신 다시 녹화하기', async () => {
     const { issues } = await mockData();
     const onAction = vi.fn();
-    const { rerender } = render(<IssueList items={issues} aiActive onAction={onAction} busyKey={null} />);
+    const { rerender } = render(<IssueList items={issues} aiActive canManage onAction={onAction} busyKey={null} />);
     const cards = screen.getAllByTestId('structure-issue-card');
     expect(cards.map((c) => c.getAttribute('data-issue-route'))).toEqual(['/account', '/checkout']);
     expect(screen.getByRole('button', { name: /AI로 고치기/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /로그인 정보 넣기/ }));
     expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ routeKey: '/account' }), 'SET_LOGIN');
 
-    rerender(<IssueList items={issues} aiActive={false} onAction={onAction} busyKey={null} />);
+    rerender(<IssueList items={issues} aiActive={false} canManage onAction={onAction} busyKey={null} />);
     expect(screen.queryByRole('button', { name: /AI로 고치기/ })).toBeNull();
     expect(screen.getByRole('button', { name: /다시 녹화하기/ })).toBeTruthy();
+  });
+
+  it('막힌 곳: 팀원에게는 고치기 · 녹화 · 로그인 정보 넣기를 보이지 않는다 (서버가 막는 쓰기)', async () => {
+    const { issues } = await mockData();
+    render(<IssueList items={issues} aiActive canManage={false} onAction={vi.fn()} busyKey={null} />);
+    expect(screen.queryByRole('button', { name: /AI로 고치기/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /다시 녹화하기/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /로그인 정보 넣기/ })).toBeNull();
   });
 
   it('테스트 흐름: 단계 칩 줄을 보여 주고 누르면 재생한다', async () => {
@@ -60,6 +68,7 @@ describe('확인 지도 패널', () => {
         playingSpec={null}
         onPlay={onPlay}
         aiActive
+        canManage
         onAction={() => {}}
         busyKey={null}
         onSelectScreen={() => {}}

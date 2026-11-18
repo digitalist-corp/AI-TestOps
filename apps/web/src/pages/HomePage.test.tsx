@@ -82,6 +82,18 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     expect(screen.queryByRole('heading', { name: '전체 현황' })).toBeNull();
   });
 
+  it('같은 프로젝트가 이미 실행 중이면 서버의 409 안내를 그대로 보여 준다 (3차 3번)', async () => {
+    me = user('USER', [{ projectId: 'shop', role: 'MEMBER' }]);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    vi.mocked(api.defects.rerun).mockRejectedValue(new Error('이미 실행 중입니다. 끝나거나 중지한 뒤에 다시 실행하세요.'));
+    renderHome();
+
+    fireEvent.click(await screen.findByRole('button', { name: '쇼핑몰 실패 1건 다시 실행' }));
+
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('이미 실행 중입니다. 끝나거나 중지한 뒤에 다시 실행하세요.'));
+  });
+
   it('PM: 진척률 · 팀원별 진행 · 기한 지난 항목', async () => {
     me = user('USER', [{ projectId: 'shop', role: 'PM' }]);
     renderHome();
