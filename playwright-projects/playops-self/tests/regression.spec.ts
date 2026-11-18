@@ -3,7 +3,7 @@ import path from 'path';
 import fs from 'fs';
 
 // PlayOps가 자기 자신을 테스트하는 dogfooding 스위트.
-// 각 test()는 독립적으로 재로그인하지만, playops-full-test 프로젝트가 이전 케이스에서
+// 각 test()는 독립적으로 재로그인하지만, 테스트 프로젝트(TEST_PROJECT_NAME)가 이전 케이스에서
 // 만들어졌다는 것을 전제로 이어서 진행하므로 반드시 순서대로(sequential) 실행해야 한다.
 
 const screenshotDir = process.env.PLAYOPS_SCREENSHOT_DIR || path.join(__dirname, '..', 'screenshots');
@@ -20,25 +20,42 @@ const login = async (page: Page) => {
   await page.fill('#username', 'admin');
   await page.fill('#password', 'admin');
   await page.click('button[type="submit"]');
-  await page.waitForURL('**/projects');
+  // 로그인하면 역할별 첫 화면(/home)으로 간다. 이 스위트는 프로젝트 목록에서 시작한다.
+  await page.waitForURL('**/home');
+  await page.goto('/projects');
   await expect(page.locator('h2:has-text("프로젝트")')).toBeVisible();
 };
+
+const TEST_PROJECT_NAME = 'PlayOps Full E2E Test Project';
+
+/** 프로젝트 아이디는 서버가 붙인다(P0001 …). 이름으로 테스트 프로젝트 아이디들을 찾는다. */
+const testProjectIds = (page: Page) =>
+  page.evaluate(async (name) => {
+    const token = localStorage.getItem('playops_token');
+    const res = await fetch('/api/projects', { headers: { Authorization: `Bearer ${token}` } });
+    const projects: Array<{ projectId: string; projectName: string }> = await res.json();
+    return projects.filter((p) => p.projectName === name).map((p) => p.projectId);
+  }, TEST_PROJECT_NAME);
+
+// 등록 테스트가 만든 프로젝트 아이디. describe.serial 이라 뒤 테스트가 이어서 쓴다.
+let projectId = '';
 
 test.describe.serial('PlayOps Self Regression', () => {
   test('로그인 및 프로젝트 목록 진입', async ({ page }) => {
     test.setTimeout(120000);
     await login(page);
 
-    // 이전 실행이 남긴 playops-full-test 프로젝트를 정리한다.
-    await page.evaluate(async () => {
+    // 이전 실행이 남긴 테스트 프로젝트를 이름으로 찾아 정리한다.
+    const leftovers = await testProjectIds(page);
+    await page.evaluate(async (ids) => {
       const token = localStorage.getItem('playops_token');
-      if (token) {
-        await fetch('/api/projects/playops-full-test', {
+      for (const id of ids) {
+        await fetch(`/api/projects/${id}`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => {});
       }
-    });
+    }, leftovers);
     await page.reload();
     await page.waitForTimeout(1000);
     await expect(page.locator('h2:has-text("프로젝트")')).toBeVisible();
@@ -50,17 +67,16 @@ test.describe.serial('PlayOps Self Regression', () => {
 
     await page.click('button:has-text("프로젝트 등록")');
     await page.fill('#baseUrl', 'https://example.com');
-    await page.fill('#projectName', 'PlayOps Full E2E Test Project');
-    await page.click('button:has-text("고급 설정")');
-    await page.fill('#projectIdField', 'playops-full-test');
+    await page.fill('#projectName', TEST_PROJECT_NAME);
     await page.click('button[type="submit"]:has-text("등록")');
-    await page.waitForTimeout(3000);
+    await expect.poll(async () => (await testProjectIds(page)).length, { timeout: 15000 }).toBeGreaterThan(0);
+    projectId = (await testProjectIds(page))[0];
 
-    await page.goto('/projects/playops-full-test/dashboard');
+    await page.goto(`/projects/${projectId}/dashboard`);
     await page.waitForTimeout(1000);
     await takeScreenshot(page, '06_dashboard.png');
 
-    await page.goto('/projects/playops-full-test/source');
+    await page.goto(`/projects/${projectId}/source`);
     await page.waitForTimeout(1000);
 
     const templateBtn = page.locator('button:has-text("템플릿 생성")');
@@ -79,7 +95,7 @@ test.describe.serial('PlayOps Self Regression', () => {
   test('시나리오 탭 확인', async ({ page }) => {
     test.setTimeout(60000);
     await login(page);
-    await page.goto('/projects/playops-full-test/scenarios');
+    await page.goto(`/projects/${projectId}/scenarios`);
     await page.waitForTimeout(1000);
     await takeScreenshot(page, '08_scenarios.png');
     await expect(page.locator('body')).toBeVisible();
@@ -88,7 +104,7 @@ test.describe.serial('PlayOps Self Regression', () => {
   test('실행 및 결과 탭 확인', async ({ page }) => {
     test.setTimeout(60000);
     await login(page);
-    await page.goto('/projects/playops-full-test/runs');
+    await page.goto(`/projects/${projectId}/runs`);
 
     await page.waitForTimeout(1000);
     const runBtn = page.locator('button:has-text("전체 실행")');
@@ -98,7 +114,7 @@ test.describe.serial('PlayOps Self Regression', () => {
     }
     await takeScreenshot(page, '09_runs.png');
 
-    await page.goto('/projects/playops-full-test/results');
+    await page.goto(`/projects/${projectId}/results`);
     await page.waitForTimeout(1000);
     await takeScreenshot(page, '10_results.png');
   });
@@ -113,10 +129,10 @@ test.describe.serial('PlayOps Self Regression', () => {
       note: null, url: null, hasScreenshot: false, authRequired: routeKey !== '/login',
       passedCount: 2 - failedCount, failedCount, unverifiedCount: 0,
     });
-    await page.route('**/api/projects/playops-full-test/sitemap', (route) =>
+    await page.route(`**/api/projects/${projectId}/sitemap`, (route) =>
       route.fulfill({
         json: {
-          projectId: 'playops-full-test',
+          projectId,
           source: { url: null, branch: null, tokenSet: false, usesProjectRepository: false, siteUrl: 'https://example.com' },
           analysis: {
             status: 'COMPLETED', commitSha: null, framework: 'URL', partial: false, screenCount: 3, processedCount: 3,
@@ -132,7 +148,7 @@ test.describe.serial('PlayOps Self Regression', () => {
       })
     );
 
-    await page.goto('/projects/playops-full-test/structure');
+    await page.goto(`/projects/${projectId}/structure`);
     const graph = page.getByTestId('structure-graph');
     await expect(graph).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId('structure-screen-node')).toHaveCount(3);

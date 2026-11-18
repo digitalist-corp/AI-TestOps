@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Clock3, FileCode, GitCompare, Loader2, Network, Play } from 'lucide-react';
+import { BarChart3, Clock3, FileCode, GitCompare, Loader2, Network, Play, Square } from 'lucide-react';
 import { api } from '@/api/client';
 import type {
   Coverage,
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { SummaryCards } from '@/components/dashboard/SummaryCards';
 import { PlanMetrics } from '@/components/dashboard/PlanMetrics';
 import { failingScreens, planAsResults } from '@/lib/plan';
+import { isActiveExecution } from '@/lib/coverage';
 import { RoundChanges, RoundTrend } from '@/components/dashboard/RoundView';
 import { CaseTree } from '@/components/dashboard/CaseTree';
 import { formatDuration } from '@/lib/utils';
@@ -30,6 +31,7 @@ export function ProjectDashboardTab({
   project,
   executions,
   onRun,
+  onStop,
   onOpenSource,
   onOpenRuns,
   onOpenResults,
@@ -37,10 +39,13 @@ export function ProjectDashboardTab({
   project: Project;
   executions: Execution[];
   onRun: () => void;
+  /** 실행 중일 때 전체 실행 대신 보이는 중지 */
+  onStop?: (executionId: number) => void;
   onOpenSource: () => void;
   onOpenRuns: () => void;
   onOpenResults: () => void;
 }) {
+  const activeRun = executions.find(isActiveExecution);
   const projectId = project.projectId;
   const [rounds, setRounds] = useState<TestRound[] | null>(null);
   const [pickedId, setPickedId] = useState<number | null>(null);
@@ -138,10 +143,19 @@ export function ProjectDashboardTab({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" onClick={onRun}>
-            <Play className="h-4 w-4" />
-            전체 실행
-          </Button>
+          {activeRun ? (
+            <Button size="sm" variant="outline" disabled={activeRun.status === 'CANCEL_REQUESTED'}
+                    onClick={() => onStop?.(activeRun.id)}
+                    className="text-destructive hover:border-destructive hover:bg-destructive/10">
+              <Square className="h-4 w-4" />
+              {activeRun.status === 'CANCEL_REQUESTED' ? '중지 중' : '중지'}
+            </Button>
+          ) : (
+            <Button size="sm" onClick={onRun}>
+              <Play className="h-4 w-4" />
+              전체 실행
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={onOpenSource}>
             <FileCode className="h-4 w-4" />
             소스

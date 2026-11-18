@@ -264,7 +264,7 @@ export function HomePage() {
                       size="sm"
                       variant="outline"
                       aria-label={`${p.projectName} 실패 ${counts.failed}건 다시 실행`}
-                      disabled={rerunId === p.projectId}
+                      disabled={rerunId === p.projectId || ['PENDING', 'RUNNING', 'CANCEL_REQUESTED'].includes(p.latestExecutionStatus ?? '')}
                       onClick={() => rerunFailed(p, items)}
                     >
                       {rerunId === p.projectId ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}

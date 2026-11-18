@@ -4,6 +4,7 @@ import {
   Loader2,
   Play,
   SlidersHorizontal,
+  Square,
   TriangleAlert,
 } from 'lucide-react';
 import type { ExecutionStatus, Project, ProjectStatus, RunnerActivity, RunningAnalysis } from '@/types';
@@ -133,6 +134,7 @@ export function ProjectCard({
   analysis,
   onOpen,
   onRun,
+  onStop,
   onEnv,
   onGo,
   planProgress,
@@ -146,6 +148,8 @@ export function ProjectCard({
   analysis?: RunningAnalysis;
   onOpen: () => void;
   onRun: () => void;
+  /** 실행 중일 때 실행 버튼 대신 보이는 중지 */
+  onStop?: (executionId: number) => void;
   /** 없으면(팀원) 환경변수 버튼 대신 PM에게 요청하라고 안내한다 */
   onEnv?: () => void;
   onGo: (tab: 'results' | 'runs' | 'source') => void;
@@ -283,11 +287,21 @@ export function ProjectCard({
       {/* 할 수 있는 일 */}
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
         <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" onClick={onRun} disabled={running || missingEnv}
-                  title={missingEnv ? '환경변수를 먼저 입력하세요' : '전체 테스트 실행'}>
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            실행
-          </Button>
+          {active && project.latestExecutionId != null ? (
+            // 실행 중에는 같은 프로젝트를 또 돌리지 않도록 실행 대신 중지를 보인다.
+            <Button size="sm" variant="outline" disabled={status === 'CANCEL_REQUESTED'}
+                    onClick={() => onStop?.(project.latestExecutionId as number)}
+                    className="text-destructive hover:border-destructive hover:bg-destructive/10">
+              <Square className="h-4 w-4" />
+              {status === 'CANCEL_REQUESTED' ? '중지 중' : '중지'}
+            </Button>
+          ) : (
+            <Button size="sm" onClick={onRun} disabled={running || missingEnv}
+                    title={missingEnv ? '환경변수를 먼저 입력하세요' : '전체 테스트 실행'}>
+              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              실행
+            </Button>
+          )}
           <Button size="sm" variant="outline" onClick={onOpen}>
             열기
           </Button>

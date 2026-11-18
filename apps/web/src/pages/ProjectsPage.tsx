@@ -144,6 +144,16 @@ export function ProjectsPage() {
     setEnvProject(updated);
   };
 
+  const handleStopProject = async (executionId: number) => {
+    if (!confirm('실행 중인 테스트를 중지할까요?')) return;
+    try {
+      await api.cancelExecution(executionId);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '실행 중지 실패');
+    }
+    loadProjects({ silent: true });
+  };
+
   const handleRunProject = async (project: Project) => {
     if (isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
       if (!access.canManage(project.projectId)) {
@@ -277,6 +287,7 @@ export function ProjectsPage() {
               analysis={runningAnalyses[project.projectId]}
               onOpen={() => navigate(projectTabPath(project.projectId, 'dashboard'))}
               onRun={() => handleRunProject(project)}
+              onStop={handleStopProject}
               onEnv={access.canManage(project.projectId) ? () => setEnvProject(project) : undefined}
               onGo={(tab) => navigate(projectTabPath(project.projectId, tab))}
               planProgress={progress[project.projectId]}
