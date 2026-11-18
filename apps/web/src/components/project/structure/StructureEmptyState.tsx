@@ -78,7 +78,8 @@ export function StructureEmptyState({
           : '테스트할 앱에 어떤 화면과 버튼이 있는지 찾아 두면 여기에 지도로 보입니다. 찾는 방법을 골라 주세요.'}
       </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-3 text-left @3xl:grid-cols-3">
+      {/* 카드가 4개(화면 직접 추가 포함)면 2 × 2, 3개면 한 줄 — 3 + 1로 어긋나지 않게 (#108) */}
+      <div className={cn('mt-6 grid grid-cols-1 gap-3 text-left', onAddNode ? '@3xl:grid-cols-2' : '@3xl:grid-cols-3')}>
         <button
           type="button"
           disabled={siteDisabled}

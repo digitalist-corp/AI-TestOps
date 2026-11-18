@@ -170,7 +170,7 @@ class RolePermissionIntegrationTest {
         List<String> titles = new ArrayList<>();
         items.forEach(i -> titles.add(i.get("title").asText()));
         assertThat(titles).contains("첫 화면이 열린다", "첫 화면에 스크립트 오류가 없다", "첫 화면의 내부 링크가 열린다",
-                "본문 제목이 보인다", "문의하기 링크가 보인다");
+                "안내 링크가 보인다", "문의하기 링크가 보인다");
         for (JsonNode i : items) {
             if (i.get("title").asText().equals("결함 다시 실행 확인")) continue; // 다른 테스트가 만든 파일
             assertThat(i.get("assigneeUserId").isNull()).as(i.get("title").asText()).isFalse();
