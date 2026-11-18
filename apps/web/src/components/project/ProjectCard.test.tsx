@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { Project } from '@/types';
 import { ProjectCard } from './ProjectCard';
 
@@ -29,7 +29,7 @@ const cardProject = {
 } as unknown as Project;
 
 const noop = () => {};
-const cardHandlers = { onOpen: noop, onRun: noop, onEnv: noop, onGo: noop };
+const cardHandlers = { onOpen: noop, onRun: noop, onStop: noop, onEnv: noop, onGo: noop };
 
 describe('ProjectCard', () => {
   it('프로젝트 이름을 제목으로 크게 보이고, 사이트 주소 · 환경은 보이지 않는다', () => {
@@ -65,5 +65,24 @@ describe('ProjectCard — 환경변수 입력은 PM · 관리자만', () => {
     render(<ProjectCard project={missing} running={false} justCreated={false} {...handlers} />);
     expect(screen.queryByRole('button', { name: '환경변수' })).toBeNull();
     expect(screen.getByText(/PM에게 입력을 요청하세요/)).toBeTruthy();
+  });
+
+  it('실행 중이면 실행 대신 중지 버튼이 보이고, 누르면 그 실행을 멈춘다', () => {
+    const onRun = vi.fn();
+    const onStop = vi.fn();
+    const running = { ...cardProject, latestExecutionStatus: 'RUNNING', latestExecutionId: 7 } as Project;
+    render(<ProjectCard project={running} running={false} justCreated={false} {...cardHandlers} onRun={onRun} onStop={onStop} />);
+
+    expect(screen.queryByRole('button', { name: /^실행$/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /중지/ }));
+    expect(onStop).toHaveBeenCalledWith(7);
+    expect(onRun).not.toHaveBeenCalled();
+  });
+
+  it('중지를 요청한 뒤에는 "중지 중"으로 바뀌고 다시 누를 수 없다', () => {
+    const stopping = { ...cardProject, latestExecutionStatus: 'CANCEL_REQUESTED', latestExecutionId: 7 } as Project;
+    render(<ProjectCard project={stopping} running={false} justCreated={false} {...cardHandlers} />);
+
+    expect((screen.getByRole('button', { name: /중지 중/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
