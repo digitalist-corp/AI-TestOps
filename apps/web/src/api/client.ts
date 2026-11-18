@@ -575,9 +575,10 @@ export const api = {
       }),
     }),
 
-  getCaseHistory: (projectId: string, grep: string) =>
+  /** specPath 를 주면 정확 일치로 돌린 실행(#149)도 함께 찾는다 */
+  getCaseHistory: (projectId: string, grep: string, specPath?: string) =>
     request<Execution[]>(
-      `/api/projects/${projectId}/executions/history?grep=${encodeURIComponent(grep)}`
+      `/api/projects/${projectId}/executions/history?grep=${encodeURIComponent(grep)}${specPath ? `&specPath=${encodeURIComponent(specPath)}` : ''}`
     ),
 
   getExecutionLogs: (executionId: number, offset: number) =>

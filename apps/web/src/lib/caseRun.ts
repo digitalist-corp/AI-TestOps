@@ -15,3 +15,18 @@ export function groupRun(picked: Omit<Picked, 'grep'> & { grep: string | null })
   if (!picked.grep) return { specPath: picked.specPath, caseTitle: picked.title };
   return { cases: [{ specPath: picked.specPath, grep: picked.grep, nodeType: 'DESCRIBE' }], caseTitle: picked.title };
 }
+
+/**
+ * 이 케이스(파일 · 키)가 그 실행의 grep 에 들어갔나 — 테스트 탭의 케이스 상태 · 묶음 상태용.
+ * 정확 일치 패턴은 Playwright 처럼 "파일 키" 문자열에 맞춰 보고, 예전 실행(이름 그대로 · 부분 일치)은 키에 맞춰 본다.
+ */
+export function ranCase(grepFilter: string | null, specPath: string, grep: string): boolean {
+  if (!grepFilter) return false;
+  if (grepFilter === grep) return true;
+  try {
+    const re = new RegExp(grepFilter);
+    return re.test(`${specPath} ${grep}`) || re.test(grep);
+  } catch {
+    return false;
+  }
+}

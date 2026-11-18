@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/Dialog';
 import { cn, executionStatusLabel } from '@/lib/utils';
+import { ranCase } from '@/lib/caseRun';
 
 export interface SelectedCase {
   grep: string;
@@ -119,19 +120,9 @@ function latestByTime(executions: Execution[]) {
   ))[0] ?? null;
 }
 
-function grepMatches(grepFilter: string | null, title: string) {
-  if (!grepFilter) return false;
-  if (grepFilter === title) return true;
-  try {
-    return new RegExp(grepFilter).test(title);
-  } catch {
-    return false;
-  }
-}
-
 function findCaseExecution(executions: Execution[], specPath: string, node: ScenarioCaseNode) {
   return latestByTime(executions.filter((execution) =>
-    grepMatches(execution.grepFilter, node.grep) && includesSpecPath(execution, specPath)
+    ranCase(execution.grepFilter, specPath, node.grep) && includesSpecPath(execution, specPath)
   ));
 }
 
@@ -155,7 +146,7 @@ function findScenarioExecution(
 
   const scenarioExecution = scenario
     ? latestByTime(executions.filter((execution) =>
-        grepMatches(execution.grepFilter, scenario.grep) && includesSpecPath(execution, specPath)
+        ranCase(execution.grepFilter, specPath, scenario.grep) && includesSpecPath(execution, specPath)
       ))
     : null;
   if (scenarioExecution) return scenarioExecution;
@@ -171,7 +162,7 @@ function findNodeExecution(executions: Execution[], specPath: string, node: Scen
   }
 
   const describeExecution = latestByTime(executions.filter((execution) =>
-    grepMatches(execution.grepFilter, node.grep) && includesSpecPath(execution, specPath)
+    ranCase(execution.grepFilter, specPath, node.grep) && includesSpecPath(execution, specPath)
   ));
   if (describeExecution) return describeExecution;
 
@@ -411,7 +402,7 @@ export function ScenarioTab({
       return;
     }
     setHistoryLoading(true);
-    api.getCaseHistory(projectId, selectedCase.grep)
+    api.getCaseHistory(projectId, selectedCase.grep, selectedCase.specPath)
       .then(setHistory)
       .catch(() => setHistory([]))
       .finally(() => setHistoryLoading(false));
