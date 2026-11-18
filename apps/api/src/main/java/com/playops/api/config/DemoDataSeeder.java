@@ -20,8 +20,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -40,6 +44,11 @@ public class DemoDataSeeder implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);
     static final String PROJECT = "example.com";
     static final String FAILING = "문의하기 링크가 보인다";
+    /**
+     * 예전에 넣은 시연 spec (#87 첫 버전, '본문 제목이 보인다' — example.com 에서 제목이 사라져 실패, #142)의 SHA-256.
+     * 내용이 이것과 같을 때만 새 버전으로 바꾼다 — 사람이 고친 파일은 건드리지 않는다.
+     */
+    static final String OLD_DEMO_SHA256 = "6cbfd2b48a358dd057d2dfe91b7390b77088c30bbef2faccdd0b3dc1b2615999";
 
     private final ProjectRepository projectRepository;
     private final ProjectService projectService;
@@ -69,12 +78,16 @@ public class DemoDataSeeder implements CommandLineRunner {
             Project project = projectRepository.findById(PROJECT).orElse(null);
             if (project == null) return;
             Path dir = projectService.getProjectPath(PROJECT);
+            Path demo = dir.resolve("tests/demo.spec.ts");
+            if (Files.isRegularFile(demo) && OLD_DEMO_SHA256.equals(sha256(demo))) {
+                copyDemoSpec(demo);
+                seedPlan();
+                log.info("시연 프로젝트 {} 의 시연 spec 을 새 버전으로 바꿨습니다.", PROJECT);
+                return;
+            }
             if (hasSpecFiles(dir)) return;
             templateService.scaffold(dir, project, "default", false);
-            try (InputStream in = getClass().getResourceAsStream("/demo/example.com/demo.spec.ts")) {
-                Files.createDirectories(dir.resolve("tests"));
-                Files.copy(in, dir.resolve("tests/demo.spec.ts"));
-            }
+            copyDemoSpec(demo);
             project.setDockerEnabled(true);
             projectRepository.save(project);
             seedPlan();
@@ -99,6 +112,21 @@ public class DemoDataSeeder implements CommandLineRunner {
                     failing ? today.minusDays(1) : today.plusDays(2L + n),
                     failing ? "HIGH" : priorities[n % priorities.length], owner));
             if (!failing) n++;
+        }
+    }
+
+    private void copyDemoSpec(Path target) throws IOException {
+        try (InputStream in = getClass().getResourceAsStream("/demo/example.com/demo.spec.ts")) {
+            Files.createDirectories(target.getParent());
+            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    static String sha256(Path file) throws IOException {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(file)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
         }
     }
 

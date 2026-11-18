@@ -27,6 +27,8 @@ interface Props {
   onDelete: (id: number) => void;
   onReset: () => void;
   selectedId: number | null;
+  /** 이력 삭제 · 초기화는 PM · 관리자만 (서버도 막는다). 팀원은 보기 · 중지만 */
+  canManage?: boolean;
 }
 
 export function ExecutionsTab({
@@ -39,6 +41,7 @@ export function ExecutionsTab({
   onDelete,
   onReset,
   selectedId,
+  canManage = true,
 }: Props) {
   const streamId =
     activeExecutionId ??
@@ -109,7 +112,7 @@ export function ExecutionsTab({
             >
               <Square className="h-3.5 w-3.5" />
             </Button>
-            <Button
+            {canManage && <Button
               size="icon"
               variant="ghost"
               className="h-7 w-7 text-muted-foreground hover:text-destructive"
@@ -121,7 +124,7 @@ export function ExecutionsTab({
               title={deletable ? '이력 삭제' : '실행 중인 이력은 삭제할 수 없습니다'}
             >
               <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            </Button>}
           </div>
         ) : null;
       },
@@ -130,28 +133,36 @@ export function ExecutionsTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-2">
+      {/* 버튼은 오른쪽에 모은다 — 넓은 화면에서 줄 전체로 흩어지지 않게 (#108) */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-medium text-foreground">실행 이력</h3>
           <p className="text-xs text-muted-foreground mt-0.5">전체 실행은 상단 버튼, 케이스 실행은 시나리오 탭에서 시작합니다.</p>
         </div>
-        <Button variant="outline" onClick={onRefresh} disabled={loading}>
-          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
-          새로고침
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => selectedId && onDelete(selectedId)}
-          disabled={!selectedDeletable}
-          title={selectedExecution && !selectedDeletable ? '실행 중인 이력은 삭제할 수 없습니다' : undefined}
-        >
-          <Trash2 className="h-4 w-4" />
-          선택 삭제
-        </Button>
-        <Button variant="outline" onClick={onReset} disabled={executions.length === 0}>
-          <RotateCcw className="h-4 w-4" />
-          전체 초기화
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
+            <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} />
+            새로고침
+          </Button>
+          {canManage && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => selectedId && onDelete(selectedId)}
+                disabled={!selectedDeletable}
+                title={selectedExecution && !selectedDeletable ? '실행 중인 이력은 삭제할 수 없습니다' : undefined}
+              >
+                <Trash2 className="h-4 w-4" />
+                선택 삭제
+              </Button>
+              <Button size="sm" variant="outline" onClick={onReset} disabled={executions.length === 0}>
+                <RotateCcw className="h-4 w-4" />
+                전체 초기화
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <ExecutionLogPanel executionId={streamId} />
