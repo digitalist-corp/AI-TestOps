@@ -23,13 +23,22 @@ class NotificationServiceTest {
 
     private final NotificationRepository repository = mock(NotificationRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
-    private final NotificationService service = new NotificationService(repository, userRepository);
+    private final com.playops.api.repository.ProjectMemberRepository memberRepository =
+            mock(com.playops.api.repository.ProjectMemberRepository.class);
+    private final NotificationService service = new NotificationService(repository, userRepository, memberRepository);
 
     private static User user(long id, boolean enabled) {
         User u = new User();
         u.setId(id);
         u.setEnabled(enabled);
+        u.setRole(com.playops.api.entity.UserRole.USER);
         return u;
+    }
+
+    private void members(long... userIds) {
+        when(memberRepository.findByProjectId("demo")).thenReturn(java.util.Arrays.stream(userIds)
+                .mapToObj(id -> com.playops.api.entity.ProjectMember.of("demo", id, com.playops.api.entity.ProjectRole.MEMBER, null))
+                .toList());
     }
 
     private static Project project() {
@@ -57,8 +66,9 @@ class NotificationServiceTest {
     }
 
     @Test
-    void finishedExecutionNotifiesEveryEnabledUserWithALinkToTheRun() {
+    void finishedExecutionNotifiesEveryEnabledMemberWithALinkToTheRun() {
         when(userRepository.findAll()).thenReturn(List.of(user(1, true), user(2, true), user(3, false)));
+        members(1, 2, 3);
 
         service.executionFinished(execution(ExecutionStatus.FAILED, "MANUAL"), project());
 
@@ -74,6 +84,7 @@ class NotificationServiceTest {
     @Test
     void scheduledRunIsLabelledAsScheduleCompletion() {
         when(userRepository.findAll()).thenReturn(List.of(user(1, true)));
+        members(1);
 
         service.executionFinished(execution(ExecutionStatus.PASSED, "SCHEDULED"), project());
 
@@ -89,5 +100,28 @@ class NotificationServiceTest {
         service.executionFinished(execution(ExecutionStatus.FAILED, "AI_POST_APPLY"), project());
 
         verify(repository, never()).saveAll(any());
+    }
+
+    /** 3-1: 프로젝트 알림이 모두에게 가서 게스트 알림이 9+ 로 쌓이고 권한 없는 프로젝트 소식이 새던 것 */
+    @Test
+    void projectNotificationsGoToMembersAndAdminsOnly() {
+        User admin = user(3, true);
+        admin.setRole(com.playops.api.entity.UserRole.ADMIN);
+        when(userRepository.findAll()).thenReturn(List.of(user(1, true), user(2, true), admin, user(4, false)));
+        members(1, 4);
+
+        service.executionFinished(execution(ExecutionStatus.FAILED, "MANUAL"), project());
+
+        assertThat(saved()).extracting(Notification::getUserId).containsExactly(1L, 3L);
+    }
+
+    @Test
+    void noticesStillGoToEveryone() {
+        when(userRepository.findAll()).thenReturn(List.of(user(1, true), user(2, true), user(3, false)));
+        members();
+
+        service.noticePosted(9L, "점검 안내");
+
+        assertThat(saved()).extracting(Notification::getUserId).containsExactly(1L, 2L);
     }
 }

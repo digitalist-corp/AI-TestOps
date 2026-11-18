@@ -30,10 +30,13 @@ public class NotificationService {
 
     private final NotificationRepository repository;
     private final UserRepository userRepository;
+    private final com.playops.api.repository.ProjectMemberRepository memberRepository;
 
-    public NotificationService(NotificationRepository repository, UserRepository userRepository) {
+    public NotificationService(NotificationRepository repository, UserRepository userRepository,
+                               com.playops.api.repository.ProjectMemberRepository memberRepository) {
         this.repository = repository;
         this.userRepository = userRepository;
+        this.memberRepository = memberRepository;
     }
 
     public List<Notification> list(Long userId) {
@@ -98,9 +101,14 @@ public class NotificationService {
 
     private void notifyAll(String kind, String level, String title, String message, String link, String projectId) {
         try {
+            // 프로젝트 알림은 그 프로젝트 멤버와 관리자에게만 (권한 없는 프로젝트 소식이 새지 않게, 3-1)
+            java.util.Set<Long> members = projectId == null ? null : memberRepository.findByProjectId(projectId).stream()
+                    .map(com.playops.api.entity.ProjectMember::getUserId).collect(java.util.stream.Collectors.toSet());
             List<Notification> rows = new ArrayList<>();
             for (User user : userRepository.findAll()) {
                 if (!user.isEnabled()) continue;
+                if (members != null && user.getRole() != com.playops.api.entity.UserRole.ADMIN
+                        && !members.contains(user.getId())) continue;
                 Notification n = new Notification();
                 n.setUserId(user.getId());
                 n.setKind(kind);
