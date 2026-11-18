@@ -36,6 +36,10 @@ public class User {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    /** 기본 비밀번호로 만든 계정. 켜져 있으면 비밀번호를 바꾸기 전에 다른 API 를 못 쓴다 (AuthInterceptor). */
+    @Column(name = "password_change_required", nullable = false)
+    private boolean passwordChangeRequired;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();
@@ -71,4 +75,7 @@ public class User {
 
     public Instant getLastLoginAt() { return lastLoginAt; }
     public void setLastLoginAt(Instant lastLoginAt) { this.lastLoginAt = lastLoginAt; }
+
+    public boolean isPasswordChangeRequired() { return passwordChangeRequired; }
+    public void setPasswordChangeRequired(boolean passwordChangeRequired) { this.passwordChangeRequired = passwordChangeRequired; }
 }

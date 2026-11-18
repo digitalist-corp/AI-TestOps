@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
         "playops.projects-root=build/tmp/roles-projects",
         "playops.storage-root=build/tmp/roles-storage",
         "LOGIN_USERNAME=admin",
-        "LOGIN_PASSWORD=admin"
+        "LOGIN_PASSWORD=admin-test-pass-1"
 })
 @AutoConfigureMockMvc
 class RolePermissionIntegrationTest {
@@ -84,7 +84,7 @@ class RolePermissionIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        admin = call(post("/api/auth/login").content("{\"username\":\"admin\",\"password\":\"admin\"}"), null, 200)
+        admin = call(post("/api/auth/login").content("{\"username\":\"admin\",\"password\":\"admin-test-pass-1\"}"), null, 200)
                 .get("token").asText();
         String name = "m" + UUID.randomUUID().toString().substring(0, 8);
         // 가입은 IP당 분당 5회라 테스트마다 다른 주소에서 가입한다

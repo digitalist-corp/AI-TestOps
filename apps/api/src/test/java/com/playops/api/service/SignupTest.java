@@ -40,7 +40,7 @@ class SignupTest {
             if (u.getId() == null) u.setId(7L);
             return u;
         });
-        authService = new AuthService(users, mock(UserSessionRepository.class), encoder, "admin", "admin", "guest");
+        authService = new AuthService(users, mock(UserSessionRepository.class), encoder, "guest");
         userService = new UserService(users, mock(UserAuditLogRepository.class), encoder, authService);
     }
 

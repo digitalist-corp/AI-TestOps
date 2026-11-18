@@ -22,6 +22,9 @@ public class AuthInterceptor implements HandlerInterceptor {
     private static final java.util.regex.Pattern AI_CHAT_REPLY_PATH =
             java.util.regex.Pattern.compile("^/api/ai/chat/sessions/\\d+/messages$");
 
+    private static final java.util.Set<String> PASSWORD_CHANGE_PATHS =
+            java.util.Set.of("/api/auth/me", "/api/auth/logout", "/api/auth/password");
+
     private final AuthService authService;
     private final Map<String, RateWindow> generalRateWindows = new ConcurrentHashMap<>();
     private final Map<String, RateWindow> aiChatRateWindows = new ConcurrentHashMap<>();
@@ -82,6 +85,12 @@ public class AuthInterceptor implements HandlerInterceptor {
             return false;
         }
 
+        // 기본 비밀번호(admin) 계정은 비밀번호를 바꾸기 전에 내 정보 · 로그아웃 · 비밀번호 변경만 쓴다 (3-1 보안).
+        if (user.isPasswordChangeRequired() && !PASSWORD_CHANGE_PATHS.contains(path)) {
+            writeError(response, 403, "PASSWORD_CHANGE_REQUIRED", "비밀번호를 바꾼 뒤 사용할 수 있습니다.");
+            return false;
+        }
+
         if (path.startsWith("/api/admin/") && user.getRole() != com.playops.api.entity.UserRole.ADMIN) {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             return false;
@@ -127,11 +136,15 @@ public class AuthInterceptor implements HandlerInterceptor {
     }
 
     private void writeRateLimitResponse(HttpServletResponse response, String message) throws Exception {
-        response.setStatus(429);
         response.setHeader("Retry-After", "60");
+        writeError(response, 429, "RATE_LIMITED", message);
+    }
+
+    private void writeError(HttpServletResponse response, int status, String code, String message) throws Exception {
+        response.setStatus(status);
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write(
-                "{\"message\":\"" + message + "\",\"error\":{\"code\":\"RATE_LIMITED\",\"message\":\"" + message + "\",\"details\":[]}}"
+                "{\"message\":\"" + message + "\",\"error\":{\"code\":\"" + code + "\",\"message\":\"" + message + "\",\"details\":[]}}"
         );
     }
 

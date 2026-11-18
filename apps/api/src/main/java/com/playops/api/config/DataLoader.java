@@ -12,6 +12,7 @@ import com.playops.api.repository.ProjectMemberRepository;
 import com.playops.api.repository.UserRepository;
 import com.playops.api.repository.ProjectRepository;
 import com.playops.api.repository.TestSuiteRepository;
+import com.playops.api.service.AuthService;
 import com.playops.api.util.RuntimeVersions;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
@@ -44,7 +45,7 @@ public class DataLoader implements CommandLineRunner {
             ProjectMemberRepository memberRepository,
             PasswordEncoder passwordEncoder,
             @Value("${LOGIN_USERNAME:admin}") String loginUsername,
-            @Value("${LOGIN_PASSWORD:admin}") String loginPassword,
+            @Value("${LOGIN_PASSWORD:}") String loginPassword,
             @Value("${GUEST_USERNAME:guest}") String guestUsername,
             @Value("${GUEST_PASSWORD:}") String guestPassword,
             @Value("${WEB_PORT:3000}") String webPort
@@ -65,10 +66,13 @@ public class DataLoader implements CommandLineRunner {
     public void run(String... args) {
         User existingAdmin = userRepository.findByUsername(loginUsername).orElse(null);
         if (existingAdmin == null) {
+            // .env 값이 비었거나 admin 이면 admin 으로 만들고 첫 로그인에 비밀번호를 바꾸게 한다 (3-1 보안)
+            boolean defaultPassword = AuthService.isDefaultPassword(loginPassword);
             User admin = new User();
             admin.setUsername(loginUsername);
-            admin.setPassword(passwordEncoder.encode(loginPassword));
+            admin.setPassword(passwordEncoder.encode(defaultPassword ? AuthService.DEFAULT_PASSWORD : loginPassword));
             admin.setRole(UserRole.ADMIN);
+            admin.setPasswordChangeRequired(defaultPassword);
             userRepository.save(admin);
         } else if (!isBcryptHash(existingAdmin.getPassword()) && existingAdmin.getPassword().equals(loginPassword)) {
             // 과거 평문으로 생성된 부트스트랩 admin 계정을 최초 재기동 시 1회 해시로 마이그레이션한다.

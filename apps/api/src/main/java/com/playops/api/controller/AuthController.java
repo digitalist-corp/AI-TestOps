@@ -30,7 +30,10 @@ public class AuthController {
 
     public record ProjectRoleItem(String projectId, ProjectRole role) {}
 
-    public record Me(Long id, String username, String displayName, UserRole role, java.util.List<ProjectRoleItem> projects) {}
+    public record Me(Long id, String username, String displayName, UserRole role, java.util.List<ProjectRoleItem> projects,
+                     boolean passwordChangeRequired) {}
+
+    public record PasswordChange(String currentPassword, String newPassword) {}
 
     /** 로그인한 사람의 전역 역할과 프로젝트별 역할. 웹은 이것만 보고 버튼을 나눈다 (#105). */
     @GetMapping("/me")
@@ -40,7 +43,15 @@ public class AuthController {
                 memberService.projectsOf(user).entrySet().stream()
                         .map(e -> new ProjectRoleItem(e.getKey(), e.getValue()))
                         .sorted(java.util.Comparator.comparing(ProjectRoleItem::projectId))
-                        .toList());
+                        .toList(),
+                user.isPasswordChangeRequired());
+    }
+
+    /** 본인 비밀번호 변경. 기본 비밀번호 상태에서도 열려 있다 (AuthInterceptor). 새 토큰을 돌려준다. */
+    @PostMapping("/password")
+    public LoginResponse changePassword(@RequestBody PasswordChange body, HttpServletRequest request) {
+        User user = (User) request.getAttribute("currentUser");
+        return userService.changeOwnPassword(user, body.currentPassword(), body.newPassword(), request.getHeader("User-Agent"));
     }
 
     @PostMapping("/login")
