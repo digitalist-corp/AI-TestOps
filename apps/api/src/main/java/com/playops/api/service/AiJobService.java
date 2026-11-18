@@ -185,8 +185,8 @@ public class AiJobService {
             throw new ApiException(400, "생성할 spec 파일 경로를 입력하세요.");
         }
         String normalizedPath = targetSpecPath.trim();
-        if (normalizedPath.contains("..")) {
-            throw new ApiException(400, "spec 경로에 '..'를 사용할 수 없습니다.");
+        if (escapesProject(normalizedPath)) {
+            throw new ApiException(400, "spec 경로는 프로젝트 안의 상대 경로여야 합니다 (예: tests/login.spec.ts).");
         }
         if (instruction == null || instruction.isBlank()) {
             throw new ApiException(400, "생성할 시나리오에 대한 요구사항을 입력하세요.");
@@ -464,6 +464,18 @@ public class AiJobService {
         }
     }
 
+    /** AI 가 바꾸는 파일 경로가 프로젝트 폴더 밖(절대 경로, ../)을 가리키는가. 생성 요청 · 러너 결과 · 반영이 함께 쓴다. */
+    static boolean escapesProject(String file) {
+        if (file == null || file.isBlank()) return true;
+        try {
+            Path base = Path.of("/project");
+            Path path = Path.of(file);
+            return path.isAbsolute() || !base.resolve(path).normalize().startsWith(base);
+        } catch (java.nio.file.InvalidPathException e) {
+            return true;
+        }
+    }
+
     private String safeFileName(String targetSpecPath) {
         return targetSpecPath.replace("/", "__").replace("\\", "__");
     }
@@ -503,6 +515,10 @@ public class AiJobService {
         try {
             Files.createDirectories(snapshotDir);
             for (String file : changedFiles) {
+                // 반영은 여기 한 곳뿐이다. 앞 단계를 어떻게 지나왔든 프로젝트 밖에는 쓰지 않는다.
+                if (escapesProject(file)) {
+                    throw new ApiException(400, "프로젝트 안의 파일만 반영할 수 있습니다: " + file);
+                }
                 Path sourceFile = Path.of(job.getDiffPath(), safeFileName(file));
                 Path targetFile = projectService.getProjectPath(job.getProjectId()).resolve(file);
                 Files.createDirectories(targetFile.getParent());
@@ -537,6 +553,10 @@ public class AiJobService {
         List<String> violations = new ArrayList<>();
 
         for (String file : changedFiles) {
+            if (escapesProject(file)) {
+                violations.add(file);
+                continue;
+            }
             Path relative = Path.of(file);
             boolean isDenied = denied.stream().anyMatch(glob -> matches(relative, glob));
             boolean isAllowed = allowed.isEmpty() || allowed.stream().anyMatch(glob -> matches(relative, glob));

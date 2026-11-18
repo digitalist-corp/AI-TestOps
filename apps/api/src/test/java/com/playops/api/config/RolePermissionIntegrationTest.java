@@ -256,6 +256,34 @@ class RolePermissionIntegrationTest {
         assertThat(status(delete("/api/projects/example.com"), member)).isEqualTo(403);
     }
 
+    /**
+     * "게스트로 시작"은 비밀번호 없이 누구나 들어오는 공용 계정이라 둘러보기만 한다 (자체 리뷰 1위).
+     * 시연 실행을 취소하거나 AI 비용을 쓰지 못하게 서버가 막는다. 자기 알림 비우기 · 로그아웃은 된다.
+     */
+    @Test
+    void guestCanOnlyLookAround() throws Exception {
+        String guest = call(post("/api/auth/guest"), null, 200).get("token").asText();
+
+        call(get("/api/projects/example.com"), guest, 200);
+        JsonNode run = call(post("/api/projects/example.com/executions").content("{}"), guest, 403);
+        assertThat(run.get("error").get("code").asText()).isEqualTo("GUEST_READ_ONLY");
+        assertThat(status(post("/api/projects/example.com/execution/1/cancel"), guest)).isEqualTo(403);
+        assertThat(status(post("/api/ai/chat").content("{\"message\":\"hi\"}"), guest)).isEqualTo(403);
+
+        assertThat(status(delete("/api/notifications"), guest)).isEqualTo(204);
+        assertThat(status(post("/api/auth/logout"), guest)).isEqualTo(204);
+    }
+
+    /** 'AI로 만들기' 의 spec 경로가 프로젝트 밖(절대 경로)을 가리키면 거절한다 (자체 리뷰 2위). */
+    @Test
+    void aiGeneratedSpecPathMustStayInsideTheProject() throws Exception {
+        for (String path : List.of("/etc/cron.d/x.spec.ts", "tests/../../x.spec.ts")) {
+            JsonNode res = call(post("/api/projects/example.com/ai-jobs/template-generate")
+                    .content("{\"targetSpecPath\":\"" + path + "\",\"instruction\":\"첫 화면\"}"), admin, 400);
+            assertThat(res.get("message").asText()).as(path).contains("프로젝트 안");
+        }
+    }
+
     /** AI 제공자 키는 관리자만 보고 바꾼다 (3-1 보안). 팀원도, 프로젝트 PM 도 403. */
     @Test
     void aiProviderSettingsAreAdminOnly() throws Exception {

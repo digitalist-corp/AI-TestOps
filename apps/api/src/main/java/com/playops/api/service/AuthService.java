@@ -140,6 +140,11 @@ public class AuthService {
         );
     }
 
+    /** "게스트로 시작" 공용 계정. 비밀번호 없이 누구나 들어오므로 둘러보기만 한다 (AuthInterceptor). */
+    public boolean isGuest(User user) {
+        return user.getRole() == com.playops.api.entity.UserRole.USER && guestUsername.equals(user.getUsername());
+    }
+
     public static boolean isDefaultPassword(String password) {
         return password == null || password.isBlank() || DEFAULT_PASSWORD.equals(password);
     }
