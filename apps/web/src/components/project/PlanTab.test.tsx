@@ -3,6 +3,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { api } from '@/api/client';
 import type { PlanItem, PlanResponse } from '@/types';
 import { PlanTab } from './PlanTab';
+import { downloadCsv } from '@/lib/csv';
+
+vi.mock('@/lib/csv', () => ({ downloadCsv: vi.fn() }));
 
 vi.mock('@/api/client', () => ({
   api: {
@@ -46,6 +49,21 @@ afterEach(() => {
 });
 
 describe('PlanTab', () => {
+  it('CSV 내보내기: 표준 칸 순서로, 사용 중 · 미사용 모두, 판정은 엑셀 표기(Pass/Fail/Untested)', async () => {
+    vi.mocked(api.plan.get).mockResolvedValue(plan);
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'CSV 내보내기' }));
+
+    const [fileName, rows] = vi.mocked(downloadCsv).mock.calls[0];
+    expect(fileName).toMatch(/^p1-계획-\d{8}\.csv$/);
+    expect(rows[0]).toEqual(['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행']);
+    expect(rows).toHaveLength(5);
+    expect(rows[1]).toEqual(['TC-001', 'tests/login.spec.ts', '로그인된다', '사용', '(계정 없음) 윤재', '', '', 'Pass', '']);
+    expect(rows[2].slice(2, 8)).toEqual(['로그아웃된다', '사용', '김윤재', '', '', 'Fail']);
+    expect(rows[3].slice(2, 4)).toEqual(['탈퇴된다', '미사용']);
+    expect(rows[3][7]).toBe('Untested');
+  });
+
   it('코드 용어 없이 업무 열 이름을 보여 준다', async () => {
     const { container } = render(<PlanTab projectId="p1" onRun={() => {}} />);
     await screen.findByText('로그아웃된다');

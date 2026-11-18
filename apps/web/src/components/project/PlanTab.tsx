@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, type ColDef, type ICellRendererParams } from 'ag-grid-community';
-import { ClipboardList, Loader2, Play, X } from 'lucide-react';
+import { ClipboardList, Download, Loader2, Play, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { PlanItem, PlanItemKey, PlanPriority, ProjectMember, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { casesByScreen } from '@/lib/rounds';
 import { PRIORITY_LABEL, assigneeLabel, inSuite, planCounts, planKey, screenNameByCase } from '@/lib/plan';
 import { useAccess } from '@/lib/access';
 import { formatRelative } from '@/lib/utils';
+import { downloadCsv } from '@/lib/csv';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -24,6 +25,27 @@ const RESULT_VIEW: Record<'PASSED' | 'FAILED' | 'NONE', { label: string; classNa
 };
 
 const PRIORITY_OPTIONS = ['', 'HIGH', 'MEDIUM', 'LOW'];
+
+/** 엑셀 내보내기 판정 표기 (설계 2-2). 지금 데이터는 통과 · 실패 · 미수행 3값 */
+const VERDICT_EXPORT = { PASSED: 'Pass', FAILED: 'Fail' } as const;
+
+/** 계획 표를 표준 TC 칸 순서로. 대분류는 화면 이름, 모르면 파일 경로 */
+function planCsvRows(items: PlanItem[], screens: Map<string, string>) {
+  return [
+    ['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행'],
+    ...items.map((i, n) => [
+      `TC-${String(n + 1).padStart(3, '0')}`,
+      screens.get(planKey(i.specPath, i.title)) ?? i.specPath,
+      i.title,
+      i.enabled ? '사용' : '미사용',
+      assigneeLabel(i),
+      i.dueDate ?? '',
+      i.priority ? PRIORITY_LABEL[i.priority] : '',
+      i.lastStatus ? VERDICT_EXPORT[i.lastStatus] : 'Untested',
+      i.lastRunAt ?? '',
+    ]),
+  ];
+}
 
 /**
  * 담당자 칸 값: '' = 미지정, 't:이름' = 계정과 잇지 못한 옛 이름 그대로, 그 밖은 멤버 사용자 id.
@@ -286,6 +308,11 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
               </Button>
             </>
           )}
+          <Button size="sm" variant="outline"
+                  onClick={() => downloadCsv(`${projectId}-계획-${new Date().toLocaleDateString('sv-SE').replaceAll('-', '')}.csv`, planCsvRows(items, screens))}>
+            <Download className="h-4 w-4" />
+            CSV 내보내기
+          </Button>
           <Button size="sm" onClick={onRun} disabled={enabledCount === 0 || runDisabled}
                   title={runDisabled ? '실행 중인 테스트가 끝나면 다시 실행할 수 있어요' : undefined}>
             <Play className="h-4 w-4" />
