@@ -235,7 +235,8 @@ jobs:
           exit 1
 
 
-      # 시연 데이터 (#87): 시연 프로젝트(example.com)에 실행 이력이 없으면 한 번 돌려 결함 · 단계 기록을 만든다.
+      # 시연 데이터 (#87): 시연 프로젝트(example.com)에 실행 이력이 없거나 한 번도 안 돈 계획 항목이 있으면(시연 spec 갱신, #142)
+      # 한 번 돌려 결함 · 단계 기록을 만든다.
       # 시연 spec 의 '문의하기 링크가 보인다'는 일부러 실패한다. 이 단계가 실패해도 배포는 그대로 둔다.
       - name: 시연 데이터 (시연 프로젝트 첫 실행)
         continue-on-error: true
@@ -251,10 +252,12 @@ jobs:
           H="Authorization: Bearer $TOKEN"
 
           COUNT=$(curl -sf -H "$H" "$API/api/projects/example.com/executions" | jq 'length' || echo -1)
-          ITEMS=$(curl -sf -H "$H" "$API/api/projects/example.com/plan" | jq '.items | length' || echo -1)
-          echo "시연 프로젝트: 계획 항목 $ITEMS개, 실행 이력 $COUNT개"
-          if [ "$COUNT" != "0" ]; then
-            echo "실행 이력이 있어 그대로 둡니다."
+          PLAN=$(curl -sf -H "$H" "$API/api/projects/example.com/plan")
+          ITEMS=$(echo "$PLAN" | jq '.items | length' || echo -1)
+          NOT_RUN=$(echo "$PLAN" | jq '.summary.notRun' || echo -1)
+          echo "시연 프로젝트: 계획 항목 $ITEMS개 (미수행 $NOT_RUN), 실행 이력 $COUNT개"
+          if [ "$COUNT" != "0" ] && [ "$NOT_RUN" = "0" ]; then
+            echo "실행 이력이 있고 미수행 항목이 없어 그대로 둡니다."
           else
             EXEC_ID=$(curl -sf -X POST -H "$H" -H 'Content-Type: application/json' -d '{}' \
               "$API/api/projects/example.com/executions" | jq -r '.id // empty')
