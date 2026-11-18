@@ -98,6 +98,26 @@ services:
       - ./playwright-projects:/playwright-projects
       - ./storage:/storage
 
+  # LangGraph 학습 루프 (E-03). 프로파일 ai 로만 뜬다 — 기본 npm run dev · 배포 · 시연에는 없다.
+  #   docker compose -f docker-compose.dev.yml --profile ai up -d ai-service
+  # 체크포인트는 같은 postgres 의 스키마 langgraph. 호스트 포트는 열지 않는다(내부망 전용).
+  ai-service:
+    build:
+      context: ./apps/ai-service
+    container_name: playops-ai-service
+    profiles: [ai]
+    restart: unless-stopped
+    environment:
+      AI_SERVICE_DATABASE_URL: postgresql://${POSTGRES_USER:-playops}:${POSTGRES_PASSWORD:-playops}@postgres:5432/${POSTGRES_DB:-playops}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
 volumes:
   api-gradle-cache:
   web-node-modules:
