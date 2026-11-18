@@ -8,7 +8,12 @@ import com.playops.api.entity.ExecutionStatus;
 import com.playops.api.exception.ApiException;
 import com.playops.api.llm.LlmToolCall;
 import com.playops.api.service.ExecutionQueryService;
+import com.playops.api.dto.ScenarioCaseNode;
+import com.playops.api.dto.ScenarioSpecFile;
+import com.playops.api.dto.ScenarioTreeResponse;
 import com.playops.api.service.FileStorageService;
+import com.playops.api.service.PlaywrightScenarioService;
+import com.playops.api.util.PlaywrightGrep;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,7 +44,23 @@ class RunTestsToolTest {
 
     private final ExecutionQueryService executionQueryService = mock(ExecutionQueryService.class);
     private final FileStorageService fileStorageService = mock(FileStorageService.class);
-    private final RunTestsTool tool = new RunTestsTool(executionQueryService, fileStorageService);
+    private final PlaywrightScenarioService scenarioService = mock(PlaywrightScenarioService.class);
+    private final RunTestsTool tool = new RunTestsTool(executionQueryService, fileStorageService, scenarioService);
+
+    private static ScenarioCaseNode test(String title, String grep) {
+        return new ScenarioCaseNode("TEST", title, title, 1, grep, true, List.of());
+    }
+
+    /** tests/login.spec.ts: "로그인 성공" · "로그인 성공 후 이동" · 묶음 "관리자" > "로그인 성공", tests/b.spec.ts: "로그인 성공" */
+    private void cases() {
+        when(scenarioService.analyze("p1")).thenReturn(new ScenarioTreeResponse("p1", 2, 4, List.of(
+                new ScenarioSpecFile("tests/login.spec.ts", 3, true, List.of(
+                        test("로그인 성공", "로그인 성공"),
+                        test("로그인 성공 후 이동", "로그인 성공 후 이동"),
+                        new ScenarioCaseNode("DESCRIBE", "관리자", "관리자", 9, "관리자", true,
+                                List.of(test("로그인 성공", "관리자 로그인 성공"))))),
+                new ScenarioSpecFile("tests/b.spec.ts", 1, true, List.of(test("로그인 성공", "로그인 성공"))))));
+    }
 
     @BeforeEach
     void projectFiles() throws IOException {
@@ -96,7 +117,10 @@ class RunTestsToolTest {
 
     @Test
     void startsTheRunThroughTheSamePathAsTheManualRunButton() {
-        when(executionQueryService.triggerRun("p1", "로그인 성공", "tests/login.spec.ts", null, "로그인 성공", false))
+        cases();
+        // 이름이 그 파일의 케이스 키와 정확히 같으면 그 케이스만 (#135 정확 일치, '로그인 성공 후 이동'은 돌지 않음)
+        when(executionQueryService.triggerRun("p1", PlaywrightGrep.testTitle("tests/login.spec.ts", "로그인 성공"),
+                "tests/login.spec.ts", null, "로그인 성공", false))
                 .thenReturn(started(31));
 
         ChatToolOutput output = tool.execute(
@@ -204,5 +228,51 @@ class RunTestsToolTest {
 
         assertThat(output.error()).isFalse();
         assertThat(output.display().data().get("projectId")).isEqualTo("other");
+    }
+
+    @Test
+    void aGroupNameRunsEveryCaseUnderIt() {
+        cases();
+        when(executionQueryService.triggerRun(anyString(), any(), any(), any(), any(), anyBoolean())).thenReturn(started(33));
+
+        tool.execute(call(Map.of("specPath", "tests/login.spec.ts", "grep", "관리자")), context());
+
+        verify(executionQueryService).triggerRun("p1", PlaywrightGrep.describeTitle("tests/login.spec.ts", "관리자"),
+                "tests/login.spec.ts", null, "관리자", false);
+    }
+
+    @Test
+    void aPartialNameDoesNotRunAndListsCandidatesOfThatFile() {
+        cases();
+
+        ChatToolOutput output = tool.execute(call(Map.of("specPath", "tests/login.spec.ts", "grep", "로그인")), context());
+
+        assertThat(output.error()).isTrue();
+        assertThat(output.content()).contains("tests/login.spec.ts › 로그인 성공", "tests/login.spec.ts › 로그인 성공 후 이동",
+                "tests/login.spec.ts › 관리자 로그인 성공").doesNotContain("b.spec.ts");
+        verify(executionQueryService, never()).triggerRun(anyString(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void aNameInSeveralFilesWithoutSpecPathAsksWhichOne() {
+        cases();
+
+        ChatToolOutput output = tool.execute(call(Map.of("grep", "로그인 성공")), context());
+
+        // login.spec.ts 의 키 · b.spec.ts 의 키 · 묶음 안 제목이 모두 '로그인 성공' 과 맞는다
+        assertThat(output.error()).isTrue();
+        assertThat(output.content()).contains("tests/login.spec.ts › 로그인 성공", "tests/b.spec.ts › 로그인 성공");
+        verify(executionQueryService, never()).triggerRun(anyString(), any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void anExactNameInOneFileRunsWithoutSpecPath() {
+        cases();
+        when(executionQueryService.triggerRun(anyString(), any(), any(), any(), any(), anyBoolean())).thenReturn(started(34));
+
+        tool.execute(call(Map.of("grep", "관리자 로그인 성공")), context());
+
+        verify(executionQueryService).triggerRun("p1", PlaywrightGrep.testTitle("tests/login.spec.ts", "관리자 로그인 성공"),
+                "tests/login.spec.ts", null, "관리자 로그인 성공", false);
     }
 }
