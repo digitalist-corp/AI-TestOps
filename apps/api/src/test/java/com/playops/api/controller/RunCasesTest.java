@@ -45,4 +45,16 @@ class RunCasesTest {
         assertThat(runs(grep, "b.spec.ts 결제(카드)")).isTrue();
         assertThat(runs(grep, "a.spec.ts 결제(카드)")).isFalse();
     }
+
+    /** 최종 리뷰: 정확 일치 패턴은 케이스마다 100자 넘게 길어 몇 건만 골라도 executions.grep_filter(500자)를 넘어 500 오류가 났다 */
+    @Test
+    void tooLongForTheColumnFallsBackToFilesInsteadOfFailing() {
+        List<CaseKey> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            many.add(new CaseKey("tests/demo.spec.ts", "시연 확인 아주 긴 케이스 이름 번호 " + i, "TEST"));
+        }
+
+        assertThat(ProjectWorkspaceController.casesGrep(many)).isNull(); // 이름 없이 파일 단위로 — 더 돌 뿐 결과는 맞다
+        assertThat(ProjectWorkspaceController.casesGrep(many.subList(0, 1))).hasSizeLessThanOrEqualTo(500);
+    }
 }
