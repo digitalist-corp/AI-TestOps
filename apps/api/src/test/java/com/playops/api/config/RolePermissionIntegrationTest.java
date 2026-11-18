@@ -105,6 +105,13 @@ class RolePermissionIntegrationTest {
     }
 
     @Test
+    void teamMemberSeesDefectsOfTheirProjectOnly() throws Exception {
+        JsonNode defects = call(get("/api/projects/example.com/defects"), member, 200);
+        assertThat(defects.get("open").asInt()).isZero();
+        assertThat(status(get("/api/projects/google.com/defects"), member)).isEqualTo(403);
+    }
+
+    @Test
     void teamMemberCannotEditThePlan() throws Exception {
         assertThat(status(patch("/api/projects/example.com/plan/items")
                 .content("{\"specPath\":\"a.spec.ts\",\"grep\":\"x\",\"assignee\":\"나\"}"), member)).isEqualTo(403);

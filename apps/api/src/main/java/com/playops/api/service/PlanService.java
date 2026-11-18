@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * 테스트 계획 표(F-1). 계획 항목 = 테스트 케이스(TEST 노드) 하나.
@@ -52,7 +53,15 @@ public class PlanService {
         this.memberService = memberService;
     }
 
+    /** 계획 항목과 그 결과 이력(최신 실행부터, 실행마다 하나). 계획 표와 결함 리스트(#80)가 같은 매칭을 쓴다. */
+    public record Tracked(PlanItem item, List<ExecutionCaseResult> history) {}
+
     public PlanResponse get(String projectId) {
+        List<PlanItem> items = sort(tracked(projectId).stream().map(Tracked::item).toList());
+        return new PlanResponse(items, summarize(items));
+    }
+
+    public List<Tracked> tracked(String projectId) {
         Map<String, ScenarioCaseSetting> settings = new HashMap<>();
         for (ScenarioCaseSetting s : settingRepository.findByProjectId(projectId)) {
             if (TEST.equals(s.getNodeType())) settings.put(key(s.getSpecPath(), s.getGrepFilter()), s);
@@ -62,10 +71,11 @@ public class PlanService {
         Map<String, List<ExecutionCaseResult>> results =
                 byLeaf(caseResultRepository.findEarlierInProject(projectId, Long.MAX_VALUE));
 
-        List<PlanItem> items = flatten(scenarioService.analyze(projectId)).stream().map(item -> {
+        return flatten(scenarioService.analyze(projectId)).stream().map(item -> {
             ScenarioCaseSetting s = settings.get(key(item.specPath(), item.grep()));
-            ExecutionCaseResult r = latestFor(item, results);
-            return new PlanItem(item.specPath(), item.grep(), item.title(), item.describePath(), item.line(),
+            List<ExecutionCaseResult> history = historyFor(item, results);
+            ExecutionCaseResult r = history.isEmpty() ? null : history.get(0);
+            return new Tracked(new PlanItem(item.specPath(), item.grep(), item.title(), item.describePath(), item.line(),
                     item.enabled(), item.parentEnabled(),
                     s != null ? s.getSortOrder() : null,
                     s != null ? s.getAssignee() : null,
@@ -75,10 +85,8 @@ public class PlanService {
                     r != null ? r.getStatus() : null,
                     r != null ? r.getCreatedAt() : null,
                     s != null && s.getUpdatedBy() != null ? names.get(s.getUpdatedBy()) : null,
-                    s != null ? s.getUpdatedAt() : null);
+                    s != null ? s.getUpdatedAt() : null), history);
         }).toList();
-        items = sort(items);
-        return new PlanResponse(items, summarize(items));
     }
 
     public void patch(String projectId, ItemPatch patch) {
@@ -204,21 +212,27 @@ public class PlanService {
         return out;
     }
 
-    /**
-     * 계획 항목의 마지막 결과. 리포트 경로는 testDir 기준이라 저장 경로의 뒷부분과 맞춘다(SiteCoverageService 와 같은 규칙).
-     * 같은 제목이 다른 묶음에 있으면 "묶음 > 제목"으로 끝나는 결과만 쓴다. 후보 중 가장 최근 실행의 결과.
-     */
+    /** 계획 항목의 마지막 결과. 없으면 null. */
     static ExecutionCaseResult latestFor(PlanItem item, Map<String, List<ExecutionCaseResult>> byLeaf) {
+        List<ExecutionCaseResult> history = historyFor(item, byLeaf);
+        return history.isEmpty() ? null : history.get(0);
+    }
+
+    /**
+     * 계획 항목의 결과 이력, 최신 실행부터 실행마다 하나. 리포트 경로는 testDir 기준이라 저장 경로의 뒷부분과 맞춘다
+     * (SiteCoverageService 와 같은 규칙). 같은 제목이 다른 묶음에 있으면 "묶음 > 제목"으로 끝나는 결과만 쓴다.
+     * 한 실행에 결과가 여러 개면(브라우저별) 먼저 저장된 것.
+     */
+    static List<ExecutionCaseResult> historyFor(PlanItem item, Map<String, List<ExecutionCaseResult>> byLeaf) {
         String tail = item.describePath().isEmpty() ? null : " > " + item.describePath() + " > " + item.title();
-        ExecutionCaseResult best = null;
+        Map<Long, ExecutionCaseResult> byExecution = new TreeMap<>(Comparator.reverseOrder());
         for (String suffix : SiteCoverageService.suffixes(item.specPath())) {
             for (ExecutionCaseResult r : byLeaf.getOrDefault(key(suffix, item.title()), List.of())) {
                 if (tail != null && (r.getCaseTitle() == null || !r.getCaseTitle().endsWith(tail))) continue;
-                if (best == null || r.getExecutionId() > best.getExecutionId()) best = r;
-                break; // 같은 목록 안에서는 최신 실행이 먼저 온다
+                byExecution.putIfAbsent(r.getExecutionId(), r);
             }
         }
-        return best;
+        return new ArrayList<>(byExecution.values());
     }
 
     private static String leaf(String title) {

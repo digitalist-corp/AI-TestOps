@@ -1,0 +1,160 @@
+package com.playops.api.service;
+
+import com.playops.api.dto.DefectDtos.Defect;
+import com.playops.api.dto.DefectDtos.DefectResponse;
+import com.playops.api.dto.DefectDtos.DefectRun;
+import com.playops.api.dto.PlanDtos.PlanItem;
+import com.playops.api.entity.ExecutionCaseResult;
+import com.playops.api.entity.TestSuite;
+import com.playops.api.exception.ApiException;
+import com.playops.api.repository.TestSuiteRepository;
+import com.playops.api.service.PlanService.Tracked;
+import com.playops.api.service.SiteCoverageService.Coverage;
+import com.playops.api.service.SiteCoverageService.CoverageFlow;
+import com.playops.api.service.SiteCoverageService.FlowStep;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.groups.Tuple.tuple;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+/** 결함 판정: 최근 실행이 실패면 미해결, 실패 뒤 통과하면 해결. 필터: 상태 · 담당자 · 스위트 · 화면. */
+class DefectServiceTest {
+
+    private PlanService planService;
+    private SiteCoverageService coverageService;
+    private TestSuiteRepository suiteRepository;
+    private DefectService service;
+
+    @BeforeEach
+    void setUp() {
+        planService = mock(PlanService.class);
+        coverageService = mock(SiteCoverageService.class);
+        suiteRepository = mock(TestSuiteRepository.class);
+        service = new DefectService(planService, coverageService, suiteRepository);
+        when(coverageService.view("p1")).thenReturn(new Coverage(null, List.of(), List.of(), List.of(
+                new CoverageFlow("tests/a.spec.ts", "a", "PATH", "FAILED", null, 3L,
+                        List.of(new FlowStep("/login", "PASSED", null), new FlowStep("/cart", "FAILED", null))))));
+    }
+
+    private static PlanItem item(String spec, String title, boolean enabled, Long assigneeUserId) {
+        return new PlanItem(spec, title, title, "", 1, enabled, true, null, assigneeUserId == null ? null : "윤재",
+                assigneeUserId, null, null, null, null, null, null);
+    }
+
+    /** 최신 실행부터. "F"=실패, "P"=통과. 실행 번호는 뒤에서부터 1, 2, 3 ... */
+    private static List<ExecutionCaseResult> history(String... newestFirst) {
+        List<ExecutionCaseResult> out = new ArrayList<>();
+        for (int i = 0; i < newestFirst.length; i++) {
+            ExecutionCaseResult r = new ExecutionCaseResult();
+            r.setExecutionId((long) (newestFirst.length - i));
+            r.setStatus(newestFirst[i].equals("F") ? "FAILED" : "PASSED");
+            r.setErrorMessage(newestFirst[i].equals("F") ? "오류 " + (newestFirst.length - i) : null);
+            out.add(r);
+        }
+        return out;
+    }
+
+    @Test
+    void neverFailedIsNotADefect() {
+        assertThat(DefectService.defectOf(item("a.spec.ts", "로그인", true, null), history("P", "P"))).isNull();
+        assertThat(DefectService.defectOf(item("a.spec.ts", "로그인", true, null), List.of())).isNull();
+    }
+
+    @Test
+    void latestFailureIsOpenAndCountsTheCurrentStreakOnly() {
+        // 실행 1 실패 → 2 통과 → 3 실패 → 4 실패
+        Defect d = DefectService.defectOf(item("a.spec.ts", "로그인", true, null), history("F", "F", "P", "F"));
+
+        assertThat(d.status()).isEqualTo(DefectService.OPEN);
+        assertThat(d.firstFailedExecutionId()).isEqualTo(3L);
+        assertThat(d.failCount()).isEqualTo(2);
+        assertThat(d.lastExecutionId()).isEqualTo(4L);
+        assertThat(d.resolvedExecutionId()).isNull();
+        assertThat(d.errorMessage()).isEqualTo("오류 4");
+        assertThat(d.runs()).extracting(DefectRun::executionId, DefectRun::status)
+                .containsExactly(tuple(3L, "FAILED"), tuple(4L, "FAILED"));
+    }
+
+    @Test
+    void passAfterFailureResolves() {
+        // 실행 1 실패 → 2 실패 → 3 통과 → 4 통과
+        Defect d = DefectService.defectOf(item("a.spec.ts", "로그인", true, null), history("P", "P", "F", "F"));
+
+        assertThat(d.status()).isEqualTo(DefectService.RESOLVED);
+        assertThat(d.firstFailedExecutionId()).isEqualTo(1L);
+        assertThat(d.failCount()).isEqualTo(2);
+        assertThat(d.resolvedExecutionId()).isEqualTo(3L);
+        assertThat(d.lastExecutionId()).isEqualTo(4L);
+        assertThat(d.errorMessage()).isEqualTo("오류 2");
+        assertThat(d.runs()).extracting(DefectRun::executionId).containsExactly(1L, 2L, 3L);
+    }
+
+    @Test
+    void listKeepsEnabledItemsOpenFirstAndAddsScreens() {
+        when(planService.tracked("p1")).thenReturn(List.of(
+                new Tracked(item("tests/a.spec.ts", "해결됨", true, null), history("P", "F")),
+                new Tracked(item("tests/a.spec.ts", "실패", true, 7L), history("F")),
+                new Tracked(item("tests/b.spec.ts", "미사용 실패", false, null), history("F")),
+                new Tracked(item("tests/b.spec.ts", "통과만", true, null), history("P"))));
+
+        DefectResponse res = service.list("p1", null, null, null, null);
+
+        assertThat(res.defects()).extracting(Defect::title, Defect::status)
+                .containsExactly(tuple("실패", "OPEN"), tuple("해결됨", "RESOLVED"));
+        assertThat(res.open()).isEqualTo(1);
+        assertThat(res.resolved()).isEqualTo(1);
+        assertThat(res.defects().get(0).routeKeys()).containsExactly("/login", "/cart");
+    }
+
+    @Test
+    void filtersByStatusAssigneeAndScreen() {
+        when(planService.tracked("p1")).thenReturn(List.of(
+                new Tracked(item("tests/a.spec.ts", "가", true, 7L), history("F")),
+                new Tracked(item("tests/b.spec.ts", "나", true, 8L), history("F")),
+                new Tracked(item("tests/a.spec.ts", "다", true, 7L), history("P", "F"))));
+
+        assertThat(service.list("p1", "OPEN", null, null, null).defects()).extracting(Defect::title).containsExactly("가", "나");
+        assertThat(service.list("p1", null, 7L, null, null).defects()).extracting(Defect::title).containsExactly("가", "다");
+        assertThat(service.list("p1", null, null, null, "/cart").defects()).extracting(Defect::title).containsExactly("가", "다");
+        assertThatThrownBy(() -> service.list("p1", "CLOSED", null, null, null))
+                .isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void filtersBySuiteFilesAndGrep() {
+        TestSuite suite = new TestSuite();
+        suite.setProjectId("p1");
+        suite.setSpecPaths("[\"a.spec.ts\"]");
+        suite.setGrep("결제|가");
+        when(suiteRepository.findById(5L)).thenReturn(Optional.of(suite));
+        TestSuite other = new TestSuite();
+        other.setProjectId("p2");
+        when(suiteRepository.findById(6L)).thenReturn(Optional.of(other));
+        when(planService.tracked("p1")).thenReturn(List.of(
+                new Tracked(item("tests/a.spec.ts", "가", true, null), history("F")),
+                new Tracked(item("tests/a.spec.ts", "나", true, null), history("F")),
+                new Tracked(item("tests/b.spec.ts", "가", true, null), history("F"))));
+
+        assertThat(service.list("p1", null, null, 5L, null).defects())
+                .extracting(Defect::specPath, Defect::title).containsExactly(tuple("tests/a.spec.ts", "가"));
+        assertThatThrownBy(() -> service.list("p1", null, null, 6L, null)).isInstanceOf(ApiException.class);
+    }
+
+    @Test
+    void noDefectsSkipsScreenLookup() {
+        when(planService.tracked("p1")).thenReturn(List.of(new Tracked(item("a.spec.ts", "가", true, null), history("P"))));
+
+        assertThat(service.list("p1", null, null, null, null).open()).isZero();
+        verify(coverageService, never()).view("p1");
+    }
+}
