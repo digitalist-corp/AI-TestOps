@@ -313,6 +313,11 @@ export function ProjectDetailPage() {
   const handleRun = async (options?: { grep?: string; specPath?: string; specPaths?: string[]; caseTitle?: string; sequential?: boolean }) => {
     if (!projectId) return;
     if (!project) return;
+    // 같은 프로젝트를 겹쳐 돌리지 않는다 — 상단 · 대시보드 · 계획 표 · 선택 실행이 모두 여기로 온다.
+    if (executions.some(isActiveExecution)) {
+      alert('실행 중인 테스트가 있어요. 끝나거나 중지한 뒤에 다시 실행하세요.');
+      return;
+    }
     if (project && isRequiredEnvMissing(project.loginEnvRequired, project.envVariables)) {
       if (!canManage) {
         alert(ENV_ASK_PM);
@@ -494,7 +499,8 @@ export function ProjectDetailPage() {
   const hasVisibleSourceFiles = files.some((file) => !isHiddenSourcePath(file));
   const envState = envButtonState(project);
   const missingRequiredEnv = envState === 'required-missing';
-  const canRunTests = (dockerRunning || canAutoStartRunner || canStartPersistentRunner) && !missingRequiredEnv && !running;
+  const activeRun = executions.find(isActiveExecution);
+  const canRunTests = (dockerRunning || canAutoStartRunner || canStartPersistentRunner) && !missingRequiredEnv && !running && !activeRun;
 
   const handleScaffold = async () => {
     if (hasVisibleSourceFiles) {
@@ -546,22 +552,34 @@ export function ProjectDetailPage() {
           <ListChecks className="h-4 w-4" />
           선택 실행
         </Button>
-        <Button
-          onClick={() => handleRun()}
-          disabled={!canRunTests}
-          title={
-            missingRequiredEnv
-              ? '필수 환경변수 입력 후 실행할 수 있습니다'
-              : dockerRunning || canAutoStartRunner
-                ? undefined
-                : canStartPersistentRunner
-                  ? '상주 Docker Runner를 시작한 뒤 실행합니다'
-                  : '설정에서 Docker Runner를 먼저 시작하세요'
-          }
-        >
-          {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          전체 실행
-        </Button>
+        {activeRun ? (
+          <Button
+            variant="outline"
+            disabled={activeRun.status === 'CANCEL_REQUESTED'}
+            onClick={() => handleCancelExecution(activeRun.id)}
+            className="text-destructive hover:border-destructive hover:bg-destructive/10"
+          >
+            <Square className="h-4 w-4" />
+            {activeRun.status === 'CANCEL_REQUESTED' ? '중지 중' : '실행 중지'}
+          </Button>
+        ) : (
+          <Button
+            onClick={() => handleRun()}
+            disabled={!canRunTests}
+            title={
+              missingRequiredEnv
+                ? '필수 환경변수 입력 후 실행할 수 있습니다'
+                : dockerRunning || canAutoStartRunner
+                  ? undefined
+                  : canStartPersistentRunner
+                    ? '상주 Docker Runner를 시작한 뒤 실행합니다'
+                    : '설정에서 Docker Runner를 먼저 시작하세요'
+            }
+          >
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            전체 실행
+          </Button>
+        )}
         </div>
       </div>
 
@@ -658,6 +676,7 @@ export function ProjectDetailPage() {
               project={project}
               executions={executions}
               onRun={() => handleRun()}
+              onStop={handleCancelExecution}
               onOpenSource={() => goTab('source')}
               onOpenRuns={() => goTab('runs')}
               onOpenResults={() => goTab('results')}
@@ -762,7 +781,7 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'plan' && projectId && (
-            <PlanTab projectId={projectId} onRun={() => handleRun()} readOnly={!canManage} />
+            <PlanTab projectId={projectId} onRun={() => handleRun()} readOnly={!canManage} runDisabled={!!activeRun} />
           )}
 
           {activeTab === 'schedules' && projectId && (

@@ -202,4 +202,27 @@ describe('ProjectDashboardTab', () => {
     expect(await screen.findByText('오류 난 화면이 없어요.')).toBeTruthy();
     expect(screen.getByRole('region', { name: '품질 현황' }).textContent).toContain('0%');
   });
+
+  it('실행 중이면 전체 실행 대신 중지 버튼을 보이고, 누르면 그 실행을 멈춘다', async () => {
+    vi.mocked(api.rounds.list).mockResolvedValue([]);
+    const onRun = vi.fn();
+    const onStop = vi.fn();
+    render(
+      <MemoryRouter>
+        <ProjectDashboardTab
+          project={project}
+          executions={[{ id: 9, status: 'RUNNING' } as never]}
+          onRun={onRun}
+          onStop={onStop}
+          onOpenSource={() => {}}
+          onOpenRuns={() => {}}
+          onOpenResults={() => {}}
+        />
+      </MemoryRouter>
+    );
+    expect(screen.queryByRole('button', { name: /전체 실행/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /중지/ }));
+    expect(onStop).toHaveBeenCalledWith(9);
+    expect(onRun).not.toHaveBeenCalled();
+  });
 });

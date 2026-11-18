@@ -37,7 +37,11 @@ const memberName = (m: ProjectMember) => m.displayName || m.username;
  * 셀을 고치면 바로 저장하고, 저장이 실패하면 원래 값으로 되돌린다. 체크한(사용 중) 항목만 실행된다.
  * readOnly(팀원): 고치지 못하고 보기 · 실행만 한다.
  */
-export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: string; onRun: () => void; readOnly?: boolean }) {
+export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = false }: {
+  projectId: string; onRun: () => void; readOnly?: boolean;
+  /** 이 프로젝트의 테스트가 이미 돌고 있으면 실행 버튼을 잠근다 */
+  runDisabled?: boolean;
+}) {
   const { me } = useAccess();
   const [items, setItems] = useState<PlanItem[] | null>(null);
   const [screens, setScreens] = useState<Map<string, string>>(new Map());
@@ -282,9 +286,10 @@ export function PlanTab({ projectId, onRun, readOnly = false }: { projectId: str
               </Button>
             </>
           )}
-          <Button size="sm" onClick={onRun} disabled={enabledCount === 0}>
+          <Button size="sm" onClick={onRun} disabled={enabledCount === 0 || runDisabled}
+                  title={runDisabled ? '실행 중인 테스트가 끝나면 다시 실행할 수 있어요' : undefined}>
             <Play className="h-4 w-4" />
-            체크한 {enabledCount}건 실행
+            {runDisabled ? '실행 중…' : `체크한 ${enabledCount}건 실행`}
           </Button>
         </div>
       </div>
