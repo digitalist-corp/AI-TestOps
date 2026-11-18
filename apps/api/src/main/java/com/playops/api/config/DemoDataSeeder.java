@@ -3,6 +3,7 @@ package com.playops.api.config;
 import com.playops.api.dto.PlanDtos.ItemPatch;
 import com.playops.api.dto.PlanDtos.PlanItem;
 import com.playops.api.entity.Project;
+import com.playops.api.entity.ProjectStatus;
 import com.playops.api.entity.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.playops.api.repository.ProjectMemberRepository;
@@ -111,6 +112,7 @@ public class DemoDataSeeder implements CommandLineRunner {
             templateService.scaffold(dir, project, "default", false);
             copyDemoSpec(demo);
             project.setDockerEnabled(true);
+            project.setStatus(ProjectStatus.RUNNING); // 시연은 진행 중인 프로젝트로 보인다 (3-1)
             projectRepository.save(project);
             seedPlan();
             log.info("시연 프로젝트 {} 기본 데이터를 채웠습니다.", PROJECT);

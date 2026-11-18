@@ -336,8 +336,9 @@ class RolePermissionIntegrationTest {
 
     @Test
     void pmSetsProjectPeriodAndStatusButTeamMemberCannot() throws Exception {
-        assertThat(call(get("/api/projects/example.com"), member, 200).get("status").asText()).isEqualTo("PLANNED");
-        assertThat(status(put("/api/projects/example.com").content("{\"status\":\"RUNNING\"}"), member)).isEqualTo(403);
+        // 시연 프로젝트는 '실행' 상태로 채워진다 (3-1)
+        assertThat(call(get("/api/projects/example.com"), member, 200).get("status").asText()).isEqualTo("RUNNING");
+        assertThat(status(put("/api/projects/example.com").content("{\"status\":\"CLOSED\"}"), member)).isEqualTo(403);
 
         call(patch("/api/projects/example.com/members/" + memberId).content("{\"role\":\"PM\"}"), admin, 200);
         JsonNode saved = call(put("/api/projects/example.com")

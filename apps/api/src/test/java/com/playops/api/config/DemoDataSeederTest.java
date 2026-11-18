@@ -48,6 +48,7 @@ class DemoDataSeederTest {
     private PasswordEncoder encoder;
     private ProjectRepository projects;
     private ProjectService projectService;
+    private final Project project = new Project();
 
     private DemoDataSeeder seeder(String demoPmPassword) {
         return new DemoDataSeeder(projects, projectService, templateService, planService, users, members, encoder,
@@ -57,7 +58,7 @@ class DemoDataSeederTest {
     @BeforeEach
     void setUp() {
         projects = mock(ProjectRepository.class);
-        when(projects.findById("example.com")).thenReturn(Optional.of(new Project()));
+        when(projects.findById("example.com")).thenReturn(Optional.of(project));
         projectService = mock(ProjectService.class);
         when(projectService.getProjectPath("example.com")).thenReturn(dir);
         planService = mock(PlanService.class);
@@ -88,6 +89,15 @@ class DemoDataSeederTest {
         assertThat(Files.readString(demo)).contains("안내 링크가 보인다").doesNotContain("본문 제목이 보인다");
         verify(planService).patch(eq("example.com"), any(ItemPatch.class));
         verify(templateService, never()).scaffold(any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+    }
+
+    /** 3-1: 진척 80% 인데 '계획'으로 보이던 것. 새로 채운 시연 프로젝트는 '실행' 상태다. */
+    @Test
+    void freshDemoProjectIsSeededAsRunning() throws Exception {
+        seeder.run();
+
+        assertThat(project.getStatus()).isEqualTo(com.playops.api.entity.ProjectStatus.RUNNING);
+        verify(projects).save(project);
     }
 
     @Test
