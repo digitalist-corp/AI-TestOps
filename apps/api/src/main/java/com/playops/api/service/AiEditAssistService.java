@@ -67,6 +67,10 @@ public class AiEditAssistService {
             throw new ApiException(400, "대상 파일 경로가 필요합니다.");
         }
         String effectiveSpec = (specPath != null && !specPath.isBlank()) ? specPath : filePath;
+        // 러너가 root 로 이 경로에 그대로 쓴다. 프로젝트 밖(절대 경로, ../)이면 거절한다.
+        if (AiJobService.escapesProject(filePath) || AiJobService.escapesProject(effectiveSpec)) {
+            throw new ApiException(400, "파일 경로는 프로젝트 안의 상대 경로여야 합니다.");
+        }
         if (!effectiveSpec.endsWith(".spec.ts") && !effectiveSpec.endsWith(".spec.js")) {
             throw new ApiException(400, "실행할 spec 파일을 지정하세요 (.spec.ts/.spec.js).");
         }

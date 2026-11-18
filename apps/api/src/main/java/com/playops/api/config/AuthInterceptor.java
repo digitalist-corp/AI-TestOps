@@ -95,7 +95,7 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (authService.isGuest(user) && !"GET".equalsIgnoreCase(request.getMethod())
                 && !"HEAD".equalsIgnoreCase(request.getMethod())
                 && !path.equals("/api/auth/logout")
-                && !("DELETE".equalsIgnoreCase(request.getMethod()) && path.startsWith("/api/notifications"))) {
+                && !("DELETE".equalsIgnoreCase(request.getMethod()) && (path.equals("/api/notifications") || path.startsWith("/api/notifications/")))) {
             writeError(response, 403, "GUEST_READ_ONLY", "게스트는 둘러보기만 할 수 있습니다. 로그인하면 실행할 수 있어요.");
             return false;
         }

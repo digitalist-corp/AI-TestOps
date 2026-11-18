@@ -14,6 +14,10 @@ class AiPathEscapeTest {
         assertThat(AiJobService.escapesProject("tests/../../x.spec.ts")).isTrue();
         assertThat(AiJobService.escapesProject("")).isTrue();
         assertThat(AiJobService.escapesProject(null)).isTrue();
+        assertThat(AiJobService.escapesProject("a/b/../../..")).isTrue();
+        // 프로젝트 폴더 자체는 파일이 아니다 (덮어쓰려다 500)
+        assertThat(AiJobService.escapesProject(".")).isTrue();
+        assertThat(AiJobService.escapesProject("tests/..")).isTrue();
     }
 
     @Test

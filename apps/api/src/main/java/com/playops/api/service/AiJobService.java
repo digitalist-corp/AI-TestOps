@@ -112,6 +112,10 @@ public class AiJobService {
 
     public AiJob createCodeFixJob(String projectId, Long failedExecutionId, String targetSpecPath, String instruction, Long requestedBy) {
         Project project = projectService.getProject(projectId);
+        // 러너는 이 경로를 그대로 써서 반복 중에 파일을 고친다. 프로젝트 밖이면 승인 전에 다른 프로젝트 파일이 바뀐다.
+        if (targetSpecPath != null && !targetSpecPath.isBlank() && escapesProject(targetSpecPath.trim())) {
+            throw new ApiException(400, "spec 경로는 프로젝트 안의 상대 경로여야 합니다 (예: tests/login.spec.ts).");
+        }
 
         AiJob job = new AiJob();
         job.setProjectId(projectId);
@@ -470,7 +474,8 @@ public class AiJobService {
         try {
             Path base = Path.of("/project");
             Path path = Path.of(file);
-            return path.isAbsolute() || !base.resolve(path).normalize().startsWith(base);
+            Path resolved = base.resolve(path).normalize();
+            return path.isAbsolute() || !resolved.startsWith(base) || resolved.equals(base);
         } catch (java.nio.file.InvalidPathException e) {
             return true;
         }
@@ -511,14 +516,16 @@ public class AiJobService {
      */
     private void applyDiff(AiJob job, Project project) {
         List<String> changedFiles = parseChangedFiles(job);
+        // 반영은 여기서 한다. 앞 단계를 어떻게 지나왔든 프로젝트 밖에는 쓰지 않는다. 일부만 반영되지 않게 먼저 전부 본다.
+        for (String file : changedFiles) {
+            if (escapesProject(file)) {
+                throw new ApiException(400, "프로젝트 안의 파일만 반영할 수 있습니다: " + file);
+            }
+        }
         Path snapshotDir = aiRunnerDockerService.aiJobDir(job.getId()).resolve("pre-apply-snapshot");
         try {
             Files.createDirectories(snapshotDir);
             for (String file : changedFiles) {
-                // 반영은 여기 한 곳뿐이다. 앞 단계를 어떻게 지나왔든 프로젝트 밖에는 쓰지 않는다.
-                if (escapesProject(file)) {
-                    throw new ApiException(400, "프로젝트 안의 파일만 반영할 수 있습니다: " + file);
-                }
                 Path sourceFile = Path.of(job.getDiffPath(), safeFileName(file));
                 Path targetFile = projectService.getProjectPath(job.getProjectId()).resolve(file);
                 Files.createDirectories(targetFile.getParent());

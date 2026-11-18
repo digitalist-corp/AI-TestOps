@@ -267,8 +267,14 @@ class RolePermissionIntegrationTest {
         call(get("/api/projects/example.com"), guest, 200);
         JsonNode run = call(post("/api/projects/example.com/executions").content("{}"), guest, 403);
         assertThat(run.get("error").get("code").asText()).isEqualTo("GUEST_READ_ONLY");
-        assertThat(status(post("/api/projects/example.com/execution/1/cancel"), guest)).isEqualTo(403);
-        assertThat(status(post("/api/ai/chat").content("{\"message\":\"hi\"}"), guest)).isEqualTo(403);
+        for (MockHttpServletRequestBuilder write : List.of(
+                post("/api/projects/example.com/execution/1/cancel"),
+                post("/api/ai/chat").content("{\"message\":\"hi\"}"),
+                delete("/api/ai/chat/sessions/1"),
+                put("/api/projects/example.com").content("{}"),
+                delete("/api/notifications-settings"))) {
+            assertThat(call(write, guest, 403).get("error").get("code").asText()).isEqualTo("GUEST_READ_ONLY");
+        }
 
         assertThat(status(delete("/api/notifications"), guest)).isEqualTo(204);
         assertThat(status(post("/api/auth/logout"), guest)).isEqualTo(204);
@@ -282,6 +288,13 @@ class RolePermissionIntegrationTest {
                     .content("{\"targetSpecPath\":\"" + path + "\",\"instruction\":\"첫 화면\"}"), admin, 400);
             assertThat(res.get("message").asText()).as(path).contains("프로젝트 안");
         }
+        // 같은 구멍의 다른 입구: 실패 수정(CODE_FIX) 작업 · 편집 도움 확인 실행. 러너가 root 로 경로를 그대로 쓴다.
+        JsonNode fix = call(post("/api/projects/example.com/ai-jobs")
+                .content("{\"targetSpecPath\":\"../other/tests/x.spec.ts\",\"instruction\":\"고쳐\"}"), admin, 400);
+        assertThat(fix.get("message").asText()).contains("프로젝트 안");
+        JsonNode verify = call(post("/api/projects/example.com/ai/edit-assist/verify")
+                .content("{\"filePath\":\"/tmp/x.spec.ts\",\"proposedContent\":\"x\"}"), admin, 400);
+        assertThat(verify.get("message").asText()).contains("프로젝트 안");
     }
 
     /** AI 제공자 키는 관리자만 보고 바꾼다 (3-1 보안). 팀원도, 프로젝트 PM 도 403. */
