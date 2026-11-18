@@ -1,9 +1,10 @@
 import { AlertTriangle, Download, ExternalLink, FileImage, FileText, FileVideo, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import type { ArtifactFile, ExecutionCaseResult, ExecutionDetail } from '@/types';
+import type { ArtifactFile, CaseFocus, ExecutionCaseResult, ExecutionDetail } from '@/types';
 import { api, getStoredAuth } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { FixProposals } from '@/components/project/FixProposalCard';
+import { StepTimeline } from '@/components/project/StepTimeline';
 import { executionStatusLabel, formatDuration } from '@/lib/utils';
 import {
   Dialog,
@@ -16,6 +17,8 @@ import {
 interface Props {
   detail: ExecutionDetail | null;
   loading: boolean;
+  /** 결함에서 들어오면 그 케이스를 펼쳐 실패 단계로 (#85) */
+  focus?: CaseFocus | null;
 }
 
 const typeIcon: Record<string, typeof FileImage> = {
@@ -63,7 +66,7 @@ function FailedCaseCard({ result }: { result: ExecutionCaseResult }) {
   );
 }
 
-export function ResultsTab({ detail, loading }: Props) {
+export function ResultsTab({ detail, loading, focus }: Props) {
   const [openingPath, setOpeningPath] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{ artifact: ArtifactFile; content: string } | null>(null);
   const [viewerError, setViewerError] = useState('');
@@ -148,6 +151,16 @@ export function ResultsTab({ detail, loading }: Props) {
             <p className="text-lg font-semibold mt-1">{value}</p>
           </div>
         ))}
+      </div>
+
+      <div>
+        <h3 className="mb-2 font-medium text-foreground">단계별 실행 기록</h3>
+        <StepTimeline
+          projectId={ex.projectId}
+          executionId={ex.id}
+          focus={focus}
+          mediaUrl={(path) => withToken(api.artifactUrl(ex.id, path))}
+        />
       </div>
 
       {failedCases.length > 0 && (

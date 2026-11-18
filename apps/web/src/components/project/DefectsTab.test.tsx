@@ -120,7 +120,7 @@ describe('결함 탭', () => {
     expect((screen.getByRole('button', { name: /실패만 다시 실행/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('케이스 이름을 누르면 마지막으로 실패한 실행 결과로 간다', async () => {
+  it('케이스 이름을 누르면 마지막으로 실패한 실행의 그 케이스 실패 단계로 간다', async () => {
     vi.mocked(api.defects.list).mockResolvedValue({
       defects: [defect({
         status: 'RESOLVED', lastExecutionId: 9, resolvedExecutionId: 5,
@@ -135,6 +135,7 @@ describe('결함 탭', () => {
     });
     const { onOpenExecution } = renderTab();
     fireEvent.click(await screen.findByRole('button', { name: '로그인' }));
-    expect(onOpenExecution).toHaveBeenCalledWith(4);
+    // 결과 화면이 이 케이스의 실패 단계를 바로 펼치도록 케이스도 넘긴다 (#85)
+    expect(onOpenExecution).toHaveBeenCalledWith(4, { specPath: 'tests/a.spec.ts', title: '로그인' });
   });
 });

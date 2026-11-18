@@ -585,6 +585,10 @@ export const api = {
   getExecutionDetail: (executionId: number) =>
     request<ExecutionDetail>(`/api/executions/${executionId}`),
 
+  /** 케이스별 단계 기록 (#84) */
+  getSteps: (projectId: string, executionId: number) =>
+    request<import('@/types').StepsResponse>(`/api/projects/${projectId}/executions/${executionId}/steps`),
+
   artifactUrl: (executionId: number, path: string) =>
     `/api/executions/${executionId}/artifact?path=${encodeURIComponent(path)}`,
 

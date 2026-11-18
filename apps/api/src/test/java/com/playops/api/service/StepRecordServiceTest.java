@@ -44,6 +44,26 @@ class StepRecordServiceTest {
     }
 
     @Test
+    void keepsStepTimesAndAttachmentsInsideTheReport() throws Exception {
+        var root = new ObjectMapper().readTree("""
+                [{"file":"a.spec.ts","titlePath":["a.spec.ts","로그인"],"status":"failed",
+                  "attachments":[{"name":"screenshot","contentType":"image/png","path":"test-results/a-로그인/test-failed-1.png"},
+                                 {"name":"video","contentType":"video/webm","path":"test-results/a-로그인/video.webm"},
+                                 {"name":"bad","contentType":"image/png","path":"test-results/../../etc/passwd"},
+                                 {"name":"bad2","contentType":"image/png","path":"/etc/passwd"}],
+                  "steps":[{"category":"pw:api","title":"Navigate to \\"/\\"","offsetMs":320},
+                           {"category":"pw:api","title":"Click locator('#go')","offsetMs":5200,"error":"TimeoutError: x"}]}]
+                """);
+
+        CaseSteps c = StepRecordService.parse(root).get(0);
+
+        assertThat(c.steps()).extracting(Step::offsetMs).containsExactly(320L, 5200L);
+        assertThat(c.failedStep()).isEqualTo(1);
+        assertThat(c.attachments()).extracting(StepRecordService.Attachment::path)
+                .containsExactly("test-results/a-로그인/test-failed-1.png", "test-results/a-로그인/video.webm");
+    }
+
+    @Test
     void subfolderFilesKeepTheirPathInTheTitleAndRetriesKeepTheLastAttempt() throws Exception {
         var root = new ObjectMapper().readTree("""
                 [{"file":"auth/login.spec.ts","titlePath":["chromium","auth/login.spec.ts","로그인"],"status":"failed",

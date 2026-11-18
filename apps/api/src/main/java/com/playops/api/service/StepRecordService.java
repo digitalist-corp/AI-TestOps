@@ -26,11 +26,15 @@ public class StepRecordService {
     public static final String FILE = "steps.json";
     private static final Pattern ANSI = Pattern.compile("\u001B\\[[0-9;]*m");
 
-    /** status: PASSED | FAILED. error: 오류 첫 줄 */
-    public record Step(String text, String category, String status, String error) {}
+    /** status: PASSED | FAILED. error: 오류 첫 줄. offsetMs: 테스트 시작부터 이 단계까지 (영상 시점, #85) */
+    public record Step(String text, String category, String status, String error, Long offsetMs) {}
+
+    /** 스크린샷 · 영상 등. path 는 리포트 폴더 안 경로라 실행 아티팩트 주소로 열 수 있다. */
+    public record Attachment(String name, String contentType, String path) {}
 
     /** title: 결과 표와 같은 "파일 > 묶음 > 케이스". status: PASSED | FAILED | SKIPPED. failedStep: 실패한 단계 번호(0부터), 없으면 null */
-    public record CaseSteps(String specPath, String title, String status, Integer failedStep, List<Step> steps) {}
+    public record CaseSteps(String specPath, String title, String status, Integer failedStep, List<Step> steps,
+                            List<Attachment> attachments) {}
 
     public record StepsResponse(boolean recorded, List<CaseSteps> cases) {}
 
@@ -75,7 +79,16 @@ public class StepRecordService {
                 String error = firstLine(s.path("error").asText(null));
                 if (error != null) lastError = steps.size();
                 steps.add(new Step(StepSentences.sentence(s.path("category").asText(), s.path("title").asText(null),
-                        s.path("code").asText(null)), s.path("category").asText(), error == null ? "PASSED" : "FAILED", error));
+                        s.path("code").asText(null)), s.path("category").asText(), error == null ? "PASSED" : "FAILED", error,
+                        s.hasNonNull("offsetMs") ? s.path("offsetMs").asLong() : null));
+            }
+            List<Attachment> attachments = new ArrayList<>();
+            for (JsonNode a : c.path("attachments")) {
+                String path = a.path("path").asText("");
+                // 리포터가 남긴 리포트 폴더 안 경로만 (아티팩트 API 가 폴더 밖은 다시 막는다)
+                if (path.startsWith("test-results/") && !path.contains("..")) {
+                    attachments.add(new Attachment(a.path("name").asText(""), a.path("contentType").asText(""), path));
+                }
             }
             String status = switch (c.path("status").asText("")) {
                 case "passed" -> "PASSED";
@@ -83,7 +96,7 @@ public class StepRecordService {
                 default -> "FAILED"; // failed · timedOut · interrupted
             };
             out.remove(title);
-            out.put(title, new CaseSteps(file, title, status, "FAILED".equals(status) ? lastError : null, steps));
+            out.put(title, new CaseSteps(file, title, status, "FAILED".equals(status) ? lastError : null, steps, attachments));
         }
         return new ArrayList<>(out.values());
     }

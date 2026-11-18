@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Pencil, Play, RefreshCw, Settings2, Square, Terminal, Trash2, Upload } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthStateStatus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
+import type { AuthStateStatus, CaseFocus, Execution, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { ProjectFormDialog } from '@/components/ProjectFormDialog';
@@ -182,6 +182,7 @@ export function ProjectDetailPage() {
   const [running, setRunning] = useState(false);
   const [activeExecutionId, setActiveExecutionId] = useState<number | null>(null);
   const [selectedExecutionId, setSelectedExecutionId] = useState<number | null>(null);
+  const [caseFocus, setCaseFocus] = useState<CaseFocus | null>(null);
   const [executionDetail, setExecutionDetail] = useState<ExecutionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -469,8 +470,10 @@ export function ProjectDetailPage() {
     }
   };
 
-  const handleSelectExecution = (id: number) => {
+  /** focus: 결함에서 들어오면 결과 화면이 그 케이스의 실패 단계를 펼친다 (#85) */
+  const handleSelectExecution = (id: number, focus?: CaseFocus) => {
     setSelectedExecutionId(id);
+    setCaseFocus(focus ?? null);
     goTab('results');
   };
 
@@ -755,7 +758,10 @@ export function ProjectDetailPage() {
                   <select
                     className="h-8 rounded-md border border-border bg-card px-2 text-xs text-foreground"
                     value={selectedExecutionId ?? executions[0].id}
-                    onChange={(e) => setSelectedExecutionId(Number(e.target.value))}
+                    onChange={(e) => {
+                      setSelectedExecutionId(Number(e.target.value));
+                      setCaseFocus(null);
+                    }}
                   >
                     {executions.map((ex) => (
                       <option key={ex.id} value={ex.id}>
@@ -766,7 +772,7 @@ export function ProjectDetailPage() {
                 </div>
               )}
               <ExecutionLogPanel executionId={selectedExecutionId} />
-              <ResultsTab detail={executionDetail} loading={detailLoading} />
+              <ResultsTab detail={executionDetail} loading={detailLoading} focus={caseFocus} />
             </div>
           )}
 
