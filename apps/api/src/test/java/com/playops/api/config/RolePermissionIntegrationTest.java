@@ -148,6 +148,22 @@ class RolePermissionIntegrationTest {
     }
 
     @Test
+    void teamMemberReadsStepsOfTheirProjectsRunsOnly() throws Exception {
+        var mine = new com.playops.api.entity.Execution();
+        mine.setProjectId("example.com");
+        mine = executions.save(mine);
+        var other = new com.playops.api.entity.Execution();
+        other.setProjectId("google.com");
+        other = executions.save(other);
+
+        JsonNode steps = call(get("/api/projects/example.com/executions/" + mine.getId() + "/steps"), member, 200);
+        assertThat(steps.get("recorded").asBoolean()).isFalse();
+        assertThat(status(get("/api/projects/google.com/executions/" + other.getId() + "/steps"), member)).isEqualTo(403);
+        // 내 프로젝트 주소로 다른 프로젝트 실행을 물어도 보이지 않는다
+        assertThat(status(get("/api/projects/example.com/executions/" + other.getId() + "/steps"), member)).isEqualTo(404);
+    }
+
+    @Test
     void teamMemberCannotEditThePlan() throws Exception {
         assertThat(status(patch("/api/projects/example.com/plan/items")
                 .content("{\"specPath\":\"a.spec.ts\",\"grep\":\"x\",\"assignee\":\"나\"}"), member)).isEqualTo(403);

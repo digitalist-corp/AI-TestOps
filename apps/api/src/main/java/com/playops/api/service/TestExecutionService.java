@@ -17,10 +17,13 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -330,12 +333,17 @@ public class TestExecutionService {
         lines.add("echo " + shellQuote("[playops] test command=" + testCmd));
         lines.add("echo '[test] 시작'");
         lines.add("export PLAYWRIGHT_JSON_OUTPUT_NAME=" + shellQuote(reportDirInApiContainer + "/results.json"));
+        String stepsReporter = stepsReporterPath();
+        if (stepsReporter != null) {
+            lines.add("export PLAYOPS_STEPS_OUTPUT=" + shellQuote(reportDirInApiContainer + "/" + StepRecordService.FILE));
+        }
         lines.add("export PLAYWRIGHT_HTML_OUTPUT_DIR=" + shellQuote("playwright-report"));
         if (loginSessionConfigured) {
             lines.add("export PLAYWRIGHT_STORAGE_STATE=" + shellQuote(storageStateFileInApiContainer));
         }
         lines.add("set +e");
-        lines.add(testCmd + " --reporter=line,json,html 2>&1 | tee " + reportDirInApiContainer + "/run.log");
+        String reporters = "line,json,html" + (stepsReporter != null ? "," + stepsReporter : "");
+        lines.add(testCmd + " --reporter=" + shellQuote(reporters) + " 2>&1 | tee " + reportDirInApiContainer + "/run.log");
         lines.add("EXIT_CODE=${PIPESTATUS[0]}");
         lines.add("set -e");
         lines.add("cp -r playwright-report " + reportDirInApiContainer + "/ 2>/dev/null || true");
@@ -443,6 +451,25 @@ public class TestExecutionService {
             process.waitFor(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             log.warn("Failed to stop container execution {}: {}", execution.getId(), e.getMessage());
+        }
+    }
+
+    /**
+     * 단계 기록 리포터(#84)를 러너도 같은 경로로 보는 저장소 폴더에 둔다. 동시에 도는 실행이 반쯤 쓴 파일을 읽지 않게 옮겨서 바꾼다.
+     * 못 두면 null — 그때는 리포터 없이 실행한다 (단계 목록만 비고 실행은 그대로).
+     */
+    private String stepsReporterPath() {
+        Path file = Path.of(properties.storageRoot(), "runner", "steps-reporter.cjs").toAbsolutePath().normalize();
+        try (InputStream in = getClass().getResourceAsStream("/runner/steps-reporter.cjs")) {
+            if (in == null) return null;
+            Files.createDirectories(file.getParent());
+            Path tmp = Files.createTempFile(file.getParent(), "steps-reporter", ".tmp");
+            Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
+            Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            return file.toString().replace('\\', '/');
+        } catch (IOException | RuntimeException e) {
+            log.warn("단계 기록 리포터를 두지 못해 리포터 없이 실행합니다: {}", e.getMessage());
+            return null;
         }
     }
 

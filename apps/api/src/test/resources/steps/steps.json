@@ -1,0 +1,92 @@
+[
+ {
+  "file": "demo.spec.ts",
+  "titlePath": [
+   "chromium",
+   "demo.spec.ts",
+   "로그인",
+   "로그인 화면"
+  ],
+  "status": "failed",
+  "steps": [
+   {
+    "category": "pw:api",
+    "title": "Navigate to \"/login\"",
+    "code": null,
+    "error": null
+   },
+   {
+    "category": "pw:api",
+    "title": "Fill \"****\" locator('#username')",
+    "code": null,
+    "error": null
+   },
+   {
+    "category": "pw:api",
+    "title": "Fill \"****\" getByLabel('비밀번호')",
+    "code": null,
+    "error": null
+   },
+   {
+    "category": "pw:api",
+    "title": "Fill \"****\" locator('#password')",
+    "code": null,
+    "error": null
+   },
+   {
+    "category": "pw:api",
+    "title": "Click getByRole('button', { name: '로그인' })",
+    "code": null,
+    "error": null
+   },
+   {
+    "category": "pw:api",
+    "title": "Check getByText('없는 글자')",
+    "code": null,
+    "error": "TimeoutError: locator.check: Timeout 300ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByText('없는 글자')\u001b[22m\n"
+   },
+   {
+    "category": "pw:api",
+    "title": "Hover getByRole('link', { name: '회원가입' })",
+    "code": null,
+    "error": null
+   },
+   {
+    "category": "pw:api",
+    "title": "Select option locator('select')",
+    "code": null,
+    "error": "TimeoutError: page.selectOption: Timeout 300ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('select')\u001b[22m\n"
+   },
+   {
+    "category": "test.step",
+    "title": "제목 확인",
+    "code": null,
+    "error": null
+   },
+   {
+    "category": "expect",
+    "title": "toBeVisible",
+    "code": "await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible();",
+    "error": null
+   },
+   {
+    "category": "pw:api",
+    "title": "Press \"Enter\" getByPlaceholder('검색')",
+    "code": null,
+    "error": "TimeoutError: locator.press: Timeout 500ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByPlaceholder('검색')\u001b[22m\n"
+   },
+   {
+    "category": "expect",
+    "title": "toHaveURL",
+    "code": "await expect(page).toHaveURL(/login/);",
+    "error": null
+   },
+   {
+    "category": "expect",
+    "title": "toBeVisible",
+    "code": "await expect(page.getByText('절대 없는 글자')).toBeVisible({ timeout: 1000 });",
+    "error": "Error: \u001b[31mTimed out 1000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: getByText('절대 없는 글자')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 1000ms\u001b[22m\n\u001b[2m  - waiting for getByText('절대 없는 글자')\u001b[22m\n"
+   }
+  ]
+ }
+]
