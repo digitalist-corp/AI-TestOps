@@ -27,7 +27,17 @@ jobs:
           set -euo pipefail
           cd /home/playops/playops
 
-          # 서버에 수동 수정이 남아 있으면 덮어쓰지 않고 실패시킨다.
+          # playwright-projects/ 아래는 앱이 프로젝트를 지우거나 고치면서 바꾸는 운영 데이터다.
+          # (예: 배포 사이트에서 playops-self 프로젝트를 지우면 git이 추적하는 테스트 파일도 지워진다)
+          # 이 폴더의 추적 파일만 저장소 기준으로 되돌리고, 무엇을 되돌렸는지 남긴다.
+          RESTORED=$(git status --short -- playwright-projects | grep -v '^??' || true)
+          if [ -n "$RESTORED" ]; then
+            echo "::warning::playwright-projects 아래 바뀐 추적 파일을 저장소 기준으로 되돌립니다."
+            echo "$RESTORED"
+            git checkout -- playwright-projects
+          fi
+
+          # 그 밖의 수동 수정이 남아 있으면 덮어쓰지 않고 실패시킨다.
           if ! git diff --quiet || ! git diff --cached --quiet; then
             echo "::error::서버 작업트리에 커밋되지 않은 변경이 있습니다."
             git status --short
