@@ -112,8 +112,8 @@ public class PlaywrightScenarioService {
                 .filter(setting -> setting.getGrepFilter() != null && !setting.getGrepFilter().isBlank())
                 .filter(setting -> selectedSpecs.isEmpty() || selectedSpecs.contains(normalizeSpecPath(setting.getSpecPath())))
                 .map(setting -> "DESCRIBE".equals(setting.getNodeType())
-                        ? PlaywrightGrep.describeTitle(setting.getGrepFilter())
-                        : PlaywrightGrep.testTitle(setting.getGrepFilter()))
+                        ? PlaywrightGrep.describeTitle(setting.getSpecPath(), setting.getGrepFilter())
+                        : PlaywrightGrep.testTitle(setting.getSpecPath(), setting.getGrepFilter()))
                 .distinct()
                 .toList();
     }
