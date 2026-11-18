@@ -732,6 +732,7 @@ export function ProjectDetailPage() {
               onDelete={handleDeleteExecution}
               onReset={handleResetExecutions}
               selectedId={selectedExecutionId}
+              canManage={canManage}
             />
           )}
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { api } from '@/api/client';
 import type { CaseSteps } from '@/types';
 import { StepTimeline } from './StepTimeline';
@@ -63,7 +63,7 @@ describe('단계별 실행 기록', () => {
       <StepTimeline projectId="p1" executionId={7} mediaUrl={media} focus={{ specPath: 'login.spec.ts', title: '관리자 로그인' }} />,
     );
     await screen.findByRole('list', { name: '로그인 > 관리자 로그인 단계' });
-    expect(scroll).toHaveBeenCalled();
+    await waitFor(() => expect(scroll).toHaveBeenCalled()); // 스크롤은 그린 뒤 효과에서 — 바쁠 때 늦게 돈다
     expect(api.getSteps).toHaveBeenCalledWith('p1', 7);
   });
 
