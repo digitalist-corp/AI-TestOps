@@ -163,6 +163,26 @@ public class UserService {
         return UserResponse.from(saved);
     }
 
+    /**
+     * 본인 비밀번호 변경. 기본 비밀번호(admin)로 바꿀 수 없고, 바꾸면 다른 기기의 토큰은 모두 끊고 새 토큰을 준다 (3-1 보안).
+     */
+    @Transactional
+    public LoginResponse changeOwnPassword(User user, String currentPassword, String newPassword, String userAgent) {
+        if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new ApiException(400, "VALIDATION_ERROR", "현재 비밀번호가 맞지 않습니다.");
+        }
+        if (newPassword == null || AuthService.isDefaultPassword(newPassword)) {
+            throw new ApiException(400, "VALIDATION_ERROR", "기본 비밀번호는 쓸 수 없습니다.");
+        }
+        validatePasswordForRegistration(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPasswordChangeRequired(false);
+        User saved = userRepository.save(user);
+        audit(saved, UserAuditAction.PASSWORD_RESET, saved, "self");
+        authService.revokeAllSessions(saved.getId());
+        return authService.issueSession(saved, userAgent);
+    }
+
     private void validatePasswordForRegistration(String password) {
         AuthService.validatePasswordUtf8Length(password);
         if (password.length() < 10) {

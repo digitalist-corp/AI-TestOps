@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
+import { ChangePasswordPage } from '@/pages/ChangePasswordPage';
 import { HomePage } from '@/pages/HomePage';
 import { NoticesPage } from '@/pages/NoticesPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
@@ -34,6 +35,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/change-password" element={<ProtectedRoute><ChangePasswordPage /></ProtectedRoute>} />
         <Route path="/guide" element={<GuideRedirect />} />
         <Route path="/guide/*" element={<GuideRedirect />} />
         <Route path="/antigravity-guide" element={<GuideRedirect />} />

@@ -103,6 +103,8 @@ export function clearStoredAuth() {
   localStorage.removeItem(USER_KEY);
 }
 
+type LoginResult = { token: string; username: string; role: AuthUser['role']; passwordChangeRequired?: boolean };
+
 async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
   const { auth: includeAuth = true, ...fetchOptions } = options;
   const auth = getStoredAuth();
@@ -130,6 +132,15 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
     throw new Error('Unauthorized');
   }
 
+  // 기본 비밀번호(admin) 계정은 비밀번호를 바꾸기 전에 다른 API 를 못 쓴다 (3-1 보안)
+  if (res.status === 403 && window.location.pathname !== '/change-password') {
+    const body = await res.clone().json().catch(() => null);
+    if (body?.error?.code === 'PASSWORD_CHANGE_REQUIRED') {
+      window.location.href = '/change-password';
+      throw new Error('비밀번호를 바꾼 뒤 사용할 수 있습니다.');
+    }
+  }
+
   if (!res.ok) {
     // 터널(Cloudflare)이 502·504 를 자기 HTML 페이지로 바꾸면 서버가 보낸 메시지가 사라진다.
     // 그때도 빈 오류가 되지 않게 상태 코드를 남긴다.
@@ -145,7 +156,7 @@ async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T
 
 export const api = {
   login: (username: string, password: string) =>
-    request<{ token: string; username: string; role: AuthUser['role'] }>('/api/auth/login', {
+    request<LoginResult>('/api/auth/login', {
       method: 'POST',
       auth: false,
       body: JSON.stringify({ username, password }),
@@ -161,9 +172,16 @@ export const api = {
 
   /** "게스트로 시작": 서버의 게스트 팀원 계정으로 들어간다 (비밀번호는 서버만 안다) */
   guestLogin: () =>
-    request<{ token: string; username: string; role: AuthUser['role'] }>('/api/auth/guest', {
+    request<LoginResult>('/api/auth/guest', {
       method: 'POST',
       auth: false,
+    }),
+
+  /** 본인 비밀번호 변경. 다른 기기의 로그인은 끊기고 새 토큰을 받는다. */
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<LoginResult>('/api/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
     }),
 
   /** 내 전역 역할 + 프로젝트별 역할 (lib/access) */

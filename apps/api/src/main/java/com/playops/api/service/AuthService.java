@@ -27,8 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class AuthService {
 
-    private static final String DEFAULT_LOGIN_USERNAME = "admin";
-    private static final String DEFAULT_LOGIN_PASSWORD = "admin";
+    /** 알려진 기본 비밀번호. 이 값(또는 빈 값)이면 기본값으로 본다 (3-1 보안). */
+    public static final String DEFAULT_PASSWORD = "admin";
     public static final int SESSION_ABSOLUTE_TTL_HOURS = 8;
     public static final int SESSION_IDLE_TTL_MINUTES = 30;
     private static final int MAX_PASSWORD_UTF8_BYTES = 72;
@@ -38,8 +38,6 @@ public class AuthService {
     private final UserRepository userRepository;
     private final UserSessionRepository userSessionRepository;
     private final PasswordEncoder passwordEncoder;
-    private final String loginUsername;
-    private final String loginPassword;
     private final String guestUsername;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, LoginAttemptWindow> loginAttempts = new ConcurrentHashMap<>();
@@ -48,15 +46,11 @@ public class AuthService {
             UserRepository userRepository,
             UserSessionRepository userSessionRepository,
             PasswordEncoder passwordEncoder,
-            @Value("${LOGIN_USERNAME:" + DEFAULT_LOGIN_USERNAME + "}") String loginUsername,
-            @Value("${LOGIN_PASSWORD:" + DEFAULT_LOGIN_PASSWORD + "}") String loginPassword,
             @Value("${GUEST_USERNAME:guest}") String guestUsername
     ) {
         this.userRepository = userRepository;
         this.userSessionRepository = userSessionRepository;
         this.passwordEncoder = passwordEncoder;
-        this.loginUsername = loginUsername;
-        this.loginPassword = loginPassword;
         this.guestUsername = guestUsername;
     }
 
@@ -141,8 +135,18 @@ public class AuthService {
                         user.getId() != null ? String.valueOf(user.getId()) : null,
                         user.getUsername(),
                         user.getRole()
-                )
+                ),
+                user.isPasswordChangeRequired()
         );
+    }
+
+    /** "게스트로 시작" 공용 계정. 비밀번호 없이 누구나 들어오므로 둘러보기만 한다 (AuthInterceptor). */
+    public boolean isGuest(User user) {
+        return user.getRole() == com.playops.api.entity.UserRole.USER && guestUsername.equals(user.getUsername());
+    }
+
+    public static boolean isDefaultPassword(String password) {
+        return password == null || password.isBlank() || DEFAULT_PASSWORD.equals(password);
     }
 
     public static void validatePasswordUtf8Length(String password) {
@@ -182,18 +186,8 @@ public class AuthService {
 
     private record LoginAttemptWindow(Instant windowStart, int count, Instant lockedUntil) {}
 
+    /** 로그인은 DB 에 저장된 비밀번호로만 판단한다. .env 의 관리자 값은 최초 생성(DataLoader)에만 쓴다. */
     private User authenticate(String username, String password) {
-        if (loginUsername.equals(username) && loginPassword.equals(password)) {
-            return userRepository.findByUsername(loginUsername)
-                    .orElseGet(() -> {
-                        User admin = new User();
-                        admin.setUsername(loginUsername);
-                        admin.setPassword(passwordEncoder.encode(loginPassword));
-                        admin.setRole(com.playops.api.entity.UserRole.ADMIN);
-                        return userRepository.save(admin);
-                    });
-        }
-
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ApiException(401, "INVALID_CREDENTIALS", "Invalid credentials"));
 

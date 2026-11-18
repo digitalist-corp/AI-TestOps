@@ -34,7 +34,7 @@ docker compose -f docker-compose.dev.yml up --build
 - `api`: 디버그 포트 `5005`가 열린다.
 - `postgres`: `./storage/postgres`에 데이터를 저장한다.
 - `worker`: 개발모드 compose에는 포함되지 않는다.
-- 초기 시스템 부팅 시 기본 관리자 계정 `admin / admin`이 자동 등록된다.
+- 관리자가 한 명도 없으면 처음 부팅할 때 `.env`의 `LOGIN_USERNAME` · `LOGIN_PASSWORD`로 관리자를 만든다. 비밀번호가 비었거나 `admin`이면 `admin / admin`으로 만들고 첫 로그인 때 비밀번호를 바꾸게 한다 (바꾸기 전에는 다른 화면을 쓸 수 없다).
 
 주의:
 
@@ -57,7 +57,7 @@ docker compose up --build
 - `api`: 운영용 Dockerfile로 빌드되어 실행된다.
 - `worker`: 함께 실행된다.
 - `postgres`: 개발모드와 동일하게 `./storage/postgres`에 데이터를 저장한다.
-- 초기 시스템 부팅 시 기본 관리자 계정 `admin / admin`이 자동 등록된다.
+- 관리자가 한 명도 없으면 처음 부팅할 때 `.env`의 `LOGIN_USERNAME` · `LOGIN_PASSWORD`로 관리자를 만든다. 비밀번호가 비었거나 `admin`이면 `admin / admin`으로 만들고 첫 로그인 때 비밀번호를 바꾸게 한다 (바꾸기 전에는 다른 화면을 쓸 수 없다).
 
 주의:
 
@@ -67,19 +67,20 @@ docker compose up --build
 
 ## 로그인 트러블슈팅
 
-기본 로그인 계정은 다음과 같다.
+처음 로그인 계정은 `.env`의 `LOGIN_USERNAME` · `LOGIN_PASSWORD`다. 비밀번호가 비었거나 `admin`이면 다음으로 들어가 비밀번호 변경 화면에서 새 비밀번호를 정한다.
 
 ```text
 username: admin
-password: admin
+password: admin   (첫 로그인 뒤 변경 필수)
 ```
 
-코드 기준으로 기본 계정은 다음 두 경로에서 보장된다.
+코드 기준:
 
-- `DataLoader`: 서버 시작 시 `admin` 사용자가 없으면 생성한다.
-- `AuthService`: `admin / admin` 로그인 요청 시 `admin` 사용자가 없으면 생성한다.
+- `DataLoader`: 관리자가 한 명도 없을 때만 `.env` 값으로 관리자를 만든다. `.env` 값은 그 뒤 로그인에 쓰이지 않는다.
+- `AuthService`: 로그인은 항상 DB에 저장된 비밀번호로만 확인한다.
+- 테스트 서버는 배포가 `.env`의 `LOGIN_PASSWORD`를 무작위 값으로 바꿔 두므로 `admin / admin`은 통하지 않는다 (값은 서버 `.env`).
 
-따라서 `admin / admin` 로그인이 안 될 때는 먼저 계정 자체보다 API 상태와 Web 프록시를 확인한다.
+로그인이 안 될 때는 먼저 계정 자체보다 API 상태와 Web 프록시를 확인한다.
 
 1. 컨테이너 상태 확인
 
@@ -188,7 +189,7 @@ $OutputEncoding = [System.Text.UTF8Encoding]::new()
 
 1. 기본 계정 로그인
    - username: `admin`
-   - password: `admin`
+   - password: `admin` → 비밀번호 변경 화면에서 새 비밀번호 설정
 2. 기본 템플릿 프로젝트 생성
    - projectId: `smoke-default`
    - templateId: `default`

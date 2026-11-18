@@ -165,7 +165,7 @@ export function LoginPage() {
     try {
       const res = await login();
       setStoredAuth({ token: res.token, username: res.username, role: res.role });
-      navigate('/home');
+      navigate(res.passwordChangeRequired ? '/change-password' : '/home');
     } catch (err) {
       setError(getLoginErrorMessage(err));
     } finally {
