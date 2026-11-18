@@ -154,9 +154,11 @@ class RolePermissionIntegrationTest {
     void teamMemberReadsStepsOfTheirProjectsRunsOnly() throws Exception {
         var mine = new com.playops.api.entity.Execution();
         mine.setProjectId("example.com");
+        mine.setStatus(com.playops.api.entity.ExecutionStatus.PASSED); // 끝난 실행 — 남겨 두면 같은 프로젝트 실행이 409
         mine = executions.save(mine);
         var other = new com.playops.api.entity.Execution();
         other.setProjectId("google.com");
+        other.setStatus(com.playops.api.entity.ExecutionStatus.PASSED);
         other = executions.save(other);
 
         JsonNode steps = call(get("/api/projects/example.com/executions/" + mine.getId() + "/steps"), member, 200);
@@ -210,6 +212,24 @@ class RolePermissionIntegrationTest {
         }
         // 보기는 된다
         assertThat(status(get(base + "/sitemap"), member)).isEqualTo(200);
+    }
+
+    /** 같은 프로젝트가 실행 중이면 새 실행 요청은 409, 결함 다시 실행도 같은 지점 (3차 3번) */
+    @Test
+    void aSecondRunOfTheSameProjectIsRejected() throws Exception {
+        var running = new com.playops.api.entity.Execution();
+        running.setProjectId("naver.com");
+        running.setStatus(com.playops.api.entity.ExecutionStatus.RUNNING);
+        running = executions.save(running);
+        try {
+            var res = mvc.perform(post("/api/projects/naver.com/executions").header("Authorization", "Bearer " + admin)
+                    .contentType(MediaType.APPLICATION_JSON).content("{}")).andReturn().getResponse();
+            assertThat(res.getStatus()).isEqualTo(409);
+            assertThat(res.getContentAsString(java.nio.charset.StandardCharsets.UTF_8)).contains("이미 실행 중입니다");
+        } finally {
+            running.setStatus(com.playops.api.entity.ExecutionStatus.FAILED);
+            executions.save(running);
+        }
     }
 
     @Test

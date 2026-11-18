@@ -23,6 +23,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -117,12 +119,28 @@ public class ExecutionQueryService {
         return triggerRun(projectId, grep, specPath, specPaths, caseTitle, sequential, null);
     }
 
-    /** rerunOf: 결함 다시 실행(#82)이면 실패했던 원래 실행 */
+    /** 실행 중으로 보는 상태 — 이 중 하나가 있으면 같은 프로젝트에 새 실행을 만들지 않는다 */
+    static final List<ExecutionStatus> ACTIVE =
+            List.of(ExecutionStatus.PENDING, ExecutionStatus.RUNNING, ExecutionStatus.CANCEL_REQUESTED);
+
+    // ponytail: 서버 한 대 기준 프로젝트별 JVM 잠금. 서버를 여러 대 띄우면 DB 잠금(SELECT … FOR UPDATE)으로 바꾼다.
+    private final Map<String, Object> runLocks = new ConcurrentHashMap<>();
+
+    /**
+     * rerunOf: 결함 다시 실행(#82)이면 실패했던 원래 실행.
+     * 전체 · 선택 · 스위트 · 결함 다시 실행 · 채팅 실행이 모두 여기를 지난다. 같은 프로젝트가 실행 중이면 409 (3차 3번).
+     */
     public ExecutionResponse triggerRun(
             String projectId, String grep, String specPath, List<String> specPaths, String caseTitle, boolean sequential,
             Long rerunOf
     ) {
-        Execution execution = testExecutionService.createExecution(projectId, grep, specPath, specPaths, caseTitle, sequential);
+        Execution execution;
+        synchronized (runLocks.computeIfAbsent(projectId, k -> new Object())) {
+            if (executionRepository.existsByProjectIdAndStatusIn(projectId, ACTIVE)) {
+                throw new ApiException(409, "이미 실행 중입니다. 끝나거나 중지한 뒤에 다시 실행하세요.");
+            }
+            execution = testExecutionService.createExecution(projectId, grep, specPath, specPaths, caseTitle, sequential);
+        }
         execution.setRerunOf(rerunOf);
         Path reportDir = Path.of(properties.storageRoot(), "reports", projectId, String.valueOf(execution.getId()));
         execution.setReportPath(reportDir.toString().replace('\\', '/'));
