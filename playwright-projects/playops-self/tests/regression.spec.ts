@@ -15,10 +15,26 @@ const takeScreenshot = async (page: Page, name: string) => {
   }
 };
 
+// 셀프 회귀 전용 계정 (배포가 서버 .env 에 만들고 API 가 이 실행에만 넘긴다). 진짜 관리자 계정은 쓰지 않는다.
+const SELFTEST_USERNAME = process.env.SELFTEST_USERNAME || 'selftest';
+const SELFTEST_PASSWORD = process.env.SELFTEST_PASSWORD || '';
+
+/**
+ * 비밀번호 칸은 page.fill 대신 값을 직접 넣는다. fill 은 단계 제목(Fill "값" …)으로 HTML 리포트에 값을 남긴다 (#157).
+ * React 가 바뀐 값을 받도록 네이티브 setter 로 넣고 input 이벤트를 보낸다.
+ */
+const fillSecret = (page: Page, selector: string, value: string) =>
+  page.locator(selector).evaluate((el, v) => {
+    const input = el as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, v);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+
 const login = async (page: Page) => {
+  if (!SELFTEST_PASSWORD) throw new Error('SELFTEST_PASSWORD 가 없습니다 (서버 .env 확인)');
   await page.goto('/login');
-  await page.fill('#username', 'admin');
-  await page.fill('#password', 'admin');
+  await page.fill('#username', SELFTEST_USERNAME);
+  await fillSecret(page, '#password', SELFTEST_PASSWORD);
   await page.click('button[type="submit"]');
   // 로그인하면 역할별 첫 화면(/home)으로 간다. 이 스위트는 프로젝트 목록에서 시작한다.
   await page.waitForURL('**/home');

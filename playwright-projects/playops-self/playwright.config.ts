@@ -11,9 +11,10 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }], ['list']],
   use: {
     baseURL: baseURL,
-    trace: 'retain-on-failure',
+    // 셀프 회귀는 관리자 권한 계정으로 로그인한다. trace · video 에 입력값이 남지 않게 끈다 (#157).
+    trace: 'off',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: 'off',
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
