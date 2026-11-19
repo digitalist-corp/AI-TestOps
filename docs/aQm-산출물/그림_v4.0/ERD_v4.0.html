@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 1120px; background: #fff; font-family: Pretendard, 'Apple SD Gothic Neo', sans-serif; color: #1e293b; padding: 16px 16px 18px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  h1 { font-size: 21px; font-weight: 800; letter-spacing: -0.4px; }
+  .sub { font-size: 12.5px; color: #64748b; margin-top: 5px; }
+  .legend { display: flex; gap: 11px; font-size: 11.5px; color: #334155; margin-top: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 470px; }
+  .sq { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+  .cols { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 11px; }
+  .t { border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; background: #fff; }
+  .t.new { box-shadow: 0 0 0 2px #f59e0b; border-color: #f59e0b; }
+  .th { color: #fff; padding: 7px 9px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .th b { font-size: 11.5px; font-weight: 800; letter-spacing: -0.2px; white-space: nowrap; }
+  .th span.k { font-size: 9.5px; font-weight: 600; opacity: .9; margin-left: 4px; }
+  .rel { flex: none; font-size: 9px; font-weight: 700; background: rgba(255,255,255,.22); border-radius: 999px; padding: 2px 7px; white-space: nowrap; }
+  .blue { background: #2563eb; } .purple { background: #7c3aed; } .teal { background: #0f766e; } .orange { background: #c2410c; } .pink { background: #be185d; } .slate { background: #475569; }
+  .r { display: flex; align-items: center; gap: 5px; padding: 4px 8px; border-top: 1px solid #eef2f7; font-size: 10.5px; min-width: 0; }
+  .r:nth-child(even) { background: #f8fafc; }
+  .r .n { font-weight: 600; white-space: nowrap; }
+  .r .ty { margin-left: auto; color: #64748b; font-size: 9.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; }
+  .r.star .n::before { content: '★ '; color: #d97706; }
+  .r.plan { color: #92400e; }
+  .pk, .fk, .uk { font-size: 8.5px; font-weight: 800; color: #fff; border-radius: 4px; padding: 1px 4px; flex: none; }
+  .pk { background: #16a34a; } .fk { background: #3b82f6; } .uk { background: #b45309; }
+  .sp { width: 22px; flex: none; }
+  .note { margin-top: 12px; font-size: 11px; color: #475569; display: flex; gap: 16px; flex-wrap: wrap; }
+  .note b { color: #b45309; }
+  .th b { white-space: normal; overflow-wrap: anywhere; }
+  .th span.k { display: block; margin-left: 0; }
+  .r .n { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  .r .ty { flex: none; max-width: 90px; }
+  .refs { border-top: 1px solid #eef2f7; padding: 4px 8px; color: #475569; font-size: 9px; overflow-wrap: anywhere; }
+  .sp { width: 18px; }
+</style></head><body>
+<header>
+  <div><h1>AI-TestOps 데이터베이스 ERD (v4.0)</h1>
+    <div class="sub">핵심 19개 테이블 · Flyway V1~V23 · ★ v4.0 추가·변경</div></div>
+  <div class="legend">
+    <span><span class="sq" style="background:#2563eb"></span>프로젝트 · 실행</span>
+    <span><span class="sq" style="background:#be185d"></span>계획</span>
+    <span><span class="sq" style="background:#7c3aed"></span>AI 작업 · 채팅</span>
+    <span><span class="sq" style="background:#0f766e"></span>사이트 지식 그래프</span>
+    <span><span class="sq" style="background:#c2410c"></span>편집 · 출처</span>
+    <span><span class="sq" style="background:#475569"></span>알림</span>
+  </div>
+</header>
+
+<div class="cols">
+<div class="col">
+<div class="t"><div class="th blue"><b>PROJECTS<span class="k">프로젝트</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_name</span><span class="ty" title="VARCHAR(200)">VARCHAR(200)</span></div>
+<div class="r"><span class="sp"></span><span class="n">base_url</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">repository_url</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">source_repository_url</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">runner_lifecycle</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">ai_auto_apply_enabled</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="r star"><span class="sp"></span><span class="n">status</span><span class="ty" title="VARCHAR(10)">VARCHAR(10)</span></div>
+<div class="r star"><span class="sp"></span><span class="n">start_date</span><span class="ty" title="DATE">DATE</span></div>
+<div class="r star"><span class="sp"></span><span class="n">end_date</span><span class="ty" title="DATE">DATE</span></div>
+<div class="r star"><span class="sp"></span><span class="n">created_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r star"><span class="sp"></span><span class="n">updated_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+</div>
+<div class="t"><div class="th slate"><b>USERS<span class="k">사용자 계정</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">username</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">role</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r star"><span class="sp"></span><span class="n">display_name</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r star"><span class="sp"></span><span class="n">password_change_required</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+</div>
+<div class="t new"><div class="th slate"><b>PROJECT_MEMBERS<span class="k">★ 프로젝트 멤버</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="fk">FK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="pk">PK</span><span class="fk">FK</span><span class="n">user_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">role</span><span class="ty" title="VARCHAR(10)">VARCHAR(10)</span></div>
+<div class="r"><span class="sp"></span><span class="n">created_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">created_at</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+<div class="r"><span class="sp"></span><span class="n">updated_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">updated_at</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+<div class="refs">project_id → projects(project_id)<br>user_id → users(id)</div>
+</div>
+<div class="t new"><div class="th slate"><b>BOARD_POSTS<span class="k">★ 공지 · 게시글</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">type</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">title</span><span class="ty" title="VARCHAR(200)">VARCHAR(200)</span></div>
+<div class="r"><span class="sp"></span><span class="n">visible</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="r"><span class="sp"></span><span class="n">pinned</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="r"><span class="sp"></span><span class="n">deleted</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="r"><span class="sp"></span><span class="n">visible_from</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+<div class="r"><span class="sp"></span><span class="n">visible_until</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+</div>
+</div>
+<div class="col">
+<div class="t"><div class="th blue"><b>EXECUTIONS<span class="k">테스트 실행 이력 (N차 테스트)</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">status</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">spec_path</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">total_tests</span><span class="ty" title="INTEGER">INTEGER</span></div>
+<div class="r"><span class="sp"></span><span class="n">passed_tests</span><span class="ty" title="INTEGER">INTEGER</span></div>
+<div class="r"><span class="sp"></span><span class="n">failed_tests</span><span class="ty" title="INTEGER">INTEGER</span></div>
+<div class="r"><span class="sp"></span><span class="n">source</span><span class="ty" title="VARCHAR(30)">VARCHAR(30)</span></div>
+<div class="r"><span class="sp"></span><span class="n">report_path</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r star"><span class="fk">FK</span><span class="n">rerun_of</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r star"><span class="sp"></span><span class="n">created_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="refs">rerun_of → executions(id)<br>논리 관계 · projects 1 : N</div>
+</div>
+<div class="t"><div class="th blue"><b>EXECUTION_CASE_RESULTS<span class="k">케이스별 결과</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">execution_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">spec_path</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">case_title</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">status</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">error_message</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="refs">논리 관계 · executions 1 : N</div>
+</div>
+<div class="t"><div class="th pink"><b>SCENARIO_CASE_SETTINGS<span class="k">계획 항목 (사용 여부 · 순서 · 담당자 · 마감일 · 우선순위)</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">node_type</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">spec_path</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">grep_filter</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">enabled</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="r"><span class="sp"></span><span class="n">sort_order</span><span class="ty" title="INTEGER">INTEGER</span></div>
+<div class="r"><span class="sp"></span><span class="n">assignee</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">due_date</span><span class="ty" title="DATE">DATE</span></div>
+<div class="r"><span class="sp"></span><span class="n">priority</span><span class="ty" title="VARCHAR(10)">VARCHAR(10)</span></div>
+<div class="r star"><span class="sp"></span><span class="n">created_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r star"><span class="sp"></span><span class="n">created_at</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+<div class="r star"><span class="sp"></span><span class="n">updated_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r star"><span class="fk">FK</span><span class="n">assignee_user_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="refs">assignee_user_id → users(id)<br>논리 관계 · projects 1 : N</div>
+</div>
+</div>
+<div class="col">
+<div class="t"><div class="th purple"><b>AI_JOBS<span class="k">AI 작업</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">job_type</span><span class="ty" title="VARCHAR(30)">VARCHAR(30)</span></div>
+<div class="r"><span class="sp"></span><span class="n">status</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">route_keys</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">risk_flags</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">failed_execution_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">auto_created</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="r star"><span class="fk">FK</span><span class="n">parent_job_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="refs">parent_job_id → ai_jobs(id)<br>논리 관계 · projects 1 : N</div>
+</div>
+<div class="t new"><div class="th purple"><b>AI_FIX_MEMORY<span class="k">★ 승인 수정 기억</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">signature</span><span class="ty" title="VARCHAR(12)">VARCHAR(12)</span></div>
+<div class="r"><span class="sp"></span><span class="n">locator</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">cause</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="fk">FK</span><span class="n">ai_job_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">diff</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">created_at</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+<div class="refs">ai_job_id → ai_jobs(id)</div>
+</div>
+<div class="t new"><div class="th purple"><b>AI_CLASSIFY_FEEDBACK<span class="k">★ 분류 정정 기억</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">signature</span><span class="ty" title="VARCHAR(12)">VARCHAR(12)</span></div>
+<div class="r"><span class="sp"></span><span class="n">cause</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">user_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">created_at</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+</div>
+<div class="t"><div class="th slate"><b>NOTIFICATIONS<span class="k">알림</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">user_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">kind</span><span class="ty" title="VARCHAR(40)">VARCHAR(40)</span></div>
+<div class="r"><span class="sp"></span><span class="n">level</span><span class="ty" title="VARCHAR(10)">VARCHAR(10)</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="refs">논리 관계 · users 1 : N</div>
+</div>
+</div>
+<div class="col">
+<div class="t"><div class="th teal"><b>SITE_ANALYSIS_RUN<span class="k">사이트 분석 기록</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">status</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">commit_sha</span><span class="ty" title="VARCHAR(64)">VARCHAR(64)</span></div>
+<div class="r"><span class="sp"></span><span class="n">framework</span><span class="ty" title="VARCHAR(30)">VARCHAR(30)</span></div>
+<div class="r"><span class="sp"></span><span class="n">screen_count</span><span class="ty" title="INTEGER">INTEGER</span></div>
+<div class="r"><span class="sp"></span><span class="n">llm_calls</span><span class="ty" title="INTEGER">INTEGER</span></div>
+<div class="refs">논리 관계 · projects 1 : N</div>
+</div>
+<div class="t"><div class="th teal"><b>SITE_NODE<span class="k">화면</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">route_key</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">title</span><span class="ty" title="VARCHAR(300)">VARCHAR(300)</span></div>
+<div class="r"><span class="sp"></span><span class="n">source_file</span><span class="ty" title="VARCHAR(700)">VARCHAR(700)</span></div>
+<div class="r"><span class="sp"></span><span class="n">origin</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">url</span><span class="ty" title="VARCHAR(1000)">VARCHAR(1000)</span></div>
+<div class="r"><span class="sp"></span><span class="n">forms</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">aria_snapshot</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">screenshot</span><span class="ty" title="VARCHAR(300)">VARCHAR(300)</span></div>
+<div class="r"><span class="sp"></span><span class="n">elements</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">links</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">content_hash</span><span class="ty" title="VARCHAR(64)">VARCHAR(64)</span></div>
+<div class="r"><span class="sp"></span><span class="n">stale</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="refs">논리 관계 · projects 1 : N</div>
+</div>
+<div class="t"><div class="th teal"><b>SITE_EDGE<span class="k">전환</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">from_route_key</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">to_route_key</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">label</span><span class="ty" title="VARCHAR(300)">VARCHAR(300)</span></div>
+<div class="r"><span class="sp"></span><span class="n">selector</span><span class="ty" title="VARCHAR(700)">VARCHAR(700)</span></div>
+<div class="refs">논리 관계 · site_node 전환</div>
+</div>
+<div class="t"><div class="th orange"><b>SITE_LAYOUT<span class="k">공용 메뉴</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">source_file</span><span class="ty" title="VARCHAR(700)">VARCHAR(700)</span></div>
+<div class="r"><span class="sp"></span><span class="n">route_keys</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">links</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="refs">논리 관계 · projects 1 : N</div>
+</div>
+</div>
+<div class="col">
+<div class="t"><div class="th orange"><b>SITE_NODE_EDIT<span class="k">화면 사용자 편집</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">route_key</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">excluded</span><span class="ty" title="BOOLEAN">BOOLEAN</span></div>
+<div class="r"><span class="sp"></span><span class="n">note</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r star"><span class="sp"></span><span class="n">created_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r star"><span class="sp"></span><span class="n">created_at</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+<div class="r star"><span class="sp"></span><span class="n">updated_by</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r star"><span class="sp"></span><span class="n">updated_at</span><span class="ty" title="TIMESTAMPTZ">TIMESTAMPTZ</span></div>
+<div class="refs">논리 관계 · site_node 1 : 1</div>
+</div>
+<div class="t"><div class="th orange"><b>SCENARIO_ORIGIN<span class="k">테스트 출처</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="uk">UK</span><span class="n">spec_path</span><span class="ty" title="VARCHAR(500)">VARCHAR(500)</span></div>
+<div class="r"><span class="sp"></span><span class="n">route_keys</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">selector_keys</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">source</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="refs">논리 관계 · projects 1 : N</div>
+</div>
+<div class="t"><div class="th purple"><b>AI_CHAT_SESSIONS<span class="k">AI 채팅 세션</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">user_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">project_id</span><span class="ty" title="VARCHAR(100)">VARCHAR(100)</span></div>
+<div class="r"><span class="sp"></span><span class="n">title</span><span class="ty" title="VARCHAR(200)">VARCHAR(200)</span></div>
+<div class="r"><span class="sp"></span><span class="n">allowed_tools</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="refs">논리 관계 · users 1 : N</div>
+</div>
+<div class="t"><div class="th purple"><b>AI_CHAT_MESSAGES<span class="k">AI 채팅 메시지</span></b></div>
+<div class="r"><span class="pk">PK</span><span class="n">id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="fk">FK</span><span class="n">session_id</span><span class="ty" title="BIGINT">BIGINT</span></div>
+<div class="r"><span class="sp"></span><span class="n">role</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="r"><span class="sp"></span><span class="n">blocks</span><span class="ty" title="TEXT">TEXT</span></div>
+<div class="r"><span class="sp"></span><span class="n">stop_reason</span><span class="ty" title="VARCHAR(20)">VARCHAR(20)</span></div>
+<div class="refs">session_id → ai_chat_sessions(id)</div>
+</div>
+</div>
+</div><div class="note"><span><b>★</b> v4.0 신규/변경 및 핵심도에 추가한 공지(board_posts, V1)</span><span>FK는 DB 제약 · 논리 관계는 별도 표시</span>
+<span>전체 SQL 30개 테이블 · PostgreSQL langgraph 체크포인트는 라이브러리 관리</span>
+<span>V19에서 projects.server_type 삭제 · 전체 열과 키는 ERDCloud SQL 참조</span></div></body></html>
