@@ -43,6 +43,8 @@ services:
       PLAYOPS_STORAGE_ROOT: /storage
       PLAYOPS_DOCKER_ENABLED: ${PLAYOPS_DOCKER_ENABLED:-true}
       PLAYOPS_ENCRYPTION_KEY: ${PLAYOPS_ENCRYPTION_KEY:-}
+      # 학습 루프(LangGraph). 프로필 ai 를 안 띄우면 이 주소가 응답하지 않아 화면이 버튼 대신 안내를 보인다
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-service:8090}
       WEB_PORT: ${WEB_PORT:-3000}
       SPRING_DEVTOOLS_RESTART_ENABLED: "true"
       SPRING_DEVTOOLS_LIVERELOAD_ENABLED: "true"
@@ -108,6 +110,7 @@ services:
     profiles: [ai]
     restart: unless-stopped
     environment:
+      PLAYOPS_API_URL: http://api:8080
       AI_SERVICE_DATABASE_URL: postgresql://${POSTGRES_USER:-playops}:${POSTGRES_PASSWORD:-playops}@postgres:5432/${POSTGRES_DB:-playops}
     depends_on:
       postgres:

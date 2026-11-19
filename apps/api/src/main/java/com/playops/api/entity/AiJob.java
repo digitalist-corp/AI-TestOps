@@ -99,6 +99,10 @@ public class AiJob {
     @Column(name = "revert_commit", length = 100)
     private String revertCommit;
 
+    /** 학습 루프(LEARNING_LOOP)가 띄운 수정 작업이면 그 루프 작업 id */
+    @Column(name = "parent_job_id")
+    private Long parentJobId;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version = 0L;
@@ -196,6 +200,9 @@ public class AiJob {
 
     public String getRevertCommit() { return revertCommit; }
     public void setRevertCommit(String revertCommit) { this.revertCommit = revertCommit; }
+
+    public Long getParentJobId() { return parentJobId; }
+    public void setParentJobId(Long parentJobId) { this.parentJobId = parentJobId; }
 
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }

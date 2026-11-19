@@ -6,8 +6,11 @@ import com.playops.api.chat.ChatToolOutput;
 import com.playops.api.chat.ChatToolRegistry;
 import com.playops.api.chat.ToolTier;
 import com.playops.api.entity.AiJob;
+import com.playops.api.entity.AiJobType;
+import com.playops.api.exception.ApiException;
 import com.playops.api.llm.LlmToolCall;
 import com.playops.api.service.AiJobService;
+import com.playops.api.service.AiLoopService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,11 +36,31 @@ public class McpController {
     public static final Set<String> ALLOWED = Set.of("list_executions", "get_sitemap", "list_failure_clusters");
     private static final String DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 
+    /**
+     * 학습 루프 작업에만 보이는 도구. 파일을 쓰지 않는다 — 러너가 사본에서 고친 diff 를 만들고, 반영은 사람이 승인해야 한다.
+     * 루프 작업 id 를 알아야 해서 채팅 도구 목록이 아니라 여기 둔다.
+     */
+    static final String START_CODE_FIX = "start_code_fix";
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+    private static final Map<String, Object> START_CODE_FIX_SPEC = Map.of(
+            "name", START_CODE_FIX,
+            "description", "실패한 실행의 spec 하나를 AI 수정 러너로 고친다. 러너는 격리된 사본에서 고치고 다시 돌려 통과한 diff 만 내며, "
+                    + "반영은 사람이 승인해야 한다. 돌려주는 jobId 의 상태 변화로 루프가 재개된다.",
+            "inputSchema", Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                            "executionId", Map.of("type", "integer", "description", "실패한 실행 번호 (이 작업의 프로젝트 것)"),
+                            "specPath", Map.of("type", "string", "description", "고칠 spec 경로 (리포트 경로 그대로 가능)"),
+                            "instruction", Map.of("type", "string", "description", "러너에게 줄 지시문 (과거 수정 예시 포함)")),
+                    "required", List.of("executionId", "specPath", "instruction")));
+
     private final AiJobService aiJobService;
+    private final AiLoopService aiLoopService;
     private final ChatToolRegistry registry;
 
-    public McpController(AiJobService aiJobService, ChatToolRegistry registry) {
+    public McpController(AiJobService aiJobService, AiLoopService aiLoopService, ChatToolRegistry registry) {
         this.aiJobService = aiJobService;
+        this.aiLoopService = aiLoopService;
         this.registry = registry;
     }
 
@@ -59,10 +82,7 @@ public class McpController {
                     "capabilities", Map.of("tools", Map.of()),
                     "serverInfo", Map.of("name", "ai-testops", "version", "1")));
             case "ping" -> result(id, Map.of());
-            case "tools/list" -> result(id, Map.of("tools", exported().stream().map(tool -> Map.of(
-                    "name", tool.spec().name(),
-                    "description", tool.spec().description(),
-                    "inputSchema", withoutProjectId(tool.spec().inputSchema()))).toList()));
+            case "tools/list" -> result(id, Map.of("tools", toolList(job)));
             case "tools/call" -> call(job, id, params);
             default -> error(id, -32601, "지원하지 않는 메서드: " + method);
         };
@@ -80,9 +100,31 @@ public class McpController {
                 .toList();
     }
 
+    private List<Map<String, Object>> toolList(AiJob job) {
+        List<Map<String, Object>> tools = new java.util.ArrayList<>(exported().stream().map(tool -> Map.<String, Object>of(
+                "name", tool.spec().name(),
+                "description", tool.spec().description(),
+                "inputSchema", withoutProjectId(tool.spec().inputSchema()))).toList());
+        if (job.getJobType() == AiJobType.LEARNING_LOOP) tools.add(START_CODE_FIX_SPEC);
+        return tools;
+    }
+
     @SuppressWarnings("unchecked")
     private ResponseEntity<Map<String, Object>> call(AiJob job, Object id, Map<String, Object> params) {
         String name = String.valueOf(params.get("name"));
+        if (START_CODE_FIX.equals(name) && job.getJobType() == AiJobType.LEARNING_LOOP) {
+            Map<String, Object> args = params.get("arguments") instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
+            try {
+                Object execution = args.get("executionId");
+                AiJob child = aiLoopService.startFix(job,
+                        execution instanceof Number n ? n.longValue() : execution == null ? null : Long.valueOf(execution.toString()),
+                        args.get("specPath") == null ? null : args.get("specPath").toString(),
+                        args.get("instruction") == null ? null : args.get("instruction").toString());
+                return toolResult(id, JSON.writeValueAsString(Map.of("jobId", child.getId(), "targetSpecPath", child.getTargetSpecPath())), false);
+            } catch (ApiException | NumberFormatException | com.fasterxml.jackson.core.JsonProcessingException e) {
+                return toolResult(id, "수정을 띄우지 못했습니다: " + e.getMessage(), true);
+            }
+        }
         ChatTool tool = exported().stream().filter(t -> t.spec().name().equals(name)).findFirst().orElse(null);
         if (tool == null) {
             return error(id, -32602, "쓸 수 없는 도구: " + name);
