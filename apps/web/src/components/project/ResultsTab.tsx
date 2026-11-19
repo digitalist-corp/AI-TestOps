@@ -4,6 +4,7 @@ import type { ArtifactFile, CaseFocus, ExecutionCaseResult, ExecutionDetail } fr
 import { api, getStoredAuth } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import { FixProposals } from '@/components/project/FixProposalCard';
+import { AiLoopPanel } from '@/components/project/AiLoopPanel';
 import { StepTimeline } from '@/components/project/StepTimeline';
 import { executionStatusLabel, formatDuration } from '@/lib/utils';
 import {
@@ -171,7 +172,8 @@ export function ResultsTab({ detail, loading, focus }: Props) {
             <AlertTriangle className="h-4 w-4 text-destructive" />
             <h3 className="font-medium text-foreground">실패한 케이스 ({failedCases.length}건)</h3>
           </div>
-          <div className="mb-2">
+          <div className="mb-2 space-y-2">
+            <AiLoopPanel projectId={ex.projectId} executionId={ex.id} />
             <FixProposals projectId={ex.projectId} executionId={ex.id} />
           </div>
           <div className="space-y-2">

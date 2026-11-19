@@ -70,6 +70,21 @@ public class AsyncConfig {
     }
 
     /**
+     * 학습 루프 재개 전달(AiLoopService). 한 스레드로 두어 같은 루프의 재개가 순서대로 간다.
+     * ai-service 응답을 기다리는 동안 수정 작업 · 사후 검증 풀을 붙잡지 않게 나눈다.
+     */
+    @Bean(name = "aiLoopExecutor")
+    public ThreadPoolTaskExecutor aiLoopExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("playops-ai-loop-");
+        executor.initialize();
+        return executor;
+    }
+
+    /**
      * AI 채팅 에이전트의 답변 루프. 한 답변이 모델 스트림 · 허락 대기로 몇 분씩 스레드를 붙잡으므로
      * 다른 AI 작업 풀과 나눈다. 대부분 기다리는 시간이라 스레드를 넉넉히 두고, 넘치면 503 으로 돌려보낸다.
      */

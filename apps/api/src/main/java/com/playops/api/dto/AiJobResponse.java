@@ -32,6 +32,7 @@ public record AiJobResponse(
         Long reviewedBy,
         String rejectionReason,
         Long version,
+        Long parentJobId,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -59,6 +60,7 @@ public record AiJobResponse(
                 job.getReviewedBy(),
                 job.getRejectionReason(),
                 job.getVersion(),
+                job.getParentJobId(),
                 job.getCreatedAt(),
                 job.getUpdatedAt()
         );
