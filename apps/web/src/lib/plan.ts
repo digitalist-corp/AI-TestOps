@@ -69,17 +69,20 @@ export function assigneeLabel(i: Pick<PlanItem, 'assignee' | 'assigneeUserId'>):
   return i.assignee?.trim() ? `(계정 없음) ${i.assignee.trim()}` : '';
 }
 
-type AssigneeRow = { key: string; assignee: string; total: number; passed: number; failed: number };
+/** rate = 진척률(통과 ÷ 배정). 지금 산식 — 표준(실행 ÷ 계획)으로 바꾸는 것은 시연 뒤 (설계 2-4) */
+type AssigneeRow = { key: string; assignee: string; total: number; passed: number; failed: number; notRun: number; rate: number };
 
 /** 담당자별 진행 (사용 중 항목만). 계정(사용자 id)으로 묶고, 담당자가 없으면 '미지정'. */
 export function byAssignee(items: PlanItem[]): AssigneeRow[] {
   const rows = new Map<string, AssigneeRow>();
   for (const i of items.filter((x) => x.enabled)) {
     const key = i.assigneeUserId != null ? `u${i.assigneeUserId}` : i.assignee?.trim() ? `t${i.assignee.trim()}` : '';
-    const row = rows.get(key) ?? { key, assignee: assigneeLabel(i) || '미지정', total: 0, passed: 0, failed: 0 };
+    const row = rows.get(key) ?? { key, assignee: assigneeLabel(i) || '미지정', total: 0, passed: 0, failed: 0, notRun: 0, rate: 0 };
     row.total += 1;
     if (i.lastStatus === 'PASSED') row.passed += 1;
-    if (i.lastStatus === 'FAILED') row.failed += 1;
+    else if (i.lastStatus === 'FAILED') row.failed += 1;
+    else row.notRun += 1;
+    row.rate = Math.round((row.passed / row.total) * 100);
     rows.set(key, row);
   }
   return [...rows.values()];
@@ -88,4 +91,35 @@ export function byAssignee(items: PlanItem[]): AssigneeRow[] {
 /** 마감일(YYYY-MM-DD)이 오늘보다 앞인데 아직 성공하지 못한 사용 중 항목 */
 export function overdue(items: PlanItem[], today: string): PlanItem[] {
   return items.filter((i) => i.enabled && i.dueDate && i.dueDate < today && i.lastStatus !== 'PASSED');
+}
+
+const PRIORITY_RANK: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+
+/** 팀원 홈 '내 할 일' 순서: 기한 지남 → 오늘 마감 → 실패 → 미수행(우선순위 순) → 통과 (설계 4-3) */
+function todoRank(i: PlanItem, today: string): number {
+  if (i.lastStatus === 'PASSED') return 40;
+  if (i.dueDate && i.dueDate < today) return 0;
+  if (i.dueDate === today) return 10;
+  if (i.lastStatus === 'FAILED') return 20;
+  return 30 + (i.priority ? PRIORITY_RANK[i.priority] : 3);
+}
+
+/** 내 계정이 담당자인 사용 중 항목을 할 일 순서로 */
+export function myTodo(items: PlanItem[], userId: number, today: string): PlanItem[] {
+  return items
+    .filter((i) => i.enabled && i.assigneeUserId === userId)
+    .map((i, n) => ({ i, n, rank: todoRank(i, today) }))
+    .sort((a, b) => a.rank - b.rank || a.n - b.n)
+    .map(({ i }) => i);
+}
+
+export function todoSummary(todo: PlanItem[], today: string) {
+  const open = todo.filter((i) => i.lastStatus !== 'PASSED');
+  return {
+    assigned: todo.length,
+    remaining: open.length,
+    dueToday: open.filter((i) => i.dueDate === today).length,
+    overdue: open.filter((i) => i.dueDate && i.dueDate < today).length,
+    failed: open.filter((i) => i.lastStatus === 'FAILED').length,
+  };
 }
