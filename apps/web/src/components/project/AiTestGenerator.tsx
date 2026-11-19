@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Compass, Loader2, RotateCcw, Sparkles } from 'lucide-react';
+import { ProgressNote } from '@/components/ui/ProgressNote';
 import { api } from '@/api/client';
 import type { AiJob, SiteMap } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -245,7 +246,7 @@ export function AiTestGenerator({ projectId }: { projectId: string }) {
             <span className="rounded-full bg-ai-accent/15 px-2 py-0.5 text-[11px] font-medium text-ai-accent">
               {STATUS_LABEL[job.status]}
             </span>
-            {!finished && <Loader2 className="h-3.5 w-3.5 animate-spin text-ai-accent" />}
+            {!finished && <ProgressNote label="생성 중" startedAt={job.createdAt} />}
           </div>
           <p className="text-sm text-foreground">{job.instruction}</p>
           <p className="break-all font-mono text-[11px] text-muted-foreground">{job.targetSpecPath}</p>
