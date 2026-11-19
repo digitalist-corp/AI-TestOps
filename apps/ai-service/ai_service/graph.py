@@ -60,6 +60,12 @@ def accepts(wait: dict, child: dict) -> bool:
     return False
 
 
+def counts(found: list[dict]) -> tuple[int, int]:
+    """(환경을 뺀 실패 수, 환경 실패 수). 환경(네트워크 · 브라우저 실행)은 루프가 고칠 대상이 아니라 진전 계산에서 뺀다."""
+    env = sum(c["count"] for c in found if c["cause"] == "ENVIRONMENT")
+    return sum(c["count"] for c in found) - env, env
+
+
 def instruction(target: dict) -> str:
     cases = ", ".join(f"'{c}'" for c in target.get("cases", [])[:3])
     text = (f"{cases} 실패를 고쳐 주세요. 원인 분류: {CAUSE_KO.get(target['cause'], target['cause'])}. "
@@ -78,9 +84,9 @@ def build_graph(checkpointer, tools: Tools):
 
     async def classify(state: LoopState) -> dict:
         found = await clusters(state["execution_id"])
-        failures = sum(c["count"] for c in found)
+        failures, _ = counts(found)
         prefix = f"{state['round']}바퀴"
-        if failures == 0:
+        if not found:
             return {"failures": 0, "outcome": "PASSED", "steps": [f"{prefix} 분류: 실패 없음"]}
         target = next((c for c in found if c["cause"] in FIXABLE), None)
         if target is None:
@@ -121,8 +127,9 @@ def build_graph(checkpointer, tools: Tools):
         if child.get("verificationStatus") == "REGRESSED" or rerun is None:
             # 회귀로 되돌려졌거나 재실행이 없다 → 진전 없음, 같은 실행으로 다시
             return {"no_progress": state.get("no_progress", 0) + 1, "steps": ["재실행으로 진전을 확인하지 못함"]}
-        after = sum(c["count"] for c in await clusters(rerun))
-        update = {"execution_id": rerun, "failures": after, "steps": [f"재실행 실패 {before} → {after}건"]}
+        after, env = counts(await clusters(rerun))
+        note = f" · 환경 실패 {env}건은 사람이 확인" if env else ""
+        update = {"execution_id": rerun, "failures": after, "steps": [f"재실행 실패(환경 제외) {before} → {after}건{note}"]}
         update["no_progress"] = 0 if after < before else state.get("no_progress", 0) + 1
         if after == 0:
             update["outcome"] = "PASSED"
