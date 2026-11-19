@@ -200,6 +200,9 @@ async function main() {
   const systemPrompt = `You are an expert Playwright + TypeScript test engineer.
 You will be given a failing Playwright spec file, files it imports, and its failure log.
 Fix the failing test by editing the target spec file and/or the related files shown to you.
+The test must keep checking the real site: never replace page.goto with page.setContent, never fake responses with
+page.route/route.fulfill, and never remove or weaken assertions, skip tests, or delete cases. If the site really lacks
+what the test expects, fix the locator to what the site actually shows instead of faking the page.
 Respond with ONLY the JSON object described in the instructions — no explanation, no markdown fences.`;
 
   let lastFailureOutput = job.failureLog || '(초기 실패 로그 없음)';

@@ -130,6 +130,23 @@ class FailureLearningIntegrationTest {
         });
         assertThat(failures.clusters("learn-other", failedRun("learn-other", CLICK_PAY)).get(0).pastFixes()).isZero();
 
+        // 검증을 약하게 만든 수정(위험 표시)은 사람이 승인했어도 다음 루프의 예시로 쓰지 않는다
+        Long weakRun = failedRun("learn-e", CLICK_PAY);
+        AiJob weak = new AiJob();
+        weak.setProjectId("learn-e");
+        weak.setJobType(AiJobType.CODE_FIX);
+        weak.setStatus(AiJobStatus.NEEDS_REVIEW);
+        weak.setFailedExecutionId(weakRun);
+        weak.setTargetSpecPath("tests/cart.spec.ts");
+        weak.setRiskFlags("[\"target_bypassed(tests/cart.spec.ts: page.goto 1->0, setContent/route.fulfill 추가)\"]");
+        Long weakId = aiJobs.save(weak).getId();
+        AiJob weakApplied = aiJobs.findById(weakId).orElseThrow();
+        weakApplied.setDiffPath(diffDir.toString());
+        weakApplied.setStatus(AiJobStatus.APPLIED);
+        weakApplied.setReviewedBy(1L);
+        aiJobs.save(weakApplied);
+        assertThat(failures.clusters("learn-e", failedRun("learn-e", CLICK_PAY)).get(0).pastFixes()).isZero();
+
         AiJob reverted = aiJobs.findById(jobId).orElseThrow();
         reverted.setRevertedAt(Instant.now());
         aiJobs.save(reverted);

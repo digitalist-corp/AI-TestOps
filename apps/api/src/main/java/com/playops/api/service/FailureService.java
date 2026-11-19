@@ -133,6 +133,9 @@ public class FailureService {
             return;
         }
         if (fixes.existsByAiJobId(jobId) || job.getFailedExecutionId() == null || job.getTargetSpecPath() == null) return;
+        // 검증을 약하게 만든 수정은 사람이 승인했어도 예시로 남기지 않는다 — 다음 루프가 같은 꼼수를 배운다
+        String risk = job.getRiskFlags() == null ? "" : job.getRiskFlags();
+        if (AiDiffRiskEvaluatorService.WEAKENING_FLAGS.stream().anyMatch(risk::contains)) return;
         String target = job.getTargetSpecPath();
         ExecutionCaseResult failed = results.findByExecutionIdOrderByIdAsc(job.getFailedExecutionId()).stream()
                 .filter(r -> "FAILED".equals(r.getStatus()) && r.getSpecPath() != null)
