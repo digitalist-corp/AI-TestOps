@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 994px; height: 597px; background: #fff; font-family: Pretendard, 'Apple SD Gothic Neo', sans-serif; color: #1e293b; padding: 18px 20px 0; }
+  .grid { display: grid; grid-template-columns: 1fr 30px 1fr 30px 1fr; row-gap: 0; }
+  .card { position: relative; height: 146px; border: 2px solid #cbd5e1; border-radius: 14px; background: #f8fafc; padding: 15px 16px 0; }
+  .card.ai { border-color: #d8c8f5; } .card.auto { border-color: #b7dfd2; } .card.user { border-color: #cbd5e1; }
+  .card.new { background: #fffaf3; border-color: #f2c48d; }
+  .head { display: flex; align-items: center; gap: 10px; }
+  .num { width: 34px; height: 34px; border-radius: 50%; color: #fff; font-weight: 800; font-size: 17px; display: grid; place-items: center; flex: none; }
+  .num.user { background: #1e2a4a; } .num.ai { background: #6d28d9; } .num.auto { background: #0f766e; }
+  h3 { font-size: 19.5px; font-weight: 800; letter-spacing: -0.3px; }
+  .stage { position: absolute; top: 14px; right: 14px; font-size: 11px; font-weight: 700; color: #475569; background: #e2e8f0; border-radius: 999px; padding: 3px 9px; }
+  .badge { position: absolute; top: 40px; right: 14px; font-size: 10.5px; font-weight: 800; color: #c2410c; background: #ffedd5; border-radius: 999px; padding: 2px 8px; }
+  p { font-size: 14.5px; line-height: 1.55; color: #334155; margin-top: 10px; letter-spacing: -0.2px; }
+  .tags { position: absolute; left: 16px; bottom: 12px; display: flex; gap: 6px; }
+  .tag { font-size: 12px; font-weight: 800; color: #fff; border-radius: 999px; padding: 3px 11px; }
+  .tag.user { background: #1e2a4a; } .tag.ai { background: #6d28d9; } .tag.auto { background: #0f766e; }
+  .arrow { display: grid; place-items: center; color: #94a3b8; font-size: 18px; }
+  .gap { grid-column: 1 / -1; text-align: center; color: #94a3b8; font-size: 13px; height: 38px; line-height: 38px; }
+  .legend { display: flex; gap: 16px; align-items: center; font-size: 13.5px; color: #334155; margin-top: 12px; }
+  .legend .k { color: #94a3b8; } .sq { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+  .lb { font-size: 10.5px; font-weight: 800; color: #c2410c; background: #ffedd5; border-radius: 999px; padding: 2px 8px; margin-right: 5px; }
+</style></head><body>
+<div class="grid">
+  <div class="card user"><span class="stage">입력</span><div class="head"><div class="num user">1</div><h3>프로젝트 등록</h3></div>
+    <p>사이트 주소 · 테스트 계정 입력,<br>앱 소스 저장소 연결</p><div class="tags"><span class="tag user">사용자</span></div></div>
+  <div class="arrow">→</div>
+  <div class="card ai"><span class="stage">입력</span><div class="head"><div class="num ai">2</div><h3>화면 분석</h3></div>
+    <p>코드로 찾기 · 사이트 주소로 찾기로<br>화면 · 요소 · 전환을 지식 그래프로 저장</p><div class="tags"><span class="tag ai">AI</span></div></div>
+  <div class="arrow">→</div>
+  <div class="card user new"><span class="stage">계획</span><span class="badge">v3.0</span><div class="head"><div class="num user">3</div><h3>테스트 계획 표</h3></div>
+    <p>케이스마다 사용 여부 · 순서 · 담당자 ·<br>마감일 · 우선순위 지정</p><div class="tags"><span class="tag user">사용자</span></div></div>
+
+  <div class="gap">3번 다음은 아래 줄 4번으로 ↓</div>
+
+  <div class="card ai"><span class="stage">계획</span><div class="head"><div class="num ai">4</div><h3>맵 보기 · 테스트 만들기</h3></div>
+    <p>화면을 골라 AI 생성 · 클릭으로 녹화,<br>AI가 만든 코드는 승인 후 반영</p><div class="tags"><span class="tag ai">AI</span><span class="tag user">사용자</span></div></div>
+  <div class="arrow">→</div>
+  <div class="card auto"><span class="stage">실행</span><div class="head"><div class="num auto">5</div><h3>체크한 항목 실행</h3></div>
+    <p>수동 · 예약(cron) 실행, 실시간 로그,<br>미사용 케이스는 자동 제외</p><div class="tags"><span class="tag auto">자동</span></div></div>
+  <div class="arrow">→</div>
+  <div class="card auto new"><span class="stage">실행</span><span class="badge">v3.0</span><div class="head"><div class="num auto">6</div><h3>단계별 실행 기록</h3></div>
+    <p>'로그인' 버튼 클릭 → 입력 → 확인처럼<br>한국어 문장 · 단계 화면, 실패 단계 강조</p><div class="tags"><span class="tag auto">자동</span></div></div>
+
+  <div class="gap">6번 다음은 아래 줄 7번으로 ↓</div>
+
+  <div class="card user new"><span class="stage">실행</span><span class="badge">v3.0</span><div class="head"><div class="num user">7</div><h3>결함 · 선택 재실행</h3></div>
+    <p>흩어진 실패를 결함 리스트로 모으고,<br>골라서 재실행 · 원래 실행과 연결</p><div class="tags"><span class="tag user">사용자</span><span class="tag auto">자동</span></div></div>
+  <div class="arrow">→</div>
+  <div class="card ai"><span class="stage">실행</span><div class="head"><div class="num ai">8</div><h3>AI 수정 제안 → 승인</h3></div>
+    <p>AI Task가 원인 · 수정안을 먼저 제안,<br>diff 확인 후 승인해야 반영</p><div class="tags"><span class="tag ai">AI</span><span class="tag user">사용자</span></div></div>
+  <div class="arrow">→</div>
+  <div class="card auto new"><span class="stage">대시보드 · 설정</span><span class="badge">v3.0</span><div class="head"><div class="num auto">9</div><h3>품질 현황 확인</h3></div>
+    <p>완료율 · 오류 난 화면 · N차 비교 확인,<br>정기 실행 · AI 설정 후 다음 사이클</p><div class="tags"><span class="tag auto">자동</span><span class="tag user">사용자</span></div></div>
+</div>
+<div class="legend"><span class="k">주체:</span>
+  <span><span class="sq" style="background:#1e2a4a"></span>사용자</span>
+  <span><span class="sq" style="background:#6d28d9"></span>AI</span>
+  <span><span class="sq" style="background:#0f766e"></span>자동</span>
+  <span><span class="lb">v3.0</span>개선계획서(11/13)로 새로 생긴 단계</span>
+  <span class="k">· 단계: 입력 → 계획 → 실행 → 대시보드 → 설정</span>
+</div>
+</body></html>
