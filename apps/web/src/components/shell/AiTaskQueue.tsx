@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ClipboardCheck, Inbox, Loader2 } from 'lucide-react';
+import { ProgressNote } from '@/components/ui/ProgressNote';
+import { jobEstimateMs } from '@/lib/eta';
 import { api } from '@/api/client';
 import type { AiJob, AiJobStatus } from '@/types';
 import { FixProposalCard } from '@/components/project/FixProposalCard';
@@ -83,7 +85,10 @@ export function AiTaskQueue({ projectId }: { projectId?: string }) {
       {working.length > 0 && (
         <Section title={`진행 중 ${working.length}`}>
           {working.map((job) => (
-            <Row key={job.id} job={job} label="AI가 작업 중" spinning />
+            <div key={job.id} className="space-y-1">
+              <Row job={job} label="AI가 작업 중" spinning />
+              <ProgressNote icon={false} startedAt={job.createdAt} estimateMs={jobEstimateMs(jobs, job.jobType)} className="pl-2.5 text-[11px]" />
+            </div>
           ))}
         </Section>
       )}

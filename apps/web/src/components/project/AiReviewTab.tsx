@@ -5,6 +5,8 @@ import type { AiJob, AiJobFileDiff } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { aiJobStatusLabel, cn } from '@/lib/utils';
 import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
+import { ProgressNote } from '@/components/ui/ProgressNote';
+import { jobEstimateMs } from '@/lib/eta';
 
 const statusBadgeClass: Record<AiJob['status'], string> = {
   PROPOSED: 'bg-primary/15 text-primary',
@@ -23,9 +25,12 @@ const statusBadgeClass: Record<AiJob['status'], string> = {
 function JobCard({
   job,
   onDecided,
+  estimateMs = null,
 }: {
   job: AiJob;
   onDecided: () => void;
+  /** 같은 종류의 끝난 작업으로 잡은 예상 시간 (lib/eta) */
+  estimateMs?: number | null;
 }) {
   const [files, setFiles] = useState<AiJobFileDiff[] | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -101,6 +106,9 @@ function JobCard({
           )}
           {job.summary && <p className="text-xs text-success mt-1 whitespace-pre-wrap">{job.summary}</p>}
           {job.errorMessage && <p className="text-xs text-destructive mt-1">{job.errorMessage}</p>}
+          {(job.status === 'PENDING' || job.status === 'RUNNING') && (
+            <ProgressNote className="mt-1.5" label="AI가 고치는 중" startedAt={job.createdAt} estimateMs={estimateMs} />
+          )}
         </div>
         <span
           className={cn(
@@ -241,7 +249,7 @@ export function AiReviewTab({ projectId }: { projectId: string }) {
           </h4>
           <div className="space-y-3">
             {recentJobs.map((job) => (
-              <JobCard key={job.id} job={job} onDecided={load} />
+              <JobCard key={job.id} job={job} onDecided={load} estimateMs={jobEstimateMs(jobs, job.jobType)} />
             ))}
           </div>
         </section>

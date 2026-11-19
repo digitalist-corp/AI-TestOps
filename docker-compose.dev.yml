@@ -39,6 +39,8 @@ services:
       # 셀프 회귀(playops-self) 전용 관리자 계정. 비밀번호가 비면 만들지 않는다
       SELFTEST_USERNAME: ${SELFTEST_USERNAME:-selftest}
       SELFTEST_PASSWORD: ${SELFTEST_PASSWORD:-}
+      # 역할별 화면 확인 계정 admin1 · pm1 · user1. 비면 만들지 않는다 (TestAccountsSeeder)
+      TEST_ACCOUNTS_PASSWORD: ${TEST_ACCOUNTS_PASSWORD:-}
       PLAYOPS_PROJECTS_ROOT: /playwright-projects
       PLAYOPS_STORAGE_ROOT: /storage
       PLAYOPS_DOCKER_ENABLED: ${PLAYOPS_DOCKER_ENABLED:-true}

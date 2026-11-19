@@ -16,6 +16,7 @@ vi.mock('@/api/client', () => ({
     failures: { clusters: vi.fn() },
     aiLoop: { status: vi.fn(), start: vi.fn() },
     aiJobs: { listByProject: vi.fn() },
+    getExecutions: vi.fn(),
   },
 }));
 
@@ -40,6 +41,7 @@ beforeEach(() => {
   vi.mocked(api.failures.clusters).mockResolvedValue([cluster]);
   vi.mocked(api.aiLoop.status).mockResolvedValue({ available: true });
   vi.mocked(api.aiJobs.listByProject).mockResolvedValue([]);
+  vi.mocked(api.getExecutions).mockResolvedValue([]);
 });
 afterEach(() => {
   cleanup();
@@ -86,5 +88,25 @@ describe('AI 루프 패널', () => {
     const { container } = render(<AiLoopPanel projectId="p1" executionId={5} />);
     await waitFor(() => expect(api.failures.clusters).toHaveBeenCalled());
     expect(container.textContent).toBe('');
+  });
+
+  it('지금 단계를 보인다: 고치는 중(스피너) → 승인 대기(사람 차례) → 다시 실행 중', async () => {
+    const child = (over: Partial<AiJob>): AiJob => loop({ id: 10, jobType: 'CODE_FIX', parentJobId: 9, summary: '', ...over });
+    vi.mocked(api.aiJobs.listByProject).mockResolvedValue([child({ status: 'RUNNING' }), loop({})]);
+    render(<AiLoopPanel projectId="p1" executionId={5} />);
+    expect((await screen.findByRole('status')).textContent).toContain('AI가 격리 사본에서 고치는 중');
+    cleanup();
+
+    vi.mocked(api.aiJobs.listByProject).mockResolvedValue([child({ status: 'NEEDS_REVIEW' }), loop({})]);
+    render(<AiLoopPanel projectId="p1" executionId={5} />);
+    const waiting = await screen.findByRole('status');
+    expect(waiting.textContent).toContain('승인을 기다리는 중');
+    expect(waiting.querySelector('.animate-spin')).toBeNull();
+    cleanup();
+
+    vi.mocked(api.aiJobs.listByProject).mockResolvedValue([
+      child({ status: 'APPLIED', postApplyVerificationStatus: 'PENDING' }), loop({})]);
+    render(<AiLoopPanel projectId="p1" executionId={5} />);
+    expect((await screen.findByRole('status')).textContent).toContain('다시 실행해 확인하는 중');
   });
 });

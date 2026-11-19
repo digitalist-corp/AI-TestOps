@@ -72,7 +72,7 @@ def test_one_round_recalls_past_fix_waits_for_approval_and_passes_on_rerun():
     assert passed["done"] is True
     assert passed["outcome"] == "PASSED"
     assert passed["round"] == 1
-    assert "재실행 실패 1 → 0건" in "\n".join(passed["steps"])
+    assert "재실행 실패(환경 제외) 1 → 0건" in "\n".join(passed["steps"])
 
 
 def test_resume_that_does_not_match_the_wait_is_ignored():
@@ -146,3 +146,15 @@ def test_reverted_fix_counts_as_no_progress_and_keeps_the_execution():
     reply = loop.resume(child(101, "APPLIED", verification="REGRESSED", execution=11))
     assert reply["done"] is False and reply["round"] == 2
     assert loop.tools.fixes[-1]["executionId"] == 10
+
+
+def test_environment_failures_on_rerun_are_set_aside_not_counted_as_regression():
+    """다시 실행에서 목표는 통과했는데 다른 spec 이 네트워크로 실패 → 환경 제외 실패 0건, 환경 실패는 사람에게 따로 알린다."""
+    loop = Loop({10: [cluster()], 11: [cluster(3, cause="ENVIRONMENT", specPath="example.spec.ts")]})
+    loop.start()
+    loop.resume(child(101, "NEEDS_REVIEW"))
+    reply = loop.resume(child(101, "APPLIED", verification="SKIPPED", execution=11, reviewed_by=1))
+    assert reply["done"] is True and reply["outcome"] == "PASSED"
+    text = "\n".join(reply["steps"])
+    assert "재실행 실패(환경 제외) 1 → 0건" in text
+    assert "환경 실패 3건은 사람이 확인" in text

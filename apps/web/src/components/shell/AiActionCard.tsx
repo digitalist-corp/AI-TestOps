@@ -17,6 +17,7 @@ import type { AiChatAction, AiJob, AiJobFileDiff, AiJobStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 import { useAccess } from '@/lib/access';
+import { ProgressNote } from '@/components/ui/ProgressNote';
 
 
 type Tone = 'pending' | 'review' | 'done' | 'failed';
@@ -200,6 +201,7 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
                   {status === 'APPLIED' && <CheckCircle2 className="h-3 w-3" />}
                   {view?.tone === 'failed' && <XCircle className="h-3 w-3" />}
                   {view?.label ?? '상태 확인 중'}
+                  {inProgress && job && <ProgressNote icon={false} startedAt={job.createdAt} className="ml-1 text-[11px]" />}
                 </span>
                 <span className="text-[11px] text-muted-foreground">작업 #{action.jobId}</span>
               </div>
