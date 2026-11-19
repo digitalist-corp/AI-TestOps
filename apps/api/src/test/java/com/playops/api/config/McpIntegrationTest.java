@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playops.api.entity.AiJob;
 import com.playops.api.entity.AiJobStatus;
 import com.playops.api.entity.AiJobType;
+import com.playops.api.entity.Execution;
+import com.playops.api.entity.ExecutionStatus;
 import com.playops.api.repository.AiJobRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,6 +55,9 @@ class McpIntegrationTest {
 
     @Autowired
     AiJobRepository aiJobs;
+
+    @Autowired
+    com.playops.api.repository.ExecutionRepository executions;
 
     @Autowired
     com.playops.api.chat.ChatToolRegistry registry;
@@ -131,7 +136,7 @@ class McpIntegrationTest {
             assertThat(t.get("inputSchema").get("type").asText()).isEqualTo("object");
             assertThat(t.get("description").asText()).isNotBlank();
         });
-        assertThat(names).containsExactlyInAnyOrder("list_executions", "get_sitemap");
+        assertThat(names).containsExactlyInAnyOrder("list_executions", "get_sitemap", "list_failure_clusters");
         // 작업이 프로젝트를 고정하므로 모델이 projectId 를 추측해 넣지 않게 스키마에서 뺀다
         tools.forEach(t -> assertThat(t.get("inputSchema").path("properties").has("projectId")).as(t.get("name").asText()).isFalse());
     }
@@ -160,6 +165,26 @@ class McpIntegrationTest {
         JsonNode result = rpc(job(), "tools/call", "{\"name\":\"list_executions\"}").get("result");
         assertThat(result.get("isError").asBoolean()).as(result.toString()).isFalse();
         assertThat(result.get("content").get(0).get("type").asText()).isEqualTo("text");
+    }
+
+    /** #158: 실행 번호를 받는 도구는 그 실행이 작업의 프로젝트 것일 때만 */
+    @Test
+    void failureClustersOnlyForTheJobsOwnExecution() throws Exception {
+        Execution mine = new Execution();
+        mine.setProjectId("example.com");
+        mine.setStatus(ExecutionStatus.FAILED);
+        Long mineId = executions.save(mine).getId();
+        Execution theirs = new Execution();
+        theirs.setProjectId("google.com");
+        theirs.setStatus(ExecutionStatus.FAILED);
+        Long theirsId = executions.save(theirs).getId();
+        AiJob job = job();
+
+        JsonNode ok = rpc(job, "tools/call", "{\"name\":\"list_failure_clusters\",\"arguments\":{\"executionId\":" + mineId + "}}").get("result");
+        assertThat(ok.get("isError").asBoolean()).as(ok.toString()).isFalse();
+        assertThat(ok.get("content").get(0).get("text").asText()).isEqualTo("[]");
+        JsonNode other = rpc(job, "tools/call", "{\"name\":\"list_failure_clusters\",\"arguments\":{\"executionId\":" + theirsId + "}}").get("result");
+        assertThat(other.get("isError").asBoolean()).as(other.toString()).isTrue();
     }
 
     @Test
