@@ -99,8 +99,7 @@ CREATE TABLE `executions` (
   `scheduled_for` DATETIME COMMENT 'scheduled_for',
   `created_by` BIGINT COMMENT 'created_by',
   `rerun_of` BIGINT COMMENT 'rerun_of',
-  PRIMARY KEY (`id`),
-  CONSTRAINT `fk_executions_rerun_of` FOREIGN KEY (`rerun_of`) REFERENCES `executions` (`id`) ON DELETE SET NULL
+  PRIMARY KEY (`id`)
 ) COMMENT='테스트 실행 이력 (N차 테스트)';
 
 CREATE TABLE `execution_schedules` (
@@ -538,6 +537,8 @@ CREATE TABLE `scenario_case_settings` (
   `updated_by` BIGINT COMMENT 'updated_by',
   `assignee_user_id` BIGINT COMMENT 'assignee_user_id',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_scenario_case_settings_key` (`project_id`, `node_type`, `spec_path`, `grep_filter`),
-  CONSTRAINT `fk_scenario_case_settings_assignee` FOREIGN KEY (`assignee_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  UNIQUE KEY `uk_scenario_case_settings_key` (`project_id`, `node_type`, `spec_path`, `grep_filter`)
 ) COMMENT='계획 항목 (사용 여부 · 순서 · 담당자 · 마감일 · 우선순위)';
+
+ALTER TABLE `executions` ADD CONSTRAINT `fk_executions_rerun_of` FOREIGN KEY (`rerun_of`) REFERENCES `executions` (`id`) ON DELETE SET NULL;
+ALTER TABLE `scenario_case_settings` ADD CONSTRAINT `fk_scenario_case_settings_assignee` FOREIGN KEY (`assignee_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL;
