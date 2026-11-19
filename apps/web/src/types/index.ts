@@ -752,6 +752,8 @@ export interface AiJob {
   revertedAt?: string;
   appliedCommitSha?: string;
   createdAt: string;
+  /** 승인 · 거부한 사람(사용자 id). 백엔드 AiJobResponse.reviewedBy (A10) */
+  reviewedBy?: number | null;
   updatedAt: string;
 }
 
