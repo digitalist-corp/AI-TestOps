@@ -30,6 +30,13 @@ public class AiDiffRiskEvaluatorService {
     private static final Pattern SKIP_FIXME_PATTERN = Pattern.compile("\\.(skip|fixme)\\s*\\(");
     private static final Pattern ONLY_PATTERN = Pattern.compile("\\.only\\s*\\(");
     private static final Pattern WAIT_FOR_TIMEOUT_PATTERN = Pattern.compile("waitForTimeout\\s*\\(");
+    /** 실제 사이트로 가는 길. 이게 줄거나 가짜 화면 · 가짜 응답이 생기면 테스트가 대상 사이트를 더는 보지 않는다 */
+    private static final Pattern GOTO_PATTERN = Pattern.compile("\\.goto\\s*\\(");
+    private static final Pattern FAKE_PAGE_PATTERN = Pattern.compile("setContent\\s*\\(|\\.fulfill\\s*\\(");
+
+    /** 검증을 약하게 만드는 표시. 사람이 승인했어도 학습 기억(다음 루프의 예시)에는 넣지 않는다 (FailureService) */
+    public static final List<String> WEAKENING_FLAGS =
+            List.of("assertion_decreased", "skip_or_fixme_added", "only_added", "case_deleted", "target_bypassed");
     private static final Pattern TIMEOUT_VALUE_PATTERN = Pattern.compile("timeout\\s*:\\s*(\\d+)");
     private static final Pattern TEST_TITLE_PATTERN =
             Pattern.compile("test(?:\\.only|\\.skip)?\\s*\\(\\s*['\"`]([^'\"`]+)['\"`]");
@@ -76,6 +83,12 @@ public class AiDiffRiskEvaluatorService {
             }
             if (countMatches(diff.added, ONLY_PATTERN) > 0) {
                 flags.add("only_added(" + change.path() + ")");
+            }
+            int gotoRemoved = countMatches(diff.removed, GOTO_PATTERN);
+            int gotoAdded = countMatches(diff.added, GOTO_PATTERN);
+            if (gotoRemoved > gotoAdded || countMatches(diff.added, FAKE_PAGE_PATTERN) > 0) {
+                flags.add("target_bypassed(" + change.path() + ": page.goto " + gotoRemoved + "->" + gotoAdded
+                        + ", setContent/route.fulfill " + countMatches(diff.added, FAKE_PAGE_PATTERN) + "개 추가)");
             }
             if (countMatches(diff.added, WAIT_FOR_TIMEOUT_PATTERN) > 0) {
                 flags.add("wait_for_timeout_added(" + change.path() + ")");
