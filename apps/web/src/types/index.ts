@@ -727,7 +727,7 @@ export interface ExecutionScheduleRequest {
   enabled: boolean;
 }
 
-export type AiJobType = 'CODE_FIX' | 'TEMPLATE_GENERATE' | 'TEST_ANALYSIS';
+export type AiJobType = 'CODE_FIX' | 'TEMPLATE_GENERATE' | 'TEST_ANALYSIS' | 'LEARNING_LOOP';
 export type AiJobStatus =
   | 'PROPOSED' | 'PENDING' | 'RUNNING' | 'DIFF_READY' | 'NEEDS_REVIEW'
   | 'APPLIED' | 'REJECTED' | 'FAILED' | 'ERROR' | 'CANCELED' | 'TIMEOUT';
@@ -754,7 +754,28 @@ export interface AiJob {
   createdAt: string;
   /** 승인 · 거부한 사람(사용자 id). 백엔드 AiJobResponse.reviewedBy (A10) */
   reviewedBy?: number | null;
+  /** 학습 루프(LEARNING_LOOP)가 띄운 수정 작업이면 그 루프 작업 id */
+  parentJobId?: number | null;
   updatedAt: string;
+}
+
+/** 학습 루프 원인 5종 (E-05). 서버 FailureRules.Cause */
+export type FailureCause = 'PRODUCT_DEFECT' | 'SCRIPT_ERROR' | 'ENVIRONMENT' | 'FLAKY' | 'UNCLASSIFIED';
+
+/** 같은 원인으로 묶인 실패 (E-04). recalled 는 사람이 승인했던 비슷한 수정 (V22) */
+export interface FailureCluster {
+  signature: string;
+  head: string;
+  locator: string | null;
+  specPath: string;
+  cause: FailureCause;
+  causeSource: 'RULE' | 'HUMAN';
+  summary: string | null;
+  count: number;
+  cases: string[];
+  sampleError: string;
+  pastFixes: number;
+  recalled: { aiJobId: number; specPath: string; cause: string; head: string; locator: string | null; diff: string; createdAt: string }[];
 }
 
 export interface AiJobFileDiff {
