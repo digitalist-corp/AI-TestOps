@@ -24,3 +24,11 @@ apps/api/storage/
 build_final_storyboard.py
 scratch_remaining.txt
 apps/web/scratch_headings.txt
+
+# Python (ai-service)
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# graphify 코드 그래프 (로컬 전용)
+graphify-out/

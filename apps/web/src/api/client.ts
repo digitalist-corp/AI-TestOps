@@ -772,6 +772,19 @@ export const api = {
       request<import('@/types').AiJob>(`/api/ai-jobs/${id}/dismiss`, { method: 'POST' }),
   },
 
+  /** 실패 묶음 · 원인 · 과거 수정 (학습 루프 E-04 · E-05) */
+  failures: {
+    clusters: (projectId: string, executionId: number) =>
+      request<import('@/types').FailureCluster[]>(`/api/projects/${projectId}/executions/${executionId}/failure-clusters`),
+  },
+
+  /** 학습 루프 (LangGraph, compose 프로필 ai). 꺼져 있으면 available=false */
+  aiLoop: {
+    status: () => request<{ available: boolean }>('/api/ai-loop/status'),
+    start: (projectId: string, executionId: number) =>
+      request<import('@/types').AiJob>(`/api/projects/${projectId}/executions/${executionId}/ai-loop`, { method: 'POST' }),
+  },
+
   schedules: {
     listByProject: (projectId: string) =>
       request<import('@/types').ExecutionSchedule[]>(`/api/projects/${projectId}/schedules`),

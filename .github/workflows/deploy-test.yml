@@ -23,6 +23,9 @@ jobs:
 
     steps:
       - name: 배포
+        env:
+          # 역할별 화면 확인 계정(admin1 · pm1 · user1) 비밀번호. 저장소 secret 에서만 받는다 (값은 출력하지 않음)
+          TEST_ACCOUNTS_PASSWORD: ${{ secrets.TEST_ACCOUNTS_PASSWORD }}
         run: |
           set -euo pipefail
           cd /home/playops/playops
@@ -91,6 +94,12 @@ jobs:
             sed -i '/^SELFTEST_PASSWORD=/d' .env
             echo "SELFTEST_PASSWORD=$(openssl rand -hex 16)" >> .env
             echo "::notice::셀프 회귀 계정 비밀번호를 서버 .env 에 새로 만들었습니다 (SELFTEST_PASSWORD)"
+          fi
+          # 역할별 화면 확인 계정: secret 이 있고 서버 .env 에 값이 없을 때만 넣는다. 이미 있으면 건드리지 않는다
+          if [ -n "${TEST_ACCOUNTS_PASSWORD:-}" ] && ! grep -qE '^TEST_ACCOUNTS_PASSWORD=.+' .env; then
+            sed -i '/^TEST_ACCOUNTS_PASSWORD=/d' .env
+            printf 'TEST_ACCOUNTS_PASSWORD=%s\n' "$TEST_ACCOUNTS_PASSWORD" >> .env
+            echo "::notice::역할별 확인 계정 비밀번호를 서버 .env 에 넣었습니다 (TEST_ACCOUNTS_PASSWORD)"
           fi
 
           MISSING=$(comm -23 \

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlanItem } from '@/types';
 import type { ScreenCase, ScreenCases } from '@/lib/rounds';
-import { byAssignee, failingScreens, inSuite, overdue, planAsResults, planCounts, screenNameByCase } from '@/lib/plan';
+import { byAssignee, failingScreens, inSuite, myTodo, overdue, planAsResults, planCounts, screenNameByCase, todoSummary } from '@/lib/plan';
 
 const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
@@ -93,9 +93,9 @@ describe('역할별 대시보드 집계', () => {
       row({ assignee: null }),
       row({ assignee: '김윤재', assigneeUserId: 7, enabled: false }),
     ])).toEqual([
-      { key: 'u7', assignee: '김윤재', total: 2, passed: 1, failed: 1 },
-      { key: 't홍길동', assignee: '(계정 없음) 홍길동', total: 1, passed: 0, failed: 0 },
-      { key: '', assignee: '미지정', total: 1, passed: 0, failed: 0 },
+      { key: 'u7', assignee: '김윤재', total: 2, passed: 1, failed: 1, notRun: 0, rate: 50 },
+      { key: 't홍길동', assignee: '(계정 없음) 홍길동', total: 1, passed: 0, failed: 0, notRun: 1, rate: 0 },
+      { key: '', assignee: '미지정', total: 1, passed: 0, failed: 0, notRun: 1, rate: 0 },
     ]);
   });
 
@@ -107,5 +107,28 @@ describe('역할별 대시보드 집계', () => {
       row({ grep: '오늘', dueDate: '2026-11-17' }),
       row({ grep: '꺼짐', dueDate: '2026-11-10', enabled: false }),
     ], '2026-11-17')).toEqual([late]);
+  });
+});
+
+describe('myTodo · todoSummary — 팀원 홈 "내 할 일"', () => {
+  const today = '2026-11-19';
+  const mine = (title: string, over: Partial<PlanItem>) => item({ grep: title, title, assigneeUserId: 9, ...over });
+  const items = [
+    mine('통과함', { lastStatus: 'PASSED', dueDate: '2026-11-01' }),
+    mine('미수행 낮음', { priority: 'LOW' }),
+    mine('미수행 높음', { priority: 'HIGH' }),
+    mine('실패', { lastStatus: 'FAILED', dueDate: '2026-12-01' }),
+    mine('오늘 마감', { dueDate: today }),
+    mine('기한 지남', { dueDate: '2026-11-18' }),
+    mine('미사용', { enabled: false }),
+    item({ grep: '남의 것', title: '남의 것', assigneeUserId: 3 }),
+  ];
+
+  it('내 사용 중 항목만, 기한 지남 → 오늘 마감 → 실패 → 미수행(우선순위 순) → 통과', () => {
+    expect(myTodo(items, 9, today).map((i) => i.title)).toEqual(['기한 지남', '오늘 마감', '실패', '미수행 높음', '미수행 낮음', '통과함']);
+  });
+
+  it('통과한 항목은 마감이 지났어도 기한 지남으로 세지 않는다', () => {
+    expect(todoSummary(myTodo(items, 9, today), today)).toEqual({ assigned: 6, remaining: 5, dueToday: 1, overdue: 1, failed: 1 });
   });
 });

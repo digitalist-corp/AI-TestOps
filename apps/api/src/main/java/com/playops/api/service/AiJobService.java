@@ -111,6 +111,12 @@ public class AiJobService {
     }
 
     public AiJob createCodeFixJob(String projectId, Long failedExecutionId, String targetSpecPath, String instruction, Long requestedBy) {
+        return createCodeFixJob(projectId, failedExecutionId, targetSpecPath, instruction, requestedBy, null);
+    }
+
+    /** parentJobId: 학습 루프가 띄운 수정이면 그 루프. 루프가 만든 수정은 자동 적용 설정과 상관없이 사람이 승인한다 (autoCreated) */
+    public AiJob createCodeFixJob(String projectId, Long failedExecutionId, String targetSpecPath, String instruction, Long requestedBy,
+                                  Long parentJobId) {
         Project project = projectService.getProject(projectId);
         // 러너는 이 경로를 그대로 써서 반복 중에 파일을 고친다. 프로젝트 밖이면 승인 전에 다른 프로젝트 파일이 바뀐다.
         if (targetSpecPath != null && !targetSpecPath.isBlank() && escapesProject(targetSpecPath.trim())) {
@@ -126,6 +132,8 @@ public class AiJobService {
         job.setFailedExecutionId(failedExecutionId);
         job.setAiModelProvider(llmGatewayService.defaultProvider());
         job.setRequestedBy(requestedBy);
+        job.setParentJobId(parentJobId);
+        job.setAutoCreated(parentJobId != null);
         job.setCallbackToken(UUID.randomUUID().toString());
         job.setCallbackTokenExpiresAt(Instant.now().plus(30, ChronoUnit.MINUTES));
         job = aiJobRepository.save(job);
@@ -149,7 +157,8 @@ public class AiJobService {
         }
 
         job.setStatus(AiJobStatus.RUNNING);
-        aiJobRepository.save(job);
+        // 저장된 쪽(버전이 오른 것)으로 이어 가야 끝 상태(오류 · 검토 대기) 저장이 낙관적 잠금에 걸리지 않는다
+        job = aiJobRepository.save(job);
 
         String failureLog = "";
         if (job.getFailedExecutionId() != null) {

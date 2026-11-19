@@ -19,6 +19,8 @@ import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
 import { ResultsTab } from '@/components/project/ResultsTab';
 import { AiAnalysisTab } from '@/components/project/AiAnalysisTab';
 import { AiReviewTab } from '@/components/project/AiReviewTab';
+import { ProgressNote } from '@/components/ui/ProgressNote';
+import { runEstimateMs } from '@/lib/eta';
 import { AiTestGenerator } from '@/components/project/AiTestGenerator';
 import { SchedulesTab } from '@/components/project/SchedulesTab';
 import { StructureTab } from '@/components/project/StructureTab';
@@ -527,6 +529,14 @@ export function ProjectDetailPage() {
           <span className={cn('mt-2 inline-flex px-2 py-0.5 rounded-full text-xs font-medium', runnerActivityColor[runnerActivity])}>
             {runnerBadgeLabel}
           </span>
+          {activeRun && (
+            <ProgressNote
+              className="ml-2 mt-2"
+              label={activeRun.status === 'PENDING' ? '테스트 실행 준비 중' : '테스트 실행 중'}
+              startedAt={activeRun.startedAt ?? activeRun.createdAt}
+              estimateMs={runEstimateMs(executions, activeRun)}
+            />
+          )}
           {projectId && runningAnalyses[projectId] && (
             <AnalysisProgress
               className="ml-2 mt-2"
