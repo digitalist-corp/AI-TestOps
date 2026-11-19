@@ -30,7 +30,7 @@ import java.util.Set;
 public class McpController {
 
     /** 실행 번호를 받는 도구는 다른 프로젝트 실행을 볼 수 있어(#158) 소속 확인을 붙인 뒤에 넣는다. */
-    public static final Set<String> ALLOWED = Set.of("list_executions", "get_sitemap");
+    public static final Set<String> ALLOWED = Set.of("list_executions", "get_sitemap", "list_failure_clusters");
     private static final String DEFAULT_PROTOCOL_VERSION = "2025-06-18";
 
     private final AiJobService aiJobService;
