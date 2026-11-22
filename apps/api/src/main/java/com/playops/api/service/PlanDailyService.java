@@ -77,6 +77,7 @@ public class PlanDailyService {
         int enabled = 0;
         List<DailyItem> items = new ArrayList<>();
         for (Tracked t : tracked) {
+            if (PlanService.unwritten(t.item())) continue; // 미작성 계획 행은 실행되지 않는다
             Map<LocalDate, ExecutionCaseResult> byDate = new HashMap<>();
             for (ExecutionCaseResult r : t.history()) {
                 if (r.getCreatedAt() == null || !scheduled.contains(r.getExecutionId())) continue;

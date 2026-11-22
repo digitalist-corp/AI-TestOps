@@ -77,7 +77,8 @@ public class DemoScheduleHistorySeeder implements CommandLineRunner {
         try {
             if (projectRepository.findById(DemoDataSeeder.PROJECT).isEmpty()) return;
             if (executionRepository.existsScheduled(DemoDataSeeder.PROJECT)) return;
-            List<PlanItem> items = planService.get(DemoDataSeeder.PROJECT).items();
+            List<PlanItem> items = planService.get(DemoDataSeeder.PROJECT).items().stream()
+                    .filter(i -> !PlanService.unwritten(i)).toList(); // 미작성 계획 행은 실행 결과가 없다
             if (items.isEmpty()) return;
             List<Instant> times = runTimes(Instant.now());
             for (int i = 0; i < times.size(); i++) seedRun(items, times.get(i), times.size() - 1 - i);
