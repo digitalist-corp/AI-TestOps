@@ -1240,11 +1240,18 @@ export interface PlanSummary {
   failed: number;
   notRun: number;
   completionRate: number;
+  /** 사용 중 · 미작성 */
+  unwritten: number;
+  /** 사용 중 · 작성됨 */
+  written: number;
+  /** written ÷ enabled, 0~1 — 작성률 */
+  writtenRate: number;
 }
 
 export interface PlanResponse {
   items: PlanItem[];
   summary: PlanSummary;
+  /** 사용 중 행 기준 화면별 집계. 화면 = 계획 행의 화면, 없으면 그 테스트가 지나는 첫 화면 */
   screens: { routeKey: string; planned: number; written: number; passed: number; failed: number }[];
 }
 

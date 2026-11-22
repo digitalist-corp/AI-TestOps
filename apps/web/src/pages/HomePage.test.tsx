@@ -49,8 +49,9 @@ beforeEach(() => {
   vi.mocked(api.getProjects).mockResolvedValue([project('shop', '쇼핑몰')]);
   vi.mocked(api.plan.get).mockResolvedValue({
     items,
+    // 계획 3 · 작성 2(67%) · 실행 2 · 통과 1 → 완료율 33% (미작성도 분모)
+    summary: { total: 3, enabled: 3, disabled: 0, unwritten: 1, written: 2, writtenRate: 2 / 3, passed: 1, failed: 1, notRun: 0, completionRate: 1 / 3 },
     screens: [],
-    summary: { total: 3, enabled: 3, unwritten: 0, written: 3, writtenRate: 1, disabled: 0, passed: 1, failed: 1, notRun: 1, completionRate: 1 / 3 },
   });
   vi.mocked(api.defects.list).mockResolvedValue({ defects: [], open: 1, resolved: 0 });
   vi.mocked(api.notices.list).mockResolvedValue([1, 2, 3, 4].map((id) => ({ id, title: `공지 ${id}`, pinned: id === 2, createdAt: '2026-11-17T00:00:00Z' }) as never));
@@ -125,12 +126,14 @@ describe('HomePage — 역할마다 다른 첫 화면', () => {
     await waitFor(() => expect(alert).toHaveBeenCalledWith('이미 실행 중입니다. 끝나거나 중지한 뒤에 다시 실행하세요.'));
   });
 
-  it('PM: 확인할 것 칩 · 진척률 · 담당자별(배정 · 통과 · 실패 · 미수행 · 진척률) · 기한 지남 · AI 줄', async () => {
+  it('PM: 확인할 것 칩 · 완료율 · 퍼널 한 줄 · 담당자별(배정 · 통과 · 실패 · 미수행 · 완료율) · 기한 지남 · AI 줄', async () => {
     me = user('USER', [{ projectId: 'shop', role: 'PM' }]);
     renderHome();
 
     expect(await screen.findByRole('heading', { name: '내가 맡은 프로젝트' })).toBeTruthy();
-    expect(screen.getByText('진척률 33%')).toBeTruthy();
+    expect(await screen.findByText('완료율 33%')).toBeTruthy();
+    expect(screen.getByText('계획 3 · 작성 67% · 완료 33%')).toBeTruthy(); // 서버 summary 기준 퍼널
+    expect(screen.queryByText(/진척률/)).toBeNull();
     expect(await screen.findByRole('link', { name: '미해결 결함 1' })).toBeTruthy();
     expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
     expect(screen.getByText('2026-11-01 ~')).toBeTruthy();

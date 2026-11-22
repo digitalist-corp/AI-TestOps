@@ -1,71 +1,54 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Clock3, FileCode, GitCompare, Loader2, Network, Play, Square } from 'lucide-react';
+import { Play, Square } from 'lucide-react';
 import { api } from '@/api/client';
-import type {
-  Coverage,
-  Execution,
-  ExecutionSchedule,
-  PlanResponse,
-  Project,
-  ScenarioTree,
-  SiteMap,
-  TestRound,
-  TestRoundDetail,
-} from '@/types';
+import type { Coverage, Execution, ExecutionSchedule, PlanResponse, Project, ScenarioTree, SiteMap } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { SummaryCards } from '@/components/dashboard/SummaryCards';
-import { PlanMetrics } from '@/components/dashboard/PlanMetrics';
-import { failingScreens, planAsResults } from '@/lib/plan';
+import { PlanFunnel } from '@/components/dashboard/PlanFunnel';
+import { ProblemSpots } from '@/components/dashboard/ProblemSpots';
+import { PassRateTrend } from '@/components/dashboard/PassRateTrend';
+import { usePlanDaily } from '@/components/project/planDaily';
+import { today } from '@/components/home/parts';
+import { failingScreens, overdue, planAsResults } from '@/lib/plan';
+import { incompleteByAssignee, nextRunLabel, unplannedScreens } from '@/lib/dashboard';
 import { isActiveExecution } from '@/lib/coverage';
-import { RoundChanges, RoundTrend } from '@/components/dashboard/RoundView';
-import { CaseTree } from '@/components/dashboard/CaseTree';
-import { formatDuration } from '@/lib/utils';
-import { casesByScreen, isRoundRunning, roundOptionLabel, roundSentence } from '@/lib/rounds';
+import { casesByScreen, nextScheduledRun } from '@/lib/rounds';
+import { projectTabPath } from '@/config/projectWorkspace';
 import { useAccess } from '@/lib/access';
 
 /**
- * 프로젝트 대시보드. 비전공자도 한눈에 보도록
- * 품질 현황(계획 기준 지표 · 오류 난 화면) → 요약 3칸(매핑 · 맵 · 언제) → 차수 고르기와 한 문장 결과 → 지난번 대비 변화 → 화면별 케이스 트리 순으로 놓는다.
- * 차수(N차 테스트)는 사용자가 돌린 실행을 순서대로 센 것이다.
+ * 프로젝트 대시보드. 위에서부터 세 질문에만 답한다.
+ * ① 계획은 얼마나 됐나(계획 → 작성 → 실행 → 통과) ② 어디가 문제인가 ③ 추세(정기 실행 통과율).
+ * 차수별 결과는 실행 › 실행 이력, 화면별 케이스는 화면 지도 · 계획 표에서 본다.
  */
 export function ProjectDashboardTab({
   project,
   executions,
   onRun,
   onStop,
-  onOpenSource,
-  onOpenRuns,
-  onOpenResults,
 }: {
   project: Project;
   executions: Execution[];
   onRun: () => void;
   /** 실행 중일 때 전체 실행 대신 보이는 중지 */
   onStop?: (executionId: number) => void;
-  onOpenSource: () => void;
-  onOpenRuns: () => void;
-  onOpenResults: () => void;
 }) {
   const activeRun = executions.find(isActiveExecution);
   const projectId = project.projectId;
-  // 코드 편집기 · 예약은 PM (관리 전용 탭)
+  // 정기 실행 설정은 PM (관리 전용 탭)
   const canManage = useAccess().canManage(projectId);
-  const [rounds, setRounds] = useState<TestRound[] | null>(null);
-  const [pickedId, setPickedId] = useState<number | null>(null);
-  const [detail, setDetail] = useState<TestRoundDetail | null>(null);
   const [scenarios, setScenarios] = useState<ScenarioTree | null>(null);
   const [siteMap, setSiteMap] = useState<SiteMap | null>(null);
   const [coverage, setCoverage] = useState<Coverage | null>(null);
   const [schedules, setSchedules] = useState<ExecutionSchedule[] | null>(null);
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [openDefects, setOpenDefects] = useState<number | null>(null);
+  const daily = usePlanDaily(projectId);
 
-  // 실행 목록은 화면이 자주 다시 읽는다. 실행이 생기거나 상태가 바뀔 때만 차수와 지도를 다시 읽는다.
+  // 실행 목록은 화면이 자주 다시 읽는다. 실행이 생기거나 상태가 바뀔 때만 계획 · 결함 · 지도를 다시 읽는다.
   const runKey = executions.map((e) => `${e.id}:${e.status}`).join(',');
 
   useEffect(() => {
     let alive = true;
-    api.rounds.list(projectId).then((list) => alive && setRounds(list)).catch(() => alive && setRounds([]));
     api.plan.get(projectId).then((p) => alive && setPlan(p)).catch(() => {});
     api.defects.list(projectId).then((d) => alive && setOpenDefects(d.open)).catch(() => {});
     api.getSiteMapCoverage(projectId).then((c) => alive && setCoverage(c)).catch(() => {});
@@ -84,41 +67,7 @@ export function ProjectDashboardTab({
     };
   }, [projectId]);
 
-  // 고르지 않았으면 가장 최근 차수를 따라간다.
-  const selected = rounds?.find((r) => r.executionId === pickedId) ?? rounds?.[0] ?? null;
-  const selectedKey = selected ? `${selected.executionId}:${selected.status}` : null;
-
-  useEffect(() => {
-    if (!selected) {
-      setDetail(null);
-      return;
-    }
-    let alive = true;
-    api.rounds
-      .get(projectId, selected.executionId)
-      .then((d) => alive && setDetail(d))
-      .catch(() => alive && setDetail(null));
-    return () => {
-      alive = false;
-    };
-    // selectedKey 가 바뀔 때(다른 차수 · 상태 변화)만 다시 읽는다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, selectedKey]);
-
-  const screens = useMemo(
-    () =>
-      scenarios
-        ? casesByScreen({
-            nodes: siteMap?.nodes ?? [],
-            flows: coverage?.flows ?? [],
-            specs: scenarios.specs,
-            results: detail && detail.round.executionId === selected?.executionId ? detail.cases : [],
-          })
-        : null,
-    [scenarios, siteMap, coverage, detail, selected?.executionId]
-  );
-
-  // 오류 난 화면은 차수가 아니라 계획 항목별 최근 결과로 센다 (지표와 같은 기준).
+  // 오류 난 화면은 차수가 아니라 계획 항목별 최근 결과로 센다.
   const failing = useMemo(
     () =>
       scenarios && plan
@@ -136,163 +85,43 @@ export function ProjectDashboardTab({
     [scenarios, siteMap, coverage, plan]
   );
 
-  const detailMatches = detail && selected && detail.round.executionId === selected.executionId;
+  const unplanned = useMemo(() => (plan && siteMap ? unplannedScreens(siteMap.nodes, plan.screens) : null), [plan, siteMap]);
+  const assignees = useMemo(() => (plan ? incompleteByAssignee(plan.items) : null), [plan]);
+  const overdueCount = useMemo(() => (plan ? overdue(plan.items, today()).length : null), [plan]);
+  const nextRun = useMemo(() => {
+    if (!schedules) return null;
+    const next = nextScheduledRun(schedules);
+    return next ? nextRunLabel(next.at) : '';
+  }, [schedules]);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 @5xl:flex-row @5xl:items-center @5xl:justify-between">
+    <section aria-label="품질 현황" className="space-y-5 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-foreground">프로젝트 대시보드</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {project.projectName}를 무엇을 · 어느 화면에서 · 언제 테스트했는지 한눈에 봅니다.
-          </p>
+          <h3 className="text-lg font-semibold text-foreground">품질 현황</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{project.projectName}의 계획이 어디까지 왔고 어디가 막혀 있는지 봅니다.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {activeRun ? (
-            <Button size="sm" variant="outline" disabled={activeRun.status === 'CANCEL_REQUESTED'}
-                    onClick={() => onStop?.(activeRun.id)}
-                    className="text-destructive hover:border-destructive hover:bg-destructive/10">
-              <Square className="h-4 w-4" />
-              {activeRun.status === 'CANCEL_REQUESTED' ? '중지 중' : '중지'}
-            </Button>
-          ) : (
-            <Button size="sm" onClick={onRun}>
-              <Play className="h-4 w-4" />
-              전체 실행
-            </Button>
-          )}
-          {canManage && (
-            <Button size="sm" variant="outline" onClick={onOpenSource}>
-              <FileCode className="h-4 w-4" />
-              소스
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={onOpenRuns}>
-            <Clock3 className="h-4 w-4" />
-            이력
+        {activeRun ? (
+          <Button size="sm" variant="outline" disabled={activeRun.status === 'CANCEL_REQUESTED'}
+                  onClick={() => onStop?.(activeRun.id)}
+                  className="shrink-0 text-destructive hover:border-destructive hover:bg-destructive/10">
+            <Square className="h-4 w-4" />
+            {activeRun.status === 'CANCEL_REQUESTED' ? '중지 중' : '중지'}
           </Button>
-        </div>
+        ) : (
+          <Button size="sm" onClick={onRun} className="shrink-0">
+            <Play className="h-4 w-4" />
+            전체 실행
+          </Button>
+        )}
       </div>
 
-      <PlanMetrics projectId={projectId} summary={plan?.summary ?? null} failing={failing} openDefects={openDefects} />
+      <PlanFunnel projectId={projectId} summary={plan?.summary ?? null} overdueCount={overdueCount} />
 
-      <SummaryCards
-        projectId={projectId}
-        screens={screens}
-        coverage={coverage}
-        latestRound={rounds?.[0] ?? null}
-        schedules={schedules}
-      />
-
-      <section className="rounded-lg border border-border bg-card p-4" aria-label="차수별 결과">
-        <div className="flex flex-col gap-3 @3xl:flex-row @3xl:items-end @3xl:justify-between">
-          <div className="min-w-0">
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <BarChart3 className="h-4 w-4 text-primary" />
-              차수별 결과
-            </h4>
-            <p className="mt-1 text-xs text-muted-foreground">
-              테스트를 돌린 순서대로 1차, 2차…로 부릅니다. 차수를 고르면 아래 내용이 모두 그 차수 기준으로 바뀌어요.
-            </p>
-          </div>
-          {rounds && rounds.length > 0 && (
-            <div className="flex shrink-0 flex-col gap-1">
-              <label htmlFor="round-picker" className="text-xs font-semibold text-muted-foreground">
-                차수 고르기
-              </label>
-              <select
-                id="round-picker"
-                value={selected?.executionId ?? ''}
-                onChange={(e) => setPickedId(Number(e.target.value))}
-                className="h-10 w-full min-w-0 rounded-sm border border-border bg-card px-3 text-sm text-foreground hover:border-border-strong @3xl:w-[320px]"
-              >
-                {rounds.map((r) => (
-                  <option key={r.executionId} value={r.executionId}>
-                    {roundOptionLabel(r)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {rounds === null ? (
-          <Loading />
-        ) : rounds.length === 0 ? (
-          <p className="mt-4 rounded-md bg-muted px-4 py-10 text-center text-sm text-muted-foreground">
-            아직 돌린 테스트가 없어요. 위의 ‘전체 실행’을 누르면 1차 테스트가 시작돼요.
-          </p>
-        ) : (
-          <div className="mt-4 space-y-4">
-            {selected && (
-              <div className="rounded-md border border-primary/20 bg-primary/5 px-4 py-3">
-                <p className="text-[15px] font-medium leading-relaxed text-foreground">
-                  {detailMatches ? roundSentence(detail) : `${selected.round}차 테스트 결과를 불러오는 중이에요.`}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {selected.title}
-                  {formatDuration(selected.durationMs) && ` · ${formatDuration(selected.durationMs)} 걸림`}
-                  {' · '}
-                  <button type="button" onClick={onOpenResults} className="font-medium text-primary hover:underline">
-                    로그와 화면 기록 보기
-                  </button>
-                </p>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-4 @7xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <div>
-                <h5 className="mb-1 text-xs font-semibold text-muted-foreground">최근 차수 흐름 (막대를 누르면 그 차수로)</h5>
-                <RoundTrend rounds={rounds} selectedId={selected?.executionId ?? null} onSelect={setPickedId} />
-              </div>
-              <div>
-                <h5 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <GitCompare className="h-3.5 w-3.5" />
-                  지난번과 비교
-                </h5>
-                {detailMatches && detail ? (
-                  isRoundRunning(detail.round) ? (
-                    <p className="text-sm text-muted-foreground">끝나면 지난번과 비교해 보여 줄게요.</p>
-                  ) : (
-                    <RoundChanges detail={detail} />
-                  )
-                ) : (
-                  <Loading />
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section id="screen-cases" className="scroll-mt-4 rounded-lg border border-border bg-card p-4" aria-label="화면별 케이스">
-        <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <Network className="h-4 w-4 text-primary" />
-          화면별 케이스
-        </h4>
-        <p className="mb-3 mt-1 text-xs text-muted-foreground">
-          화면마다 어떤 기능을 테스트하는지 펼쳐 봅니다.
-          {selected ? ` 색은 ${selected.round}차 테스트 결과예요.` : ''} 화면을 누르면 오른쪽에 케이스 목록이 나와요.
-        </p>
-        {screens ? (
-          <CaseTree
-            projectName={project.projectName}
-            groups={screens}
-            roundLabel={selected ? `${selected.round}차 테스트` : '아직 돌리지 않은'}
-          />
-        ) : (
-          <Loading />
-        )}
-      </section>
-    </div>
-  );
-}
-
-function Loading() {
-  return (
-    <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      불러오는 중...
-    </div>
+      <div className="grid grid-cols-1 gap-6 border-t border-border pt-5 @5xl:grid-cols-2">
+        <ProblemSpots projectId={projectId} openDefects={openDefects} failing={failing} unplanned={unplanned} assignees={assignees} />
+        <PassRateTrend daily={daily} nextRun={nextRun} settingsPath={canManage ? projectTabPath(projectId, 'schedules') : undefined} />
+      </div>
+    </section>
   );
 }
