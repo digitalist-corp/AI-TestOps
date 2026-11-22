@@ -2,6 +2,7 @@ package com.playops.api.config;
 
 import com.playops.api.dto.PlanDtos.ItemPatch;
 import com.playops.api.dto.PlanDtos.PlanItem;
+import com.playops.api.entity.PlanEntry;
 import com.playops.api.entity.Project;
 import com.playops.api.entity.ProjectStatus;
 import com.playops.api.entity.User;
@@ -10,6 +11,7 @@ import com.playops.api.repository.ProjectMemberRepository;
 import com.playops.api.entity.UserRole;
 import com.playops.api.entity.ProjectRole;
 import com.playops.api.entity.ProjectMember;
+import com.playops.api.repository.PlanEntryRepository;
 import com.playops.api.repository.ProjectRepository;
 import com.playops.api.repository.UserRepository;
 import com.playops.api.service.PlanService;
@@ -39,6 +41,7 @@ import java.util.stream.Stream;
  * 시연 프로젝트(example.com) 기본 데이터 (#87). 테스트 파일이 하나도 없을 때만 채운다 — 이미 쓰는 프로젝트는 건드리지 않는다.
  * - 기본 점검 템플릿(3건) + 시연 spec(통과 1 · 실제로 실패하는 1)
  * - 계획 칸: 담당자(게스트 · 관리자) · 마감일(하나는 기한 지남) · 우선순위
+ * - 미작성 계획 행 3개 (계획 우선 흐름) — 계획 행이 하나도 없을 때만. 테스트 파일과 따로 채운다.
  * - 러너 켜기 (일회용). 결함은 실행 결과로 생기므로 배포 뒤 한 번 실행한다 (deploy-test.yml)
  * DataLoader(멤버 · 게스트) 다음에 돈다. 실패해도 서버 기동은 막지 않는다.
  * 시연 프로젝트의 spec 을 모두 지우면 다음 기동 때 다시 채운다 (시연용이라 의도된 동작).
@@ -62,6 +65,7 @@ public class DemoDataSeeder implements CommandLineRunner {
     private final PlanService planService;
     private final UserRepository userRepository;
     private final ProjectMemberRepository memberRepository;
+    private final PlanEntryRepository entryRepository;
     private final PasswordEncoder passwordEncoder;
     private final String loginUsername;
     private final String guestUsername;
@@ -71,7 +75,7 @@ public class DemoDataSeeder implements CommandLineRunner {
     public DemoDataSeeder(ProjectRepository projectRepository, ProjectService projectService,
                           PlaywrightTemplateService templateService, PlanService planService,
                           UserRepository userRepository, ProjectMemberRepository memberRepository,
-                          PasswordEncoder passwordEncoder,
+                          PlanEntryRepository entryRepository, PasswordEncoder passwordEncoder,
                           @Value("${LOGIN_USERNAME:admin}") String loginUsername,
                           @Value("${GUEST_USERNAME:guest}") String guestUsername,
                           @Value("${DEMO_PM_USERNAME:demo-pm}") String demoPmUsername,
@@ -82,6 +86,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         this.planService = planService;
         this.userRepository = userRepository;
         this.memberRepository = memberRepository;
+        this.entryRepository = entryRepository;
         this.passwordEncoder = passwordEncoder;
         this.loginUsername = loginUsername;
         this.guestUsername = guestUsername;
@@ -99,6 +104,11 @@ public class DemoDataSeeder implements CommandLineRunner {
                 seedDemoPm();
             } catch (RuntimeException e) {
                 log.warn("시연 PM 계정을 준비하지 못했습니다: {}", e.getMessage());
+            }
+            try {
+                seedPlanEntries();
+            } catch (RuntimeException e) {
+                log.warn("시연 계획 행을 채우지 못했습니다: {}", e.getMessage());
             }
             Path dir = projectService.getProjectPath(PROJECT);
             Path demo = dir.resolve("tests/demo.spec.ts");
@@ -155,7 +165,7 @@ public class DemoDataSeeder implements CommandLineRunner {
         Long guest = userRepository.findByUsername(guestUsername).map(User::getId).orElse(null);
         Long admin = userRepository.findByUsername(loginUsername).map(User::getId).orElse(null);
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
-        List<PlanItem> items = planService.get(PROJECT).items();
+        List<PlanItem> items = planService.get(PROJECT).items().stream().filter(i -> !PlanService.unwritten(i)).toList();
         String[] priorities = {"MEDIUM", "LOW", "MEDIUM", "HIGH"};
         int n = 0;
         for (PlanItem item : items) {
@@ -166,6 +176,40 @@ public class DemoDataSeeder implements CommandLineRunner {
                     failing ? "HIGH" : priorities[n % priorities.length], owner));
             if (!failing) n++;
         }
+    }
+
+    /** 시연 계획 행: 제목 · 확인할 내용 (모두 example.com 에서 실제로 확인할 수 있는 것). 기존 테스트 제목과 겹치지 않아 미작성으로 보인다. */
+    static final List<String[]> PLAN_ENTRIES = List.of(
+            new String[] {"첫 화면 제목이 보인다", "첫 화면 맨 위에 'Example Domain' 제목이 보인다."},
+            new String[] {"안내 페이지가 열린다", "첫 화면의 'Learn more' 링크를 누르면 IANA 안내 페이지로 이동하고, 주소에 iana.org 가 들어 있다."},
+            new String[] {"첫 화면 설명 문구가 보인다", "제목 아래에 이 도메인이 문서 예시용이라는 설명 문단이 보인다."});
+
+    /** 계획 행이 하나도 없을 때만 미작성 계획 3개를 넣는다 (PM 이 계획을 먼저 세운 모습). 담당자 · 마감일을 채워 계획 표 칸이 비지 않게 한다. */
+    private void seedPlanEntries() {
+        if (!entryRepository.findByProjectIdOrderByIdAsc(PROJECT).isEmpty()) return;
+        User guest = userRepository.findByUsername(guestUsername).orElse(null);
+        User admin = userRepository.findByUsername(loginUsername).orElse(null);
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        String[] priorities = {"HIGH", "MEDIUM", "LOW"};
+        List<PlanEntry> entries = new java.util.ArrayList<>();
+        for (int i = 0; i < PLAN_ENTRIES.size(); i++) {
+            User owner = i % 2 == 0 && guest != null ? guest : admin;
+            PlanEntry e = new PlanEntry();
+            e.setProjectId(PROJECT);
+            e.setTitle(PLAN_ENTRIES.get(i)[0]);
+            e.setExpected(PLAN_ENTRIES.get(i)[1]);
+            e.setScreenRouteKey("/");
+            e.setPriority(priorities[i]);
+            e.setDueDate(today.plusDays(3L + i));
+            if (owner != null) {
+                e.setAssigneeUserId(owner.getId());
+                e.setAssignee(owner.getDisplayName() != null && !owner.getDisplayName().isBlank()
+                        ? owner.getDisplayName() : owner.getUsername());
+            }
+            entries.add(e);
+        }
+        entryRepository.saveAll(entries);
+        log.info("시연 프로젝트 {} 에 미작성 계획 {}개를 넣었습니다.", PROJECT, entries.size());
     }
 
     private void copyDemoSpec(Path target) throws IOException {

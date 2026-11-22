@@ -184,7 +184,8 @@ class RolePermissionIntegrationTest {
         List<String> titles = new ArrayList<>();
         items.forEach(i -> titles.add(i.get("title").asText()));
         assertThat(titles).contains("첫 화면이 열린다", "첫 화면에 스크립트 오류가 없다", "첫 화면의 내부 링크가 열린다",
-                "안내 링크가 보인다", "문의하기 링크가 보인다");
+                "안내 링크가 보인다", "문의하기 링크가 보인다",
+                "첫 화면 제목이 보인다"); // 미작성 시연 계획 (계획 우선 흐름)
         for (JsonNode i : items) {
             if (i.get("title").asText().equals("결함 다시 실행 확인")) continue; // 다른 테스트가 만든 파일
             assertThat(i.get("assigneeUserId").isNull()).as(i.get("title").asText()).isFalse();
@@ -246,6 +247,44 @@ class RolePermissionIntegrationTest {
         assertThat(status(patch("/api/projects/example.com/plan/items")
                 .content("{\"specPath\":\"a.spec.ts\",\"grep\":\"x\",\"assignee\":\"나\"}"), member)).isEqualTo(403);
         assertThat(status(put("/api/projects/example.com").content("{}"), member)).isEqualTo(403);
+        // 계획 우선 흐름의 계획 행 쓰기도 PM 이상
+        String plan = "/api/projects/example.com/plan";
+        assertThat(status(post(plan + "/entries").content("{\"title\":\"팀원이 쓴 계획\"}"), member)).isEqualTo(403);
+        assertThat(status(post(plan + "/entries/bulk").content("{\"entries\":[]}"), member)).isEqualTo(403);
+        assertThat(status(patch(plan + "/entries/1").content("{}"), member)).isEqualTo(403);
+        assertThat(status(delete(plan + "/entries/1"), member)).isEqualTo(403);
+        assertThat(status(put(plan + "/entries/1/link").content("{}"), member)).isEqualTo(403);
+        assertThat(status(post(plan + "/entries/1/generate"), member)).isEqualTo(403);
+        assertThat(status(post(plan + "/entries/generate").content("{\"planIds\":[1]}"), member)).isEqualTo(403);
+        assertThat(status(post(plan + "/link-suggestions"), member)).isEqualTo(403);
+    }
+
+    /** 계획 우선 흐름: PM 이 계획 행을 만들면 미작성 행으로 보이고, 지우면 사라진다 (H2 에서 엔티티 · 컨트롤러까지). */
+    @Test
+    void pmCreatesAnUnwrittenPlanEntry() throws Exception {
+        String plan = "/api/projects/example.com/plan";
+        JsonNode created = call(post(plan + "/entries").content("{\"title\":\"장바구니가 비어 있다\",\"screenRouteKey\":\"/cart\","
+                + "\"expected\":\"빈 장바구니 문구\",\"assigneeUserId\":" + memberId + ",\"dueDate\":\"2026-11-30\",\"priority\":\"LOW\"}"),
+                admin, 200);
+        long planId = created.get("planId").asLong();
+        try {
+            assertThat(created.get("stage").asText()).isEqualTo("UNWRITTEN");
+            JsonNode res = call(get(plan), member, 200);
+            JsonNode row = null;
+            for (JsonNode i : res.get("items")) if (i.get("planId").asLong() == planId) row = i;
+            assertThat(row).isNotNull();
+            assertThat(row.get("stage").asText()).isEqualTo("UNWRITTEN");
+            assertThat(row.get("specPath").asText()).isEmpty();
+            assertThat(row.get("expected").asText()).isEqualTo("빈 장바구니 문구");
+            assertThat(res.get("summary").get("unwritten").asInt()).isGreaterThanOrEqualTo(1);
+            assertThat(res.get("screens").toString()).contains("/cart");
+            call(patch(plan + "/entries/" + planId).content("{\"title\":\"장바구니가 비어 있음\",\"assigneeUserId\":" + memberId
+                    + ",\"dueDate\":\"2026-11-30\"}"), admin, 204);
+            call(post(plan + "/entries").content("{\"title\":\"태그 @smoke\"}"), admin, 400);
+        } finally {
+            call(delete(plan + "/entries/" + planId), admin, 204);
+        }
+        call(delete(plan + "/entries/" + planId), admin, 404);
     }
 
     @Test
