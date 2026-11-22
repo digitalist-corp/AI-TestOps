@@ -44,6 +44,69 @@ class StepRecordServiceTest {
     }
 
     @Test
+    void koreanTestStepsBecomeGroupHeadingsAboveTheirDetailSteps() throws Exception {
+        // 리포터가 test.step 제목을 먼저, 그 안의 클릭 · 입력 · 확인을 그 뒤에 순서대로 편 모양 (steps-reporter.cjs flat)
+        var root = new ObjectMapper().readTree("""
+                [{"file":"login.spec.ts","titlePath":["chromium","login.spec.ts","올바른 계정으로 로그인하면 대시보드가 열린다"],"status":"passed",
+                  "steps":[{"category":"test.step","title":"로그인 화면 열기","offsetMs":10},
+                           {"category":"pw:api","title":"Navigate to \\"/login\\"","offsetMs":12},
+                           {"category":"test.step","title":"아이디와 비밀번호 입력","offsetMs":300},
+                           {"category":"pw:api","title":"Fill \\"admin\\" getByLabel('아이디')","offsetMs":302},
+                           {"category":"pw:api","title":"Fill \\"****\\" getByLabel('비밀번호')","offsetMs":330},
+                           {"category":"test.step","title":"대시보드로 이동했는지 확인","offsetMs":600},
+                           {"category":"expect","title":"toHaveURL","code":"await expect(page).toHaveURL(/dashboard/);","offsetMs":602}]}]
+                """);
+
+        CaseSteps c = StepRecordService.parse(root).get(0);
+
+        assertThat(c.title()).isEqualTo("login.spec.ts > 올바른 계정으로 로그인하면 대시보드가 열린다");
+        assertThat(c.steps()).extracting(Step::text).containsExactly(
+                "로그인 화면 열기",
+                "'/login' 페이지로 이동",
+                "아이디와 비밀번호 입력",
+                "'아이디' 입력란에 'admin' 입력",
+                "'비밀번호' 입력란에 '****' 입력",
+                "대시보드로 이동했는지 확인",
+                "페이지 주소 확인");
+        assertThat(c.steps()).extracting(Step::category)
+                .containsExactly("test.step", "pw:api", "test.step", "pw:api", "pw:api", "test.step", "expect");
+    }
+
+    @Test
+    void failedTestStepShowsTheErrorOnlyOnceOnTheDetailStep() throws Exception {
+        // 안의 단계가 실패하면 Playwright 는 test.step 에도 같은 오류를 단다. 묶음 제목은 실패로만 표시하고 오류 글은 세부 단계에만 남긴다.
+        var root = new ObjectMapper().readTree("""
+                [{"file":"login.spec.ts","titlePath":["chromium","login.spec.ts","로그인"],"status":"failed",
+                  "steps":[{"category":"test.step","title":"로그인 화면 열기"},
+                           {"category":"pw:api","title":"Navigate to \\"/login\\""},
+                           {"category":"test.step","title":"로그인 버튼 누르기","error":"TimeoutError: locator.click: Timeout 5000ms exceeded."},
+                           {"category":"pw:api","title":"Click getByRole('button', { name: '로그인' })","error":"TimeoutError: locator.click: Timeout 5000ms exceeded."}]}]
+                """);
+
+        CaseSteps c = StepRecordService.parse(root).get(0);
+
+        assertThat(c.steps()).extracting(Step::status).containsExactly("PASSED", "PASSED", "FAILED", "FAILED");
+        assertThat(c.steps()).extracting(Step::error)
+                .containsExactly(null, null, null, "TimeoutError: locator.click: Timeout 5000ms exceeded.");
+        assertThat(c.failedStep()).isEqualTo(3);
+        assertThat(c.steps().get(c.failedStep()).text()).isEqualTo("'로그인' 버튼 클릭");
+    }
+
+    @Test
+    void testStepThatFailedWithoutAFailingDetailStepKeepsItsError() throws Exception {
+        // 안에서 직접 throw 한 경우처럼 세부 단계에 오류가 없으면 묶음 제목의 오류를 그대로 보여 준다.
+        var root = new ObjectMapper().readTree("""
+                [{"file":"a.spec.ts","titlePath":["a.spec.ts","흐름"],"status":"failed",
+                  "steps":[{"category":"test.step","title":"값 계산하기","error":"Error: 합계가 다릅니다"}]}]
+                """);
+
+        CaseSteps c = StepRecordService.parse(root).get(0);
+
+        assertThat(c.steps().get(0).error()).isEqualTo("Error: 합계가 다릅니다");
+        assertThat(c.failedStep()).isEqualTo(0);
+    }
+
+    @Test
     void keepsStepTimesAndAttachmentsInsideTheReport() throws Exception {
         var root = new ObjectMapper().readTree("""
                 [{"file":"a.spec.ts","titlePath":["a.spec.ts","로그인"],"status":"failed",

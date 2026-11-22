@@ -82,6 +82,13 @@ public class StepRecordService {
                         s.path("code").asText(null)), s.path("category").asText(), error == null ? "PASSED" : "FAILED", error,
                         s.hasNonNull("offsetMs") ? s.path("offsetMs").asLong() : null));
             }
+            // 안의 단계가 실패하면 Playwright 는 test.step 에도 같은 오류를 단다. 묶음 제목은 실패 표시만 두고 오류 글은 세부 단계에만 남긴다.
+            for (int i = 0; i + 1 < steps.size(); i++) {
+                Step s = steps.get(i);
+                if ("test.step".equals(s.category()) && s.error() != null && steps.get(i + 1).error() != null) {
+                    steps.set(i, new Step(s.text(), s.category(), s.status(), null, s.offsetMs()));
+                }
+            }
             List<Attachment> attachments = new ArrayList<>();
             for (JsonNode a : c.path("attachments")) {
                 String path = a.path("path").asText("");
