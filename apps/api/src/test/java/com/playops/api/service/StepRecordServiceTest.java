@@ -93,6 +93,41 @@ class StepRecordServiceTest {
     }
 
     @Test
+    void failedTestStepDropsItsErrorEvenWhenTheFailingActionIsNotTheFirstOne() throws Exception {
+        // 묶음 안 첫 동작은 통과하고 뒤 동작이 실패해도, 다음 test.step 이 나오기 전까지의 단계에 오류가 있으면 묶음의 오류 글은 지운다.
+        var root = new ObjectMapper().readTree("""
+                [{"file":"login.spec.ts","titlePath":["chromium","login.spec.ts","로그인"],"status":"failed",
+                  "steps":[{"category":"test.step","title":"로그인하기","error":"TimeoutError: 버튼을 못 찾음"},
+                           {"category":"pw:api","title":"Fill \\"admin\\" getByLabel('아이디')"},
+                           {"category":"pw:api","title":"Fill \\"****\\" getByLabel('비밀번호')"},
+                           {"category":"pw:api","title":"Click getByRole('button', { name: '로그인' })","error":"TimeoutError: 버튼을 못 찾음"}]}]
+                """);
+
+        CaseSteps c = StepRecordService.parse(root).get(0);
+
+        assertThat(c.steps()).extracting(Step::status).containsExactly("FAILED", "PASSED", "PASSED", "FAILED");
+        assertThat(c.steps()).extracting(Step::error).containsExactly(null, null, null, "TimeoutError: 버튼을 못 찾음");
+        assertThat(c.failedStep()).isEqualTo(3);
+    }
+
+    @Test
+    void failedTestStepWithoutDetailStepsKeepsItsErrorWhenALaterGroupHasTheFailingAction() throws Exception {
+        // 첫 묶음은 직접 throw 해서 세부 단계가 없다. 다음 test.step 이후의 실패 단계는 다른 묶음 것이라 이 묶음의 오류를 지우면 안 된다.
+        var root = new ObjectMapper().readTree("""
+                [{"file":"a.spec.ts","titlePath":["a.spec.ts","흐름"],"status":"failed",
+                  "steps":[{"category":"test.step","title":"값 계산하기","error":"Error: 합계가 다릅니다"},
+                           {"category":"test.step","title":"결과 확인하기","error":"Error: 안 보임"},
+                           {"category":"expect","title":"toBeVisible","code":"await expect(page.getByText('완료')).toBeVisible();","error":"Error: 안 보임"}]}]
+                """);
+
+        CaseSteps c = StepRecordService.parse(root).get(0);
+
+        assertThat(c.steps()).extracting(Step::error).containsExactly("Error: 합계가 다릅니다", null, "Error: 안 보임");
+        assertThat(c.steps()).extracting(Step::status).containsExactly("FAILED", "FAILED", "FAILED");
+        assertThat(c.failedStep()).isEqualTo(2);
+    }
+
+    @Test
     void testStepThatFailedWithoutAFailingDetailStepKeepsItsError() throws Exception {
         // 안에서 직접 throw 한 경우처럼 세부 단계에 오류가 없으면 묶음 제목의 오류를 그대로 보여 준다.
         var root = new ObjectMapper().readTree("""

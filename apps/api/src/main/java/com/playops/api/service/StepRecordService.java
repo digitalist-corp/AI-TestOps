@@ -83,10 +83,15 @@ public class StepRecordService {
                         s.hasNonNull("offsetMs") ? s.path("offsetMs").asLong() : null));
             }
             // 안의 단계가 실패하면 Playwright 는 test.step 에도 같은 오류를 단다. 묶음 제목은 실패 표시만 두고 오류 글은 세부 단계에만 남긴다.
-            for (int i = 0; i + 1 < steps.size(); i++) {
-                Step s = steps.get(i);
-                if ("test.step".equals(s.category()) && s.error() != null && steps.get(i + 1).error() != null) {
-                    steps.set(i, new Step(s.text(), s.category(), s.status(), null, s.offsetMs()));
+            // 묶음의 세부 단계는 다음 test.step 이 나오기 전(또는 끝)까지다. 그 사이에 오류 단계가 하나라도 있으면 묶음 오류 글을 지운다.
+            for (int i = 0; i < steps.size(); i++) {
+                Step group = steps.get(i);
+                if (!"test.step".equals(group.category()) || group.error() == null) continue;
+                for (int j = i + 1; j < steps.size() && !"test.step".equals(steps.get(j).category()); j++) {
+                    if (steps.get(j).error() != null) {
+                        steps.set(i, new Step(group.text(), group.category(), group.status(), null, group.offsetMs()));
+                        break;
+                    }
                 }
             }
             List<Attachment> attachments = new ArrayList<>();
