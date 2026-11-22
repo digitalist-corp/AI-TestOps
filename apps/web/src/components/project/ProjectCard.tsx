@@ -199,7 +199,7 @@ export function ProjectCard({
       <div className="mx-4 mt-2 flex items-center gap-2 text-[12px] text-muted-foreground">
         <ProjectStatusChip status={project.status ?? 'PLANNED'} />
         {projectPeriod(project) && <span className="truncate">{projectPeriod(project)}</span>}
-        {planProgress != null && <span className="ml-auto shrink-0 font-bold text-foreground">진척률 {planProgress}%</span>}
+        {planProgress != null && <span className="ml-auto shrink-0 font-bold text-foreground">완료율 {planProgress}%</span>}
       </div>
 
       {analysis && (

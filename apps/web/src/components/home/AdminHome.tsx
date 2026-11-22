@@ -102,7 +102,7 @@ export function AdminHome({ projects, plans, defects, needsReview, users, runner
               <th className="px-4 py-2 font-medium">프로젝트</th>
               <th className="px-4 py-2 font-medium">상태 · 기간</th>
               <th className="px-4 py-2 font-medium">판정 분포</th>
-              <th className="px-4 py-2 text-right font-medium">진척률</th>
+              <th className="px-4 py-2 text-right font-medium">완료율</th>
               <th className="px-4 py-2 font-medium">결함</th>
               <th className="px-4 py-2 text-right font-medium">승인 대기</th>
               <th className="px-4 py-2 font-medium">최근 실행</th>

@@ -121,7 +121,7 @@ export function MemberHome({ projects, plans, defects, userId, onRunCase, onReru
                 </Link>
                 <span className="flex-1"><StatusAndPeriod project={p} /></span>
                 <span className="text-sm text-muted-foreground">통과 {counts.passed} · 실패 {counts.failed} · 미수행 {counts.notRun}</span>
-                <span className="text-sm text-muted-foreground">진척률 {progressOf(items)}%</span>
+                <span className="text-sm text-muted-foreground">완료율 {progressOf(items)}%</span>
                 <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
                 {counts.failed > 0 && (
                   <Button
