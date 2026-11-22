@@ -801,7 +801,8 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'plan' && projectId && (
-            <PlanTab projectId={projectId} onRun={() => handleRun()} readOnly={!canManage} runDisabled={!!activeRun} />
+            <PlanTab projectId={projectId} onRun={() => handleRun()} readOnly={!canManage} runDisabled={!!activeRun}
+                     onOpenExecution={handleSelectExecution} />
           )}
 
           {activeTab === 'schedules' && projectId && (

@@ -3,13 +3,15 @@ import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, type ColDef, type ICellRendererParams } from 'ag-grid-community';
 import { ClipboardList, Download, Loader2, Play, X } from 'lucide-react';
 import { api } from '@/api/client';
-import type { PlanItem, PlanItemKey, PlanPriority, ProjectMember, TestSuite } from '@/types';
+import type { CaseFocus, PlanItem, PlanItemKey, PlanPriority, ProjectMember, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { casesByScreen } from '@/lib/rounds';
 import { PRIORITY_LABEL, assigneeLabel, inSuite, planCounts, planKey, screenNameByCase } from '@/lib/plan';
 import { useAccess } from '@/lib/access';
 import { formatRelative } from '@/lib/utils';
 import { downloadCsv } from '@/lib/csv';
+import { cellsByRow, dailyPassRates, hasScheduledRuns } from '@/lib/planDaily';
+import { dailyColumns, dailyTotalRow, pinnedRowSelector, usePlanDaily } from './planDaily';
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -59,10 +61,12 @@ const memberName = (m: ProjectMember) => m.displayName || m.username;
  * 셀을 고치면 바로 저장하고, 저장이 실패하면 원래 값으로 되돌린다. 체크한(사용 중) 항목만 실행된다.
  * readOnly(팀원): 고치지 못하고 보기 · 실행만 한다.
  */
-export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = false }: {
+export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = false, onOpenExecution }: {
   projectId: string; onRun: () => void; readOnly?: boolean;
   /** 이 프로젝트의 테스트가 이미 돌고 있으면 실행 버튼을 잠근다 */
   runDisabled?: boolean;
+  /** 정기 실행 칸의 실패를 누르면 그 실행 결과로 (F-3) */
+  onOpenExecution?: (executionId: number, focus?: CaseFocus) => void;
 }) {
   const { me } = useAccess();
   const [items, setItems] = useState<PlanItem[] | null>(null);
@@ -73,6 +77,8 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
   const [members, setMembers] = useState<ProjectMember[]>([]);
   // '' = 전체. 스위트를 고르면 그 스위트 항목만 보이고, 순서 끌어 옮기기는 끈다(일부만 다시 번호 매기지 않도록).
   const [suiteId, setSuiteId] = useState('');
+  // 정기 실행 날짜 칸 (F-3). 계획 표와 따로 받아 붙인다.
+  const daily = usePlanDaily(projectId);
 
   useEffect(() => {
     let alive = true;
@@ -267,6 +273,13 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
     [screens, members, projectId, suiteId, readOnly]
   );
 
+  // 날짜 칸은 기존 열 맨 끝에 붙인다.
+  const allColumns = useMemo(
+    () => [...columnDefs, ...dailyColumns(daily, onOpenExecution)],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [columnDefs, daily]
+  );
+
   if (!items) {
     return (
       <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
@@ -283,6 +296,9 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
   const suite = suites.find((x) => String(x.id) === suiteId) ?? null;
   const shown = suite ? items.filter((i) => inSuite(suite, i)) : items;
   const counts = planCounts(shown);
+  const dailyRates = daily && allColumns.length > columnDefs.length
+    ? dailyPassRates(daily.days, shown, cellsByRow(daily))
+    : null;
 
   return (
     <div className="space-y-4">
@@ -352,12 +368,20 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
         </div>
       )}
 
+      {daily && !hasScheduledRuns(daily) && (
+        <p className="rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted-foreground">
+          정기 실행 기록이 아직 없어요 · 설정에서 매일 03:00 실행을 켜면 날짜별 성공 · 실패가 여기에 쌓여요.
+        </p>
+      )}
+
       <div className="ag-theme-playops overflow-hidden rounded-xl border border-border" style={{ height: 560 }}>
         <AgGridReact<PlanItem>
           theme="legacy"
           rowData={shown}
-          columnDefs={columnDefs}
-          defaultColDef={{ sortable: false, resizable: true }}
+          columnDefs={allColumns}
+          defaultColDef={{ sortable: false, resizable: true, cellRendererSelector: pinnedRowSelector }}
+          pinnedBottomRowData={dailyRates ? [dailyTotalRow(dailyRates)] : undefined}
+          onCellEditingStarted={(e) => e.node.rowPinned && e.api.stopEditing(true)}
           getRowId={(p) => rowId(p.data)}
           rowDragManaged
           rowSelection={{ mode: 'multiRow', checkboxes: false, headerCheckbox: false, enableClickSelection: true }}

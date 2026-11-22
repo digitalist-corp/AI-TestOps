@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { api } from '@/api/client';
-import type { PlanItem, PlanResponse } from '@/types';
+import type { PlanDailyResponse, PlanItem, PlanResponse } from '@/types';
 import { PlanTab } from './PlanTab';
 import { downloadCsv } from '@/lib/csv';
 
@@ -9,7 +9,7 @@ vi.mock('@/lib/csv', () => ({ downloadCsv: vi.fn() }));
 
 vi.mock('@/api/client', () => ({
   api: {
-    plan: { get: vi.fn(), patch: vi.fn(), reorder: vi.fn(), setEnabled: vi.fn() },
+    plan: { get: vi.fn(), patch: vi.fn(), reorder: vi.fn(), setEnabled: vi.fn(), daily: vi.fn() },
     getScenarios: vi.fn(),
     testSuites: { listByProject: vi.fn() },
     getSiteMap: vi.fn(),
@@ -35,8 +35,11 @@ const plan: PlanResponse = {
   summary: { total: 4, enabled: 2, disabled: 2, passed: 1, failed: 1, notRun: 0, completionRate: 0.5 },
 };
 
+const noDaily: PlanDailyResponse = { days: ['2026-11-21', '2026-11-22'], items: [], totals: [] };
+
 beforeEach(() => {
   vi.mocked(api.plan.get).mockResolvedValue(plan);
+  vi.mocked(api.plan.daily).mockResolvedValue(noDaily);
   vi.mocked(api.getScenarios).mockResolvedValue({ projectId: 'p1', totalSpecs: 0, totalCases: 0, specs: [] });
   vi.mocked(api.getSiteMap).mockRejectedValue(new Error('없음'));
   vi.mocked(api.getSiteMapCoverage).mockRejectedValue(new Error('없음'));
@@ -150,5 +153,64 @@ describe('PlanTab — 팀원(보기 전용)', () => {
     render(<PlanTab projectId="p1" onRun={() => {}} runDisabled />);
     const button = (await screen.findByRole('button', { name: /실행 중/ })) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
+  });
+});
+
+describe('PlanTab — 정기 실행 날짜 칸 (F-3)', () => {
+  const daily: PlanDailyResponse = {
+    days: ['2026-11-21', '2026-11-22'],
+    items: [
+      { specPath: 'tests/login.spec.ts', grep: '로그인된다', cells: [
+        { date: '2026-11-21', status: 'PASSED', executionId: 10 },
+        { date: '2026-11-22', status: 'PASSED', executionId: 11 },
+      ] },
+      { specPath: 'tests/login.spec.ts', grep: '로그아웃된다', cells: [
+        { date: '2026-11-21', status: null, executionId: null },
+        { date: '2026-11-22', status: 'FAILED', executionId: 11 },
+      ] },
+    ],
+    totals: [],
+  };
+
+  it('날짜 칸에 성공 · 실패 · 미실행을 기호로 보이고, 맨 아래에 일자별 통과율을 보인다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+
+    expect(await screen.findByText('정기 실행 (최근 2일)')).toBeTruthy();
+    expect(screen.getAllByText('11/21').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('11/22').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('11/21 성공').textContent).toBe('✓');
+    expect(screen.getByRole('button', { name: '11/22 실패 · 결과 보기' }).textContent).toBe('✗');
+    expect(screen.getAllByLabelText('11/21 미실행').length).toBeGreaterThan(0); // 로그아웃 · 결과 없는 행
+    expect(screen.getByText('일자별 통과율')).toBeTruthy();
+    expect(screen.getByLabelText('11/21 통과율 100%')).toBeTruthy();
+    expect(screen.getByLabelText('11/22 통과율 50%')).toBeTruthy();
+    expect(screen.queryByText(/정기 실행 기록이 아직 없어요/)).toBeNull();
+  });
+
+  it('실패 칸을 누르면 그 실행 결과를 그 케이스로 연다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    const onOpenExecution = vi.fn();
+    render(<PlanTab projectId="p1" onRun={() => {}} onOpenExecution={onOpenExecution} />);
+    fireEvent.click(await screen.findByRole('button', { name: '11/22 실패 · 결과 보기' }));
+    expect(onOpenExecution).toHaveBeenCalledWith(11, { specPath: 'tests/login.spec.ts', title: '로그아웃된다' });
+  });
+
+  it('스위트를 고르면 통과율을 보이는 행만으로 다시 센다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    vi.mocked(api.testSuites.listByProject).mockResolvedValue([
+      { id: 7, projectId: 'p1', name: '로그인 묶음', specPaths: ['tests/login.spec.ts'], grep: '로그인|탈퇴', caseCount: 2, sequential: false, createdAt: '' },
+    ]);
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    await screen.findByLabelText('11/22 통과율 50%');
+    fireEvent.change(await screen.findByLabelText('스위트'), { target: { value: '7' } });
+    expect(await screen.findByLabelText('11/22 통과율 100%')).toBeTruthy();
+  });
+
+  it('정기 실행 기록이 하나도 없으면 날짜 칸 대신 안내를 보인다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    expect(await screen.findByText(/정기 실행 기록이 아직 없어요/)).toBeTruthy();
+    expect(screen.queryByText(/정기 실행 \(최근/)).toBeNull();
+    expect(screen.queryByText('일자별 통과율')).toBeNull();
   });
 });

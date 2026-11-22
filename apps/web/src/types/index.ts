@@ -1332,3 +1332,32 @@ export interface PlanItemPatch extends PlanItemKey {
   dueDate: string | null;
   priority: PlanPriority | null;
 }
+
+/** 일자별 정기 실행 격자 (F-3). 날짜는 서울 기준 YYYY-MM-DD */
+export interface PlanDailyCell {
+  date: string;
+  /** null = 그날 정기 실행 결과 없음 */
+  status: 'PASSED' | 'FAILED' | null;
+  /** 그날 마지막 정기 실행 */
+  executionId: number | null;
+}
+
+/** cells 는 days 와 같은 순서 (오래된 날 → 오늘) */
+export interface PlanDailyItem extends PlanItemKey {
+  cells: PlanDailyCell[];
+}
+
+/** 사용 중 항목만 센다. passRate 0~1, 그날 결과가 없으면 null */
+export interface PlanDailyTotal {
+  date: string;
+  passed: number;
+  failed: number;
+  enabled: number;
+  passRate: number | null;
+}
+
+export interface PlanDailyResponse {
+  days: string[];
+  items: PlanDailyItem[];
+  totals: PlanDailyTotal[];
+}
