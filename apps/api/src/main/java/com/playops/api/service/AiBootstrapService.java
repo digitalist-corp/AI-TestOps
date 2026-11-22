@@ -632,7 +632,7 @@ public class AiBootstrapService {
                 If logging in is required, read credentials from `process.env.LOGIN_ID` and `process.env.LOGIN_PASSWORD`
                 (and `process.env.LOGIN_PATH` if needed) — never hardcode usernames or passwords in the code.
                 Return ONLY the raw TypeScript code for that file — no markdown code fences, no explanation, no JSON wrapper.
-                """.formatted(project.getPlaywrightVersion(), SPEC_PATH);
+                """.formatted(project.getPlaywrightVersion(), SPEC_PATH) + SpecStepRules.GENERATE;
         if (!screens.isBlank()) {
             systemPrompt += SCREEN_RULES;
         }
@@ -656,7 +656,7 @@ public class AiBootstrapService {
                 - If a step needs an element that does not exist on the site, remove that step and leave a code comment.
                 - If logging in is required, use `process.env.LOGIN_ID` and `process.env.LOGIN_PASSWORD` — never hardcode credentials.
                 Return ONLY the full corrected TypeScript file — no markdown code fences, no explanation.
-                """.formatted(project.getPlaywrightVersion());
+                """.formatted(project.getPlaywrightVersion()) + SpecStepRules.KEEP;
         if (!screens.isBlank()) {
             systemPrompt += SCREEN_RULES;
         }

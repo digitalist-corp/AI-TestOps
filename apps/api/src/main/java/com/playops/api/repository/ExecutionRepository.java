@@ -3,6 +3,8 @@ package com.playops.api.repository;
 import com.playops.api.entity.Execution;
 import com.playops.api.entity.ExecutionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -26,4 +28,11 @@ public interface ExecutionRepository extends JpaRepository<Execution, Long> {
     List<Execution> findTop20ByDurationMsIsNotNullOrderByCreatedAtDesc();
 
     void deleteByProjectId(String projectId);
+
+    /** 정기 실행이 한 번이라도 있었는지 (시연 정기 실행 기록 시드가 이미 넣었는지 · 진짜 기록이 있는지 본다) */
+    @Query("""
+            select count(e) > 0 from Execution e
+            where e.projectId = :projectId and (e.scheduleId is not null or e.source = 'SCHEDULED')
+            """)
+    boolean existsScheduled(@Param("projectId") String projectId);
 }

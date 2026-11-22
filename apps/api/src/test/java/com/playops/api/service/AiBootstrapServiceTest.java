@@ -102,6 +102,9 @@ class AiBootstrapServiceTest {
         verify(files, times(2)).writeFile("p", AiBootstrapService.SPEC_PATH, SPEC);
         // 교정 프롬프트에는 실패한 케이스의 오류가 들어간다
         verify(llm).chat(any(), anyString(), contains("strict mode violation"), eq("테스트 자동 교정"), eq("p"));
+        // 생성은 한국어 test.step 을 요구하고, 교정은 있던 단계 이름을 지우거나 영어로 바꾸지 못하게 한다 (V-3)
+        verify(llm).chat(any(), contains("test.step('로그인 화면 열기'"), anyString(), eq("테스트 생성"), eq("p"));
+        verify(llm).chat(any(), contains("Keep every existing `test.step"), anyString(), eq("테스트 자동 교정"), eq("p"));
     }
 
     @Test

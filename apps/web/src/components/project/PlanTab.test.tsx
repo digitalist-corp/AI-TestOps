@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { api } from '@/api/client';
-import type { PlanItem, PlanResponse } from '@/types';
+import type { PlanDailyResponse, PlanItem, PlanResponse } from '@/types';
 import { PlanTab } from './PlanTab';
 import { downloadCsv } from '@/lib/csv';
 
@@ -9,7 +9,7 @@ vi.mock('@/lib/csv', () => ({ downloadCsv: vi.fn() }));
 
 vi.mock('@/api/client', () => ({
   api: {
-    plan: { get: vi.fn(), patch: vi.fn(), reorder: vi.fn(), setEnabled: vi.fn() },
+    plan: { get: vi.fn(), patch: vi.fn(), reorder: vi.fn(), setEnabled: vi.fn(), daily: vi.fn() },
     getScenarios: vi.fn(),
     testSuites: { listByProject: vi.fn() },
     getSiteMap: vi.fn(),
@@ -21,22 +21,27 @@ vi.mock('@/api/client', () => ({
 const item = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1,
   enabled: true, parentEnabled: true, sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
+  prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,
   assigneeUserId: null, updatedByName: null, updatedAt: null,
   ...over,
 });
 
 const plan: PlanResponse = {
   items: [
-    item({ updatedByName: '김윤재', updatedAt: new Date().toISOString() }),
-    item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED', assignee: '김윤재', assigneeUserId: 7 }),
+    item({ updatedByName: '김윤재', updatedAt: new Date().toISOString(), prevStatus: 'FAILED', defectStatus: 'RESOLVED', defectFailCount: 1 }),
+    item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED', prevStatus: 'FAILED',
+      assignee: '김윤재', assigneeUserId: 7, defectStatus: 'OPEN', defectFailCount: 3 }),
     item({ grep: '탈퇴된다', title: '탈퇴된다', line: 20, enabled: false, lastStatus: null }),
     item({ specPath: 'tests/off.spec.ts', grep: '꺼진 파일', title: '꺼진 파일', enabled: false, parentEnabled: false, lastStatus: null }),
   ],
   summary: { total: 4, enabled: 2, disabled: 2, passed: 1, failed: 1, notRun: 0, completionRate: 0.5 },
 };
 
+const noDaily: PlanDailyResponse = { days: ['2026-11-21', '2026-11-22'], items: [], totals: [] };
+
 beforeEach(() => {
   vi.mocked(api.plan.get).mockResolvedValue(plan);
+  vi.mocked(api.plan.daily).mockResolvedValue(noDaily);
   vi.mocked(api.getScenarios).mockResolvedValue({ projectId: 'p1', totalSpecs: 0, totalCases: 0, specs: [] });
   vi.mocked(api.getSiteMap).mockRejectedValue(new Error('없음'));
   vi.mocked(api.getSiteMapCoverage).mockRejectedValue(new Error('없음'));
@@ -56,12 +61,46 @@ describe('PlanTab', () => {
 
     const [fileName, rows] = vi.mocked(downloadCsv).mock.calls[0];
     expect(fileName).toMatch(/^p1-계획-\d{8}\.csv$/);
-    expect(rows[0]).toEqual(['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행']);
+    expect(rows[0]).toEqual(['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행', '직전 결과', '결함']);
     expect(rows).toHaveLength(5);
-    expect(rows[1]).toEqual(['TC-001', 'tests/login.spec.ts', '로그인된다', '사용', '(계정 없음) 윤재', '', '', 'Pass', '']);
+    expect(rows[1]).toEqual(['TC-001', 'tests/login.spec.ts', '로그인된다', '사용', '(계정 없음) 윤재', '', '', 'Pass', '', 'Fail', '해결']);
     expect(rows[2].slice(2, 8)).toEqual(['로그아웃된다', '사용', '김윤재', '', '', 'Fail']);
+    expect(rows[2].slice(9)).toEqual(['Fail', '미해결 · 3회 연속 실패']);
     expect(rows[3].slice(2, 4)).toEqual(['탈퇴된다', '미사용']);
     expect(rows[3][7]).toBe('Untested');
+    expect(rows[3].slice(9)).toEqual(['Untested', '']);
+  });
+
+  it('직전 결과와 결과 변경을 보여 주고 미해결 결함에서 결함 목록을 연다', async () => {
+    const onOpenDefects = vi.fn();
+    render(<PlanTab projectId="p1" onRun={() => {}} onOpenDefects={onOpenDefects} />);
+
+    const openDefect = await screen.findByRole('button', { name: '미해결 · 3회 연속 실패' });
+    const columnIndex = (name: string) => Number(screen.getByText(name).closest('[aria-colindex]')?.getAttribute('aria-colindex'));
+    expect(columnIndex('직전 결과')).toBe(columnIndex('최근 결과') + 1);
+    expect(columnIndex('결함')).toBe(columnIndex('직전 결과') + 1);
+    expect(screen.getByTitle('결과 변경: 실패 → 성공').parentElement?.textContent).toContain('실패');
+    expect(screen.getByText('해결')).toBeTruthy();
+    fireEvent.click(openDefect);
+    expect(onOpenDefects).toHaveBeenCalledOnce();
+
+    vi.mocked(api.plan.patch).mockResolvedValue(undefined);
+    fireEvent.click(screen.getByRole('checkbox', { name: '로그아웃된다 사용' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: '미해결 · 3회 연속 실패' })).toBeNull());
+  });
+
+  it('미사용 행을 켜면 서버에서 결함을 다시 읽는다', async () => {
+    vi.mocked(api.plan.patch).mockResolvedValue(undefined);
+    vi.mocked(api.plan.get).mockResolvedValueOnce(plan).mockResolvedValueOnce({
+      ...plan,
+      items: plan.items.map((i) => i.title === '탈퇴된다'
+        ? { ...i, enabled: true, lastStatus: 'FAILED', defectStatus: 'OPEN', defectFailCount: 1 }
+        : i),
+    });
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: '탈퇴된다 사용' }));
+    expect(await screen.findByText('미해결 · 1회 연속 실패')).toBeTruthy();
   });
 
   it('코드 용어 없이 업무 열 이름을 보여 준다', async () => {
@@ -150,5 +189,90 @@ describe('PlanTab — 팀원(보기 전용)', () => {
     render(<PlanTab projectId="p1" onRun={() => {}} runDisabled />);
     const button = (await screen.findByRole('button', { name: /실행 중/ })) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
+  });
+});
+
+describe('PlanTab — 정기 실행 날짜 칸 (F-3)', () => {
+  const daily: PlanDailyResponse = {
+    days: ['2026-11-21', '2026-11-22'],
+    items: [
+      { specPath: 'tests/login.spec.ts', grep: '로그인된다', cells: [
+        { date: '2026-11-21', status: 'PASSED', executionId: 10 },
+        { date: '2026-11-22', status: 'PASSED', executionId: 11 },
+      ] },
+      { specPath: 'tests/login.spec.ts', grep: '로그아웃된다', cells: [
+        { date: '2026-11-21', status: null, executionId: null },
+        { date: '2026-11-22', status: 'FAILED', executionId: 11 },
+      ] },
+    ],
+    totals: [],
+  };
+
+  it('날짜 칸에 성공 · 실패 · 미실행을 기호로 보이고, 맨 아래에 일자별 통과율을 보인다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+
+    expect(await screen.findByText('정기 실행 (최근 2일)')).toBeTruthy();
+    expect(screen.getAllByText('11/21').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('11/22').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('11/21 성공').textContent).toBe('✓');
+    expect(screen.getByRole('button', { name: '11/22 실패 · 결과 보기' }).textContent).toBe('✗');
+    expect(screen.getAllByLabelText('11/21 미실행').length).toBeGreaterThan(0); // 로그아웃 · 결과 없는 행
+    expect(screen.getByText('일자별 통과율')).toBeTruthy();
+    expect(screen.getByLabelText('11/21 통과율 100%')).toBeTruthy();
+    expect(screen.getByLabelText('11/22 통과율 50%')).toBeTruthy();
+    expect(screen.queryByText(/정기 실행 기록이 아직 없어요/)).toBeNull();
+  });
+
+  it('실패 칸을 누르면 그 실행 결과를 그 케이스로 연다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    const onOpenExecution = vi.fn();
+    render(<PlanTab projectId="p1" onRun={() => {}} onOpenExecution={onOpenExecution} />);
+    fireEvent.click(await screen.findByRole('button', { name: '11/22 실패 · 결과 보기' }));
+    expect(onOpenExecution).toHaveBeenCalledWith(11, { specPath: 'tests/login.spec.ts', title: '로그아웃된다' });
+  });
+
+  it('스위트를 고르면 통과율을 보이는 행만으로 다시 센다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    vi.mocked(api.testSuites.listByProject).mockResolvedValue([
+      { id: 7, projectId: 'p1', name: '로그인 묶음', specPaths: ['tests/login.spec.ts'], grep: '로그인|탈퇴', caseCount: 2, sequential: false, createdAt: '' },
+    ]);
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    await screen.findByLabelText('11/22 통과율 50%');
+    fireEvent.change(await screen.findByLabelText('스위트'), { target: { value: '7' } });
+    expect(await screen.findByLabelText('11/22 통과율 100%')).toBeTruthy();
+  });
+
+  it('통과율 고정 행은 끌기 손잡이 · 파일 툴팁이 없다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    const { container } = render(<PlanTab projectId="p1" onRun={() => {}} />);
+    const pinnedCell = (await screen.findByText('일자별 통과율')).closest('.ag-cell')!;
+    const rowCell = screen.getByText('로그아웃된다').closest('.ag-cell')!;
+    expect(container.querySelectorAll('.ag-body .ag-row-drag').length).toBe(4);
+    expect(container.querySelectorAll('.ag-floating-bottom .ag-row-drag').length).toBe(0);
+
+    const hover = async (el: Element) => {
+      fireEvent.mouseOver(el);
+      fireEvent.mouseEnter(el);
+      fireEvent.mouseMove(el);
+      await new Promise((r) => setTimeout(r, 600)); // tooltipShowDelay 300ms
+    };
+    const leave = async (el: Element) => {
+      fireEvent.mouseOut(el);
+      fireEvent.mouseLeave(el);
+      await waitFor(() => expect(document.querySelector('.ag-tooltip')).toBeNull());
+    };
+    await hover(rowCell);
+    expect(document.querySelector('.ag-tooltip')?.textContent).toBe('파일: tests/login.spec.ts (9줄)'); // 일반 행은 그대로
+    await leave(rowCell);
+    await hover(pinnedCell);
+    expect(document.querySelector('.ag-tooltip')).toBeNull();
+  });
+
+  it('정기 실행 기록이 하나도 없으면 날짜 칸 대신 안내를 보인다', async () => {
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+    expect(await screen.findByText(/정기 실행 기록이 아직 없어요/)).toBeTruthy();
+    expect(screen.queryByText(/정기 실행 \(최근/)).toBeNull();
+    expect(screen.queryByText('일자별 통과율')).toBeNull();
   });
 });
