@@ -4,6 +4,7 @@ import { Info, RefreshCw, RotateCcw, Square, Trash2 } from 'lucide-react';
 import type { Execution, ExecutionStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
+import { RoundResults } from '@/components/dashboard/RoundResults';
 import { cn, executionStatusLabel, formatDuration } from '@/lib/utils';
 
 const statusStyle: Record<ExecutionStatus, string> = {
@@ -18,6 +19,7 @@ const statusStyle: Record<ExecutionStatus, string> = {
 };
 
 interface Props {
+  projectId: string;
   executions: Execution[];
   loading: boolean;
   activeExecutionId: number | null;
@@ -32,6 +34,7 @@ interface Props {
 }
 
 export function ExecutionsTab({
+  projectId,
   executions,
   loading,
   activeExecutionId,
@@ -164,6 +167,12 @@ export function ExecutionsTab({
           )}
         </div>
       </div>
+
+      <RoundResults
+        projectId={projectId}
+        runKey={executions.map((e) => `${e.id}:${e.status}`).join(',')}
+        onOpenExecution={onSelect}
+      />
 
       <ExecutionLogPanel executionId={streamId} />
 

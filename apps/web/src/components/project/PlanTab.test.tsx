@@ -34,7 +34,8 @@ const plan: PlanResponse = {
     item({ grep: '탈퇴된다', title: '탈퇴된다', line: 20, enabled: false, lastStatus: null }),
     item({ specPath: 'tests/off.spec.ts', grep: '꺼진 파일', title: '꺼진 파일', enabled: false, parentEnabled: false, lastStatus: null }),
   ],
-  summary: { total: 4, enabled: 2, disabled: 2, passed: 1, failed: 1, notRun: 0, completionRate: 0.5 },
+  summary: { total: 4, enabled: 2, disabled: 2, passed: 1, failed: 1, notRun: 0, completionRate: 0.5, unwritten: 0, written: 2, writtenRate: 1 },
+  screens: [],
 };
 
 const noDaily: PlanDailyResponse = { days: ['2026-11-21', '2026-11-22'], items: [], totals: [] };

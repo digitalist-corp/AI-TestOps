@@ -684,9 +684,6 @@ export function ProjectDetailPage() {
               executions={executions}
               onRun={() => handleRun()}
               onStop={handleCancelExecution}
-              onOpenSource={() => goTab('source')}
-              onOpenRuns={() => goTab('runs')}
-              onOpenResults={() => goTab('results')}
             />
           )}
 
@@ -722,6 +719,7 @@ export function ProjectDetailPage() {
 
           {activeTab === 'runs' && (
             <ExecutionsTab
+              projectId={project.projectId}
               executions={executions}
               loading={executionsLoading}
               activeExecutionId={activeExecutionId}
