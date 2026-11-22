@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +60,27 @@ class SpecStepPromptTest {
         ArgumentCaptor<String> system = ArgumentCaptor.forClass(String.class);
         verify(llm).chat(any(), system.capture(), anyString(), anyString(), any());
         assertAsksForKoreanSteps(system.getValue());
+    }
+
+    @Test
+    void editAssistPromptDependsOnWhetherTheSpecIsNewOrExisting() {
+        ProjectService projects = mock(ProjectService.class);
+        Project project = new Project();
+        project.setProjectId("p");
+        when(projects.getProject("p")).thenReturn(project);
+        when(llm.chat(any(), anyString(), anyString(), anyString(), eq("p"))).thenReturn("code");
+        AiEditAssistService service = new AiEditAssistService(llm, projects, mock(AiRunnerDockerService.class));
+
+        service.editFile("p", "tests/new.spec.ts", "", "로그인 테스트 만들어 줘");
+        service.editFile("p", "tests/old.spec.ts", "test('로그인', async () => {});", "단계 하나 추가해 줘");
+        service.editFile("p", "tests/helpers/login.ts", "", "도우미 만들어 줘");
+
+        ArgumentCaptor<String> system = ArgumentCaptor.forClass(String.class);
+        verify(llm, times(3)).chat(any(), system.capture(), anyString(), anyString(), eq("p"));
+        // 새 spec 은 한국어 단계 규칙 전체, 기존 파일은 있던 단계 이름 유지, spec 이 아닌 새 파일에는 단계 규칙을 붙이지 않는다
+        assertAsksForKoreanSteps(system.getAllValues().get(0));
+        assertThat(system.getAllValues().get(1)).contains("Keep every existing `test.step").doesNotContain("Example");
+        assertThat(system.getAllValues().get(2)).doesNotContain("test.step");
     }
 
     @Test
