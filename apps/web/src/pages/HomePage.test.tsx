@@ -34,7 +34,9 @@ const project = (projectId: string, projectName: string, over: Partial<Project> 
      latestExecutionStatus: 'FAILED', latestExecutionAt: null, latestExecutionId: null, ...over } as Project);
 const row = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
-  sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null, assigneeUserId: null, updatedByName: null, updatedAt: null, ...over,
+  sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
+  prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,
+  assigneeUserId: null, updatedByName: null, updatedAt: null, ...over,
 });
 const items = [
   row({}),

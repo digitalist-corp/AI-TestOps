@@ -25,7 +25,8 @@ class PlanRulesTest {
     }
 
     private static PlanItem item(String spec, int line, Integer order, boolean enabled, String lastStatus) {
-        return new PlanItem(spec, "t" + line, "t" + line, "", line, enabled, true, order, null, null, null, null, lastStatus, null, null, null);
+        return new PlanItem(spec, "t" + line, "t" + line, "", line, enabled, true,
+                order, null, null, null, null, lastStatus, null, null, null, null, 0, null, null);
     }
 
     private static ExecutionCaseResult result(long executionId, String spec, String title, String status) {
@@ -88,7 +89,8 @@ class PlanRulesTest {
     }
 
     private static PlanItem planned(String spec, String describePath, String title) {
-        return new PlanItem(spec, title, title, describePath, 1, true, true, null, null, null, null, null, null, null, null, null);
+        return new PlanItem(spec, title, title, describePath, 1, true, true,
+                null, null, null, null, null, null, null, null, null, null, 0, null, null);
     }
 
     @Test

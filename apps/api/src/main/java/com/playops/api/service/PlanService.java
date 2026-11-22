@@ -75,6 +75,8 @@ public class PlanService {
             ScenarioCaseSetting s = settings.get(key(item.specPath(), item.grep()));
             List<ExecutionCaseResult> history = historyFor(item, results);
             ExecutionCaseResult r = history.isEmpty() ? null : history.get(0);
+            ExecutionCaseResult prev = history.size() < 2 ? null : history.get(1);
+            DefectService.FailureStreak defect = item.enabled() ? DefectService.failureStreak(history) : null;
             return new Tracked(new PlanItem(item.specPath(), item.grep(), item.title(), item.describePath(), item.line(),
                     item.enabled(), item.parentEnabled(),
                     s != null ? s.getSortOrder() : null,
@@ -84,6 +86,10 @@ public class PlanService {
                     s != null ? s.getPriority() : null,
                     r != null ? r.getStatus() : null,
                     r != null ? r.getCreatedAt() : null,
+                    prev != null ? prev.getStatus() : null,
+                    prev != null ? prev.getCreatedAt() : null,
+                    defect != null ? defect.status() : null,
+                    defect != null ? defect.failCount() : 0,
                     s != null && s.getUpdatedBy() != null ? names.get(s.getUpdatedBy()) : null,
                     s != null ? s.getUpdatedAt() : null), history);
         }).toList();
@@ -177,7 +183,7 @@ public class PlanService {
             boolean on = enabled && n.enabled();
             if (TEST.equals(n.type())) {
                 out.add(new PlanItem(spec, n.grep(), n.title(), String.join(" > ", describes), n.line(), on, enabled,
-                        null, null, null, null, null, null, null, null, null));
+                        null, null, null, null, null, null, null, null, null, null, 0, null, null));
             } else {
                 List<String> next = new ArrayList<>(describes);
                 next.add(n.title());

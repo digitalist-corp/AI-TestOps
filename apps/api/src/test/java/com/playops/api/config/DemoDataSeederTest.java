@@ -64,7 +64,7 @@ class DemoDataSeederTest {
         planService = mock(PlanService.class);
         when(planService.get("example.com")).thenReturn(new PlanResponse(List.of(
                 new PlanItem("tests/demo.spec.ts", "시연 확인 문의하기 링크가 보인다", "문의하기 링크가 보인다", "시연 확인", 1,
-                        true, true, null, null, null, null, null, null, null, null, null)), null));
+                        true, true, null, null, null, null, null, null, null, null, null, null, 0, null, null)), null));
         templateService = mock(PlaywrightTemplateService.class);
         users = mock(UserRepository.class);
         members = mock(ProjectMemberRepository.class);

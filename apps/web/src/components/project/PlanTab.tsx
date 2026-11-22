@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { AllCommunityModule, ModuleRegistry, type ColDef, type ICellRendererParams } from 'ag-grid-community';
-import { ClipboardList, Download, Loader2, Play, X } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Download, Loader2, Play, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { CaseFocus, PlanItem, PlanItemKey, PlanPriority, ProjectMember, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -31,10 +31,16 @@ const PRIORITY_OPTIONS = ['', 'HIGH', 'MEDIUM', 'LOW'];
 /** 엑셀 내보내기 판정 표기 (설계 2-2). 지금 데이터는 통과 · 실패 · 미수행 3값 */
 const VERDICT_EXPORT = { PASSED: 'Pass', FAILED: 'Fail' } as const;
 
+function defectLabel(item: PlanItem) {
+  if (!item.enabled) return '';
+  if (item.defectStatus === 'OPEN') return `미해결 · ${item.defectFailCount}회 연속 실패`;
+  return item.defectStatus === 'RESOLVED' ? '해결' : '';
+}
+
 /** 계획 표를 표준 TC 칸 순서로. 대분류는 화면 이름, 모르면 파일 경로 */
 function planCsvRows(items: PlanItem[], screens: Map<string, string>) {
   return [
-    ['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행'],
+    ['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행', '직전 결과', '결함'],
     ...items.map((i, n) => [
       `TC-${String(n + 1).padStart(3, '0')}`,
       screens.get(planKey(i.specPath, i.title)) ?? i.specPath,
@@ -45,6 +51,8 @@ function planCsvRows(items: PlanItem[], screens: Map<string, string>) {
       i.priority ? PRIORITY_LABEL[i.priority] : '',
       i.lastStatus ? VERDICT_EXPORT[i.lastStatus] : 'Untested',
       i.lastRunAt ?? '',
+      i.prevStatus ? VERDICT_EXPORT[i.prevStatus] : 'Untested',
+      defectLabel(i),
     ]),
   ];
 }
@@ -61,8 +69,8 @@ const memberName = (m: ProjectMember) => m.displayName || m.username;
  * 셀을 고치면 바로 저장하고, 저장이 실패하면 원래 값으로 되돌린다. 체크한(사용 중) 항목만 실행된다.
  * readOnly(팀원): 고치지 못하고 보기 · 실행만 한다.
  */
-export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = false, onOpenExecution }: {
-  projectId: string; onRun: () => void; readOnly?: boolean;
+export function PlanTab({ projectId, onRun, onOpenDefects, readOnly = false, runDisabled = false, onOpenExecution }: {
+  projectId: string; onRun: () => void; onOpenDefects?: () => void; readOnly?: boolean;
   /** 이 프로젝트의 테스트가 이미 돌고 있으면 실행 버튼을 잠근다 */
   runDisabled?: boolean;
   /** 정기 실행 칸의 실패를 누르면 그 실행 결과로 (F-3) */
@@ -118,6 +126,19 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
   const replace = (next: PlanItem) =>
     setItems((list) => list?.map((i) => (rowId(i) === rowId(next) ? next : i)) ?? list);
 
+  const refreshEnabledResults = (ids: Set<string>) => {
+    // 미사용 상태로 받은 행에는 결함이 없으므로, 사용으로 바꾼 뒤 서버의 판정을 다시 읽는다.
+    api.plan.get(projectId).then(({ items: fresh }) => {
+      const byId = new Map(fresh.filter((i) => i.enabled && ids.has(rowId(i))).map((i) => [rowId(i), i]));
+      setItems((list) => list?.map((i) => {
+        const result = byId.get(rowId(i));
+        if (!i.enabled || !result) return i;
+        const { lastStatus, lastRunAt, prevStatus, prevRunAt, defectStatus, defectFailCount } = result;
+        return { ...i, lastStatus, lastRunAt, prevStatus, prevRunAt, defectStatus, defectFailCount };
+      }) ?? list);
+    }).catch(() => setNotice('최근 결과와 결함을 다시 불러오지 못했어요.'));
+  };
+
   const save = (before: PlanItem, change: Change) => {
     // 최근 수정은 저장하면 서버도 나로 바뀌므로 화면에서 먼저 바꿔 둔다.
     const after = { ...before, ...change, updatedByName: me?.displayName || me?.username || null, updatedAt: new Date().toISOString() };
@@ -132,6 +153,9 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
         dueDate: after.dueDate,
         priority: after.priority,
       })
+      .then(() => {
+        if (change.enabled) refreshEnabledResults(new Set([rowId(after)]));
+      })
       .catch(() => {
         replace(before);
         setNotice('저장하지 못했어요. 다시 시도해 주세요.');
@@ -145,10 +169,14 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
     const before = items;
     const ids = new Set(targets.map(rowId));
     setItems((list) => list?.map((i) => (ids.has(rowId(i)) ? { ...i, enabled } : i)) ?? list);
-    api.plan.setEnabled(projectId, targets.map(keyOf), enabled).catch(() => {
-      setItems(before);
-      setNotice('저장하지 못했어요. 다시 시도해 주세요.');
-    });
+    api.plan.setEnabled(projectId, targets.map(keyOf), enabled)
+      .then(() => {
+        if (enabled) refreshEnabledResults(ids);
+      })
+      .catch(() => {
+        setItems(before);
+        setNotice('저장하지 못했어요. 다시 시도해 주세요.');
+      });
   };
 
   const columnDefs = useMemo<ColDef<PlanItem>[]>(
@@ -263,6 +291,48 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
         },
       },
       {
+        headerName: '직전 결과',
+        width: 110,
+        field: 'prevStatus',
+        // 직전 판정이 같아도 최근 판정이 바뀌면 화살표를 다시 그린다.
+        equals: () => false,
+        tooltipValueGetter: (p) => p.data?.prevRunAt ? new Date(p.data.prevRunAt).toLocaleString('ko-KR') : undefined,
+        cellRenderer: (p: ICellRendererParams<PlanItem, PlanItem['prevStatus']>) => {
+          const view = RESULT_VIEW[p.value ?? 'NONE'];
+          const latest = p.data?.lastStatus;
+          return (
+            <span className="inline-flex items-center gap-1">
+              {p.value && latest && p.value !== latest && (
+                <span className="text-foreground" title={`결과 변경: ${view.label} → ${RESULT_VIEW[latest].label}`}>
+                  <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
+                  <span className="sr-only">결과 변경</span>
+                </span>
+              )}
+              <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${view.className}`}>{view.label}</span>
+            </span>
+          );
+        },
+      },
+      {
+        headerName: '결함',
+        width: 184,
+        valueGetter: (p) => p.data ? defectLabel(p.data) : '',
+        cellRenderer: (p: ICellRendererParams<PlanItem, string>) => {
+          if (!p.value) return null;
+          const badge = 'rounded px-2 py-0.5 text-xs font-medium';
+          if (p.data?.defectStatus === 'RESOLVED') {
+            return <span className={`${badge} bg-muted text-muted-foreground`}>{p.value}</span>;
+          }
+          const openBadge = `${badge} bg-destructive/10 text-destructive`;
+          return onOpenDefects ? (
+            <button type="button" title="결함 목록 열기" className={`${openBadge} hover:underline`}
+                    onClick={(e) => { e.stopPropagation(); onOpenDefects(); }}>
+              {p.value}
+            </button>
+          ) : <span className={openBadge}>{p.value}</span>;
+        },
+      },
+      {
         headerName: '최근 수정',
         width: 150,
         valueGetter: (p) =>
@@ -271,7 +341,7 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
     ],
     // save · setItems 는 매번 새로 만들어지지만 최신 상태를 쓰므로 화면 이름이 바뀔 때만 열을 다시 만든다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [screens, members, projectId, suiteId, readOnly]
+    [screens, members, projectId, suiteId, readOnly, onOpenDefects]
   );
 
   // 날짜 칸은 기존 열 맨 끝에 붙인다.

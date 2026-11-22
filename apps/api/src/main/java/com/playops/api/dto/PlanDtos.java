@@ -10,7 +10,8 @@ public final class PlanDtos {
     private PlanDtos() {}
 
     /**
-     * lastStatus: PASSED | FAILED | null(미수행). priority: HIGH | MEDIUM | LOW | null.
+     * lastStatus · prevStatus: PASSED | FAILED | null(해당 실행 없음). priority: HIGH | MEDIUM | LOW | null.
+     * defectStatus: OPEN | RESOLVED | null. defectFailCount: 최근 연속 실패 수, 결함이 없으면 0.
      * parentEnabled: 파일 · 상위 묶음이 모두 사용 중인지. false 면 이 행만 켜도 실행되지 않는다.
      * assignee · assigneeUserId: 담당자 이름과 계정(#119). 계정이 없으면 이관 전에 손으로 쓴 이름만 있다.
      * updatedByName · updatedAt: 계획 칸을 마지막으로 고친 사람 · 때 (#118). 고친 적이 없으면 비어 있다.
@@ -18,6 +19,7 @@ public final class PlanDtos {
     public record PlanItem(String specPath, String grep, String title, String describePath, int line,
                            boolean enabled, boolean parentEnabled, Integer sortOrder, String assignee, Long assigneeUserId,
                            LocalDate dueDate, String priority, String lastStatus, Instant lastRunAt,
+                           String prevStatus, Instant prevRunAt, String defectStatus, int defectFailCount,
                            String updatedByName, Instant updatedAt) {}
 
     /** passed · failed · notRun 은 사용 중 항목만 센다. completionRate = passed / enabled (0~1). */

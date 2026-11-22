@@ -21,14 +21,16 @@ vi.mock('@/api/client', () => ({
 const item = (over: Partial<PlanItem>): PlanItem => ({
   specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1,
   enabled: true, parentEnabled: true, sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
+  prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,
   assigneeUserId: null, updatedByName: null, updatedAt: null,
   ...over,
 });
 
 const plan: PlanResponse = {
   items: [
-    item({ updatedByName: '김윤재', updatedAt: new Date().toISOString() }),
-    item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED', assignee: '김윤재', assigneeUserId: 7 }),
+    item({ updatedByName: '김윤재', updatedAt: new Date().toISOString(), prevStatus: 'FAILED', defectStatus: 'RESOLVED', defectFailCount: 1 }),
+    item({ grep: '로그아웃된다', title: '로그아웃된다', line: 9, lastStatus: 'FAILED', prevStatus: 'FAILED',
+      assignee: '김윤재', assigneeUserId: 7, defectStatus: 'OPEN', defectFailCount: 3 }),
     item({ grep: '탈퇴된다', title: '탈퇴된다', line: 20, enabled: false, lastStatus: null }),
     item({ specPath: 'tests/off.spec.ts', grep: '꺼진 파일', title: '꺼진 파일', enabled: false, parentEnabled: false, lastStatus: null }),
   ],
@@ -59,12 +61,46 @@ describe('PlanTab', () => {
 
     const [fileName, rows] = vi.mocked(downloadCsv).mock.calls[0];
     expect(fileName).toMatch(/^p1-계획-\d{8}\.csv$/);
-    expect(rows[0]).toEqual(['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행']);
+    expect(rows[0]).toEqual(['TC ID', '대분류', '케이스명', '사용', '담당자', '마감일', '우선순위', '판정', '최근 실행', '직전 결과', '결함']);
     expect(rows).toHaveLength(5);
-    expect(rows[1]).toEqual(['TC-001', 'tests/login.spec.ts', '로그인된다', '사용', '(계정 없음) 윤재', '', '', 'Pass', '']);
+    expect(rows[1]).toEqual(['TC-001', 'tests/login.spec.ts', '로그인된다', '사용', '(계정 없음) 윤재', '', '', 'Pass', '', 'Fail', '해결']);
     expect(rows[2].slice(2, 8)).toEqual(['로그아웃된다', '사용', '김윤재', '', '', 'Fail']);
+    expect(rows[2].slice(9)).toEqual(['Fail', '미해결 · 3회 연속 실패']);
     expect(rows[3].slice(2, 4)).toEqual(['탈퇴된다', '미사용']);
     expect(rows[3][7]).toBe('Untested');
+    expect(rows[3].slice(9)).toEqual(['Untested', '']);
+  });
+
+  it('직전 결과와 결과 변경을 보여 주고 미해결 결함에서 결함 목록을 연다', async () => {
+    const onOpenDefects = vi.fn();
+    render(<PlanTab projectId="p1" onRun={() => {}} onOpenDefects={onOpenDefects} />);
+
+    const openDefect = await screen.findByRole('button', { name: '미해결 · 3회 연속 실패' });
+    const columnIndex = (name: string) => Number(screen.getByText(name).closest('[aria-colindex]')?.getAttribute('aria-colindex'));
+    expect(columnIndex('직전 결과')).toBe(columnIndex('최근 결과') + 1);
+    expect(columnIndex('결함')).toBe(columnIndex('직전 결과') + 1);
+    expect(screen.getByTitle('결과 변경: 실패 → 성공').parentElement?.textContent).toContain('실패');
+    expect(screen.getByText('해결')).toBeTruthy();
+    fireEvent.click(openDefect);
+    expect(onOpenDefects).toHaveBeenCalledOnce();
+
+    vi.mocked(api.plan.patch).mockResolvedValue(undefined);
+    fireEvent.click(screen.getByRole('checkbox', { name: '로그아웃된다 사용' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: '미해결 · 3회 연속 실패' })).toBeNull());
+  });
+
+  it('미사용 행을 켜면 서버에서 결함을 다시 읽는다', async () => {
+    vi.mocked(api.plan.patch).mockResolvedValue(undefined);
+    vi.mocked(api.plan.get).mockResolvedValueOnce(plan).mockResolvedValueOnce({
+      ...plan,
+      items: plan.items.map((i) => i.title === '탈퇴된다'
+        ? { ...i, enabled: true, lastStatus: 'FAILED', defectStatus: 'OPEN', defectFailCount: 1 }
+        : i),
+    });
+    render(<PlanTab projectId="p1" onRun={() => {}} />);
+
+    fireEvent.click(await screen.findByRole('checkbox', { name: '탈퇴된다 사용' }));
+    expect(await screen.findByText('미해결 · 1회 연속 실패')).toBeTruthy();
   });
 
   it('코드 용어 없이 업무 열 이름을 보여 준다', async () => {
