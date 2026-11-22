@@ -73,7 +73,7 @@ public class DefectService {
         List<Defect> defects = new ArrayList<>();
         for (Tracked t : planService.tracked(projectId)) {
             PlanItem item = t.item();
-            if (!item.enabled()) continue;
+            if (!item.enabled() || PlanService.unwritten(item)) continue; // 미작성 계획 행은 테스트가 없어 결함도 없다
             if (assigneeUserId != null && !assigneeUserId.equals(item.assigneeUserId())) continue;
             if (suite != null && !inSuite(suiteSpecs, suite.getGrep(), item)) continue;
             Defect d = defectOf(item, t.history());
