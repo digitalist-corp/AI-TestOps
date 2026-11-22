@@ -75,13 +75,15 @@ beforeEach(() => {
   vi.mocked(api.plan.get).mockResolvedValue({
     items: [
       {
+        planId: null, stage: 'WRITTEN', screenRouteKey: null, expected: null, aiJobId: null, aiJobStatus: null,
         specPath: 'tests/login.spec.ts', grep: '로그인된다', title: '로그인된다', describePath: '', line: 1, enabled: true, parentEnabled: true,
         sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: 'FAILED', lastRunAt: null,
         prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,
         assigneeUserId: null, updatedByName: null, updatedAt: null,
       },
     ],
-    summary: { total: 10, enabled: 8, disabled: 2, passed: 6, failed: 1, notRun: 1, completionRate: 0.75 },
+    screens: [],
+    summary: { total: 10, enabled: 8, unwritten: 0, written: 8, writtenRate: 1, disabled: 2, passed: 6, failed: 1, notRun: 1, completionRate: 0.75 },
   });
 });
 
@@ -190,7 +192,8 @@ describe('ProjectDashboardTab', () => {
     vi.mocked(api.rounds.list).mockResolvedValue([]);
     vi.mocked(api.plan.get).mockResolvedValue({
       items: [],
-      summary: { total: 0, enabled: 0, disabled: 0, passed: 0, failed: 0, notRun: 0, completionRate: 0 },
+      screens: [],
+      summary: { total: 0, enabled: 0, unwritten: 0, written: 0, writtenRate: 0, disabled: 0, passed: 0, failed: 0, notRun: 0, completionRate: 0 },
     });
     render(
       <MemoryRouter>

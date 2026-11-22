@@ -1,7 +1,7 @@
 import type { PlanDailyCell, PlanDailyResponse, PlanItem, PlanItemKey } from '@/types';
 
 /** 일자별 정기 실행 격자 (F-3) 규칙. 계획 표 행과 (파일 경로, grep)으로 잇는다. */
-export const dailyRowId = (k: PlanItemKey) => `${k.specPath}\n${k.grep}`;
+export const dailyRowId = (k: Pick<PlanItemKey, 'specPath' | 'grep'>) => `${k.specPath}\n${k.grep}`;
 
 export function cellsByRow(daily: PlanDailyResponse): Map<string, PlanDailyCell[]> {
   return new Map(daily.items.map((i) => [dailyRowId(i), i.cells]));
