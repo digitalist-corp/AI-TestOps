@@ -36,6 +36,7 @@ services:
       # 시연용 PM 계정 (시연 프로젝트 PM). 비밀번호가 비면 만들지 않는다
       DEMO_PM_USERNAME: ${DEMO_PM_USERNAME:-demo-pm}
       DEMO_PM_PASSWORD: ${DEMO_PM_PASSWORD:-}
+      DEMO_SEED_SCHEDULE_HISTORY: ${DEMO_SEED_SCHEDULE_HISTORY:-false}
       # 셀프 회귀(playops-self) 전용 관리자 계정. 비밀번호가 비면 만들지 않는다
       SELFTEST_USERNAME: ${SELFTEST_USERNAME:-selftest}
       SELFTEST_PASSWORD: ${SELFTEST_PASSWORD:-}

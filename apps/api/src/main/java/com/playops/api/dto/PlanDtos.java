@@ -38,4 +38,18 @@ public final class PlanDtos {
     public record OrderRequest(List<ItemKey> items) {}
 
     public record BulkEnabledRequest(List<ItemKey> items, boolean enabled) {}
+
+    // ── 일자별 정기 실행 격자 (F-3) ──
+
+    /** status: PASSED | FAILED | null(그날 정기 실행 결과 없음). executionId: 그날 마지막 정기 실행 */
+    public record DailyCell(LocalDate date, String status, Long executionId) {}
+
+    /** cells 는 days 와 같은 순서(오래된 날 → 오늘) */
+    public record DailyItem(String specPath, String grep, List<DailyCell> cells) {}
+
+    /** 사용 중 항목만 센다. passRate = passed / (passed + failed) (0~1), 그날 결과가 없으면 null */
+    public record DailyTotal(LocalDate date, int passed, int failed, int enabled, Double passRate) {}
+
+    /** days: 오래된 날 → 오늘 (Asia/Seoul 날짜) */
+    public record DailyResponse(List<LocalDate> days, List<DailyItem> items, List<DailyTotal> totals) {}
 }
