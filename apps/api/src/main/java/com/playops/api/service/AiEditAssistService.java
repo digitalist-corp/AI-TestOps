@@ -51,7 +51,7 @@ public class AiEditAssistService {
                 You will be given the file's CURRENT full content (may be empty) and a natural-language instruction.
                 Return ONLY the complete, updated file content reflecting the instruction —
                 no markdown code fences, no explanation, no diff syntax, just the raw new file content.
-                """.formatted(project.getPlaywrightVersion(), filePath);
+                """.formatted(project.getPlaywrightVersion(), filePath) + stepRules(filePath, currentContent);
 
         String userPrompt = "현재 파일 내용:\n```\n"
                 + (currentContent != null ? currentContent : "")
@@ -60,6 +60,14 @@ public class AiEditAssistService {
         String raw = llmGatewayService.chat(null, systemPrompt, userPrompt,
                 "편집 도움", project.getProjectId());
         return stripMarkdownFence(raw);
+    }
+
+    /** 비어 있는 spec 파일(새로 쓰기)에는 한국어 단계 규칙 전체를, 이미 내용이 있는 파일에는 있던 단계 이름 유지 규칙을 붙인다 (V-3). */
+    private static String stepRules(String filePath, String currentContent) {
+        if (currentContent != null && !currentContent.isBlank()) {
+            return SpecStepRules.KEEP;
+        }
+        return filePath.matches(".*\\.(spec|test)\\.[cm]?[jt]sx?$") ? SpecStepRules.GENERATE : "";
     }
 
     public AiEditAssistVerifyResponse verifyEdit(String projectId, String filePath, String proposedContent, String specPath) {
