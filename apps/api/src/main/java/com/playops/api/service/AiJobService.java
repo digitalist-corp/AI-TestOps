@@ -305,14 +305,14 @@ public class AiJobService {
         }
     }
 
-    private String generateSpecContent(Project project, String targetSpecPath, String instruction, List<String> routeKeys) {
+    String generateSpecContent(Project project, String targetSpecPath, String instruction, List<String> routeKeys) {
         String systemPrompt = """
                 You are an expert QA automation engineer specializing in Playwright v%s and TypeScript,
                 working inside an existing AI-TestOps-managed test project.
                 Generate ONE complete, executable Playwright spec file to be saved at "%s",
                 implementing the user's natural-language scenario request.
                 Return ONLY the raw TypeScript code for that file — no markdown code fences, no explanation, no JSON wrapper.
-                """.formatted(project.getPlaywrightVersion(), targetSpecPath);
+                """.formatted(project.getPlaywrightVersion(), targetSpecPath) + SpecStepRules.GENERATE;
 
         // 구조 분석(코드) 또는 사이트 탐색 결과가 있으면 추측 대신 확인된 셀렉터를 쓰게 한다.
         // 소스 저장소가 없는 프로젝트도 사이트 탐색 화면(origin=SITE)이 같은 표로 들어오므로 따로 분기하지 않는다.

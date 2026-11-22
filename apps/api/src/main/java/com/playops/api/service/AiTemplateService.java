@@ -49,7 +49,7 @@ public class AiTemplateService {
                 }
 
                 Do not include markdown code block formatting (like ```json). Return pure raw JSON.
-                """;
+                """ + SpecStepRules.GENERATE;
 
             String userPrompt = String.format(
                 "Target Web URL: %s\nTemplate Name Suggestion: %s\nUser Requirements: %s",
