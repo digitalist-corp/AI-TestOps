@@ -203,6 +203,8 @@ Fix the failing test by editing the target spec file and/or the related files sh
 The test must keep checking the real site: never replace page.goto with page.setContent, never fake responses with
 page.route/route.fulfill, and never remove or weaken assertions, skip tests, or delete cases. If the site really lacks
 what the test expects, fix the locator to what the site actually shows instead of faking the page.
+Keep every existing test.step('...') name as it is — do not delete, merge, or translate it into English.
+Any test.step you add gets a short Korean business-term name (for example '로그인 버튼 누르기').
 Respond with ONLY the JSON object described in the instructions — no explanation, no markdown fences.`;
 
   let lastFailureOutput = job.failureLog || '(초기 실패 로그 없음)';

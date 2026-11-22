@@ -143,11 +143,20 @@ public class DefectService {
 
     // ── 규칙 (테스트용 package-private) ──
 
+    record FailureStreak(int latestFail, int firstFail) {
+        String status() {
+            return latestFail == 0 ? OPEN : RESOLVED;
+        }
+
+        int failCount() {
+            return firstFail - latestFail + 1;
+        }
+    }
+
     /**
-     * 결과 이력(최신 실행부터)으로 결함을 만든다. 실패한 적이 없으면 null.
      * 가장 최근의 연속 실패가 이번 결함이다. 그 뒤에 통과가 있으면 해결.
      */
-    static Defect defectOf(PlanItem item, List<ExecutionCaseResult> newestFirst) {
+    static FailureStreak failureStreak(List<ExecutionCaseResult> newestFirst) {
         int latestFail = -1;
         for (int i = 0; i < newestFirst.size(); i++) {
             if ("FAILED".equals(newestFirst.get(i).getStatus())) {
@@ -160,6 +169,15 @@ public class DefectService {
         while (firstFail + 1 < newestFirst.size() && "FAILED".equals(newestFirst.get(firstFail + 1).getStatus())) {
             firstFail++;
         }
+        return new FailureStreak(latestFail, firstFail);
+    }
+
+    /** 결과 이력(최신 실행부터)으로 결함을 만든다. 실패한 적이 없으면 null. */
+    static Defect defectOf(PlanItem item, List<ExecutionCaseResult> newestFirst) {
+        FailureStreak streak = failureStreak(newestFirst);
+        if (streak == null) return null;
+        int firstFail = streak.firstFail();
+        int latestFail = streak.latestFail();
         ExecutionCaseResult first = newestFirst.get(firstFail);
         ExecutionCaseResult lastFailed = newestFirst.get(latestFail);
         ExecutionCaseResult last = newestFirst.get(0);
@@ -171,8 +189,8 @@ public class DefectService {
             if (r == resolved) break;
         }
         return new Defect(item.specPath(), item.grep(), item.title(), item.describePath(),
-                resolved == null ? OPEN : RESOLVED,
-                item.assignee(), item.assigneeUserId(), firstFail - latestFail + 1,
+                streak.status(),
+                item.assignee(), item.assigneeUserId(), streak.failCount(),
                 first.getExecutionId(), first.getCreatedAt(),
                 last.getExecutionId(), last.getCreatedAt(),
                 resolved == null ? null : resolved.getExecutionId(), resolved == null ? null : resolved.getCreatedAt(),

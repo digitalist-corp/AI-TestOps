@@ -551,6 +551,9 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ items, enabled }),
       }),
+    /** 일자별 정기 실행 결과 (F-3). days 는 서버가 1~31 로 맞춘다 */
+    daily: (projectId: string, days = 7) =>
+      request<import('@/types').PlanDailyResponse>(`/api/projects/${projectId}/plan/daily?days=${days}`),
   },
 
   defects: {

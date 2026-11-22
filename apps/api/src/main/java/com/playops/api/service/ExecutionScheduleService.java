@@ -169,6 +169,7 @@ public class ExecutionScheduleService {
             Execution execution = testExecutionService.createExecution(
                     schedule.getProjectId(), null, schedule.getSpecPath(), null, null);
             execution.setSource("SCHEDULED");
+            execution.setScheduleId(schedule.getId()); // 일자별 정기 실행 격자(F-3)가 정기 실행을 고른다
             executionRepository.save(execution);
 
             try {
