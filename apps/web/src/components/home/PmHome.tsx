@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { AiJob, PlanItem, Project } from '@/types';
+import type { AiJob, PlanItem, PlanSummary, Project } from '@/types';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { assigneeLabel, byAssignee, overdue, planCounts } from '@/lib/plan';
 import { OpenDefects, ProgressBar, Section, StatusAndPeriod, daysSince, progressOf, today } from './parts';
@@ -16,29 +16,37 @@ function Chip({ to, label, alert }: { to?: string; label: string; alert?: boolea
 }
 
 /**
- * PM 홈 (A7, 설계 4-2): 확인할 것 칩 줄 → 프로젝트 카드(위험순). 제목 · '진척률' 낱말은 시연 리허설이 본다.
+ * PM 홈 (A7, 설계 4-2): 확인할 것 칩 줄 → 프로젝트 카드(위험순). 제목은 시연 리허설이 본다.
+ * 완료율 = 서버 summary.completionRate (통과 ÷ 사용 중 계획, 아직 작성하지 않은 항목도 분모). 퍼널 한 줄: 계획 N · 작성 x% · 완료 y%.
  */
-export function PmHome({ projects, plans, defects, needsReview, aiJobs }: {
+export function PmHome({ projects, plans, summaries, defects, needsReview, aiJobs }: {
   projects: Project[];
   plans: Record<string, PlanItem[]>;
+  /** 서버가 센 계획 요약. 아직 못 받았으면 없다 */
+  summaries: Record<string, PlanSummary>;
   defects: Record<string, number>;
   /** 서버가 내 프로젝트로 거른 NEEDS_REVIEW 작업 */
   needsReview: AiJob[];
   aiJobs: Record<string, AiJob[]>;
 }) {
   const day = today();
+  /** 완료율(%). summary 를 못 받았으면 항목으로 센 값 */
+  const rateOf = (pid: string) => {
+    const s = summaries[pid];
+    return s ? Math.round(s.completionRate * 100) : progressOf(plans[pid] ?? []);
+  };
   const reviewOf = (pid: string) => needsReview.filter((j) => j.projectId === pid);
   const allReview = projects.flatMap((p) => reviewOf(p.projectId));
   const oldest = [...allReview].sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))[0];
   const review = waiting(allReview);
   const lateCount = projects.reduce((n, p) => n + overdue(plans[p.projectId] ?? [], day).length, 0);
   const unassigned = projects.reduce((n, p) => n + (plans[p.projectId] ?? []).filter((i) => i.enabled && !assigneeLabel(i)).length, 0);
-  // 위험순: 기한 지남 → 미해결 결함 → 진척률 낮은 순
+  // 위험순: 기한 지남 → 미해결 결함 → 완료율 낮은 순
   const sorted = [...projects].sort((a, b) => {
     const ia = plans[a.projectId] ?? [], ib = plans[b.projectId] ?? [];
     return overdue(ib, day).length - overdue(ia, day).length
       || (defects[b.projectId] ?? 0) - (defects[a.projectId] ?? 0)
-      || progressOf(ia) - progressOf(ib);
+      || rateOf(a.projectId) - rateOf(b.projectId);
   });
 
   return (
@@ -55,6 +63,7 @@ export function PmHome({ projects, plans, defects, needsReview, aiJobs }: {
         const items = plans[p.projectId] ?? [];
         const late = overdue(items, day);
         const counts = planCounts(items);
+        const summary = summaries[p.projectId];
         const pReview = waiting(reviewOf(p.projectId));
         const jobs = aiJobs[p.projectId] ?? [];
         const healed = jobs.filter((j) => j.status === 'APPLIED' && j.postApplyVerificationStatus === 'PASSED').length;
@@ -70,10 +79,15 @@ export function PmHome({ projects, plans, defects, needsReview, aiJobs }: {
               </div>
               <span className="flex shrink-0 items-center gap-4">
                 <OpenDefects projectId={p.projectId} count={defects[p.projectId]} />
-                <span className="text-sm font-medium text-foreground">진척률 {progressOf(items)}%</span>
+                <span className="text-sm font-medium text-foreground">완료율 {rateOf(p.projectId)}%</span>
               </span>
             </div>
-            <ProgressBar value={progressOf(items)} />
+            <ProgressBar value={rateOf(p.projectId)} />
+            {summary && (
+              <p className="text-sm text-muted-foreground">
+                계획 {summary.enabled} · 작성 {Math.round(summary.writtenRate * 100)}% · 완료 {Math.round(summary.completionRate * 100)}%
+              </p>
+            )}
             {items.length === 0 ? (
               <p className="text-sm text-muted-foreground">아직 계획 항목이 없습니다. 계획 탭에서 테스트를 정해 주세요.</p>
             ) : (
@@ -88,7 +102,7 @@ export function PmHome({ projects, plans, defects, needsReview, aiJobs }: {
                         <th className="py-1 text-right font-medium">통과</th>
                         <th className="py-1 text-right font-medium">실패</th>
                         <th className="py-1 text-right font-medium">미수행</th>
-                        <th className="py-1 text-right font-medium">진척률</th>
+                        <th className="py-1 text-right font-medium">완료율</th>
                       </tr>
                     </thead>
                     <tbody>

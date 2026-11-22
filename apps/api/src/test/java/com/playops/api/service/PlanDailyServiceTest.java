@@ -176,4 +176,17 @@ class PlanDailyServiceTest {
         assertThat(res.totals()).allMatch(t -> t.passRate() == null);
         verify(executions, never()).findAllById(anyIterable());
     }
+
+    /** 계획 우선 흐름: 미작성 계획 행은 실행되지 않으므로 격자 줄도, 합계의 사용 중 수도 아니다. */
+    @Test
+    void unwrittenPlansAreLeftOutOfTheGrid() {
+        PlanItem unwritten = new PlanItem("", "", "결제한다", "", 0, true, true, null, null, null, null, null,
+                null, null, null, null, null, 0, null, null, 5L, "UNWRITTEN", null, null, null, null);
+        List<Tracked> tracked = List.of(new Tracked(items(true).get(0), List.of()), new Tracked(unwritten, List.of()));
+
+        DailyResponse res = PlanDailyService.build(tracked, Set.of(), TODAY, 1);
+
+        assertThat(res.items()).hasSize(1);
+        assertThat(res.totals().get(0).enabled()).isEqualTo(1);
+    }
 }

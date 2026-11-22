@@ -19,7 +19,7 @@ const SHOWN: RoundChange[] = ['NEW_FAIL', 'STILL_FAIL', 'FIXED', 'FIRST_RUN'];
 const FOLDED: RoundChange[] = ['STILL_PASS', 'SKIPPED'];
 const TREND_ROUNDS = 12;
 
-export function changeToneClass(change: RoundChange) {
+function changeToneClass(change: RoundChange) {
   return TONE[CHANGE_META[change].tone];
 }
 
