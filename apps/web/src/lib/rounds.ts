@@ -193,9 +193,3 @@ export function casesByScreen(input: {
   }
   return groups;
 }
-
-/** 지도에 있는 화면 중 테스트가 하나라도 지나는 화면 수 */
-export function mappingStats(groups: ScreenCases[]): { screens: number; mapped: number } {
-  const screens = groups.filter((g) => g.routeKey !== null);
-  return { screens: screens.length, mapped: screens.filter((g) => g.cases.length > 0).length };
-}

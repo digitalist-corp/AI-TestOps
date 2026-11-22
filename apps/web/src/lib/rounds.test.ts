@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CoverageFlow, ExecutionSchedule, ScenarioSpecFile, SiteMapNode, TestRound, TestRoundCase, TestRoundDetail } from '@/types';
-import { casesByScreen, mappingStats, nextScheduledRun, roundOptionLabel, roundSentence } from './rounds';
+import { casesByScreen, nextScheduledRun, roundOptionLabel, roundSentence } from './rounds';
 
 const round = (over: Partial<TestRound> = {}): TestRound => ({
   round: 3,
@@ -173,6 +173,5 @@ describe('casesByScreen', () => {
     ]);
     expect(groups[1].counts).toEqual({ passed: 0, failed: 1, skipped: 0, notRun: 1 });
     expect(groups[0].cases[1].change).toBe('NEW_FAIL');
-    expect(mappingStats(groups)).toEqual({ screens: 3, mapped: 2 });
   });
 });

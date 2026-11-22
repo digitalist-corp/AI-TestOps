@@ -3,6 +3,8 @@ import { samePath, type ScreenCases } from '@/lib/rounds';
 
 export const PRIORITY_LABEL: Record<PlanPriority, string> = { HIGH: '높음', MEDIUM: '보통', LOW: '낮음' };
 
+export const planSpecPath = (planId: number) => `tests/plan/plan-${planId}.spec.ts`;
+
 export const planKey = (specPath: string, title: string) => `${specPath}\n${title}`;
 
 /** 계획 항목의 최근 결과를 casesByScreen 이 받는 결과 모양으로. 결과 없는 항목은 뺀다. */
@@ -45,6 +47,7 @@ export function failingScreens(groups: ScreenCases[]): { name: string; failed: n
  * 필터(grep)가 있으면 "파일 묶음 제목"이 그 정규식에 맞아야 한다. 잘못된 정규식이면 글자 포함으로 본다.
  */
 export function inSuite(suite: Pick<TestSuite, 'specPaths' | 'grep'>, item: PlanItem): boolean {
+  if (item.stage === 'UNWRITTEN') return false;
   if (!suite.specPaths.some((p) => samePath(p, item.specPath))) return false;
   if (!suite.grep) return true;
   const full = [item.specPath, item.describePath, item.title].filter(Boolean).join(' ');
@@ -57,10 +60,10 @@ export function inSuite(suite: Pick<TestSuite, 'specPaths' | 'grep'>, item: Plan
 
 /** 성공 · 실패 · 미수행은 사용 중 항목만, 미사용은 따로 센다. */
 export function planCounts(items: PlanItem[]): { passed: number; failed: number; notRun: number; disabled: number } {
-  const on = items.filter((i) => i.enabled);
+  const on = items.filter((i) => i.enabled && i.stage !== 'UNWRITTEN');
   const passed = on.filter((i) => i.lastStatus === 'PASSED').length;
   const failed = on.filter((i) => i.lastStatus === 'FAILED').length;
-  return { passed, failed, notRun: on.length - passed - failed, disabled: items.length - on.length };
+  return { passed, failed, notRun: on.length - passed - failed, disabled: items.filter((i) => !i.enabled).length };
 }
 
 /** 담당자 표시: 계정이 있으면 이름, 계정과 잇지 못한 옛 이름은 "(계정 없음) 이름", 없으면 빈 문자열 (#119) */

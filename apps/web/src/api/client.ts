@@ -541,6 +541,36 @@ export const api = {
 
   plan: {
     get: (projectId: string) => request<import('@/types').PlanResponse>(`/api/projects/${projectId}/plan`),
+    create: (projectId: string, data: import('@/types').PlanEntryInput) =>
+      request<import('@/types').PlanItem>(`/api/projects/${projectId}/plan/entries`, {
+        method: 'POST', body: JSON.stringify(data),
+      }),
+    bulkCreate: (projectId: string, entries: import('@/types').PlanEntryInput[]) =>
+      request<{ created: number }>(`/api/projects/${projectId}/plan/entries/bulk`, {
+        method: 'POST', body: JSON.stringify({ entries }),
+      }),
+    patchEntry: (projectId: string, planId: number, data: import('@/types').PlanEntryPatch) =>
+      request<void>(`/api/projects/${projectId}/plan/entries/${planId}`, {
+        method: 'PATCH', body: JSON.stringify(data),
+      }),
+    deleteEntry: (projectId: string, planId: number) =>
+      request<void>(`/api/projects/${projectId}/plan/entries/${planId}`, { method: 'DELETE' }),
+    link: (projectId: string, planId: number, { specPath, grep }: import('@/types').PlanLinkTarget) =>
+      request<void>(`/api/projects/${projectId}/plan/entries/${planId}/link`, {
+        method: 'PUT', body: JSON.stringify({ specPath, grep }),
+      }),
+    unlink: (projectId: string, planId: number) =>
+      request<void>(`/api/projects/${projectId}/plan/entries/${planId}/link`, { method: 'DELETE' }),
+    generate: (projectId: string, planId: number) =>
+      request<import('@/types').AiJob>(`/api/projects/${projectId}/plan/entries/${planId}/generate`, { method: 'POST' }),
+    bulkGenerate: (projectId: string, planIds: number[]) =>
+      request<{ jobs: import('@/types').AiJob[] }>(`/api/projects/${projectId}/plan/entries/generate`, {
+        method: 'POST', body: JSON.stringify({ planIds }),
+      }),
+    linkSuggestions: (projectId: string) =>
+      request<{ suggestions: import('@/types').PlanLinkSuggestion[] }>(`/api/projects/${projectId}/plan/link-suggestions`, {
+        method: 'POST',
+      }),
     /** 한 행 저장. 계획 칸 3개는 항상 덮어쓴다(null = 비움). enabled 를 빼면 사용 여부는 그대로. */
     patch: (projectId: string, data: import('@/types').PlanItemPatch) =>
       request<void>(`/api/projects/${projectId}/plan/items`, { method: 'PATCH', body: JSON.stringify(data) }),

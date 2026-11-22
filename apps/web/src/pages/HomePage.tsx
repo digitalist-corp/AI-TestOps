@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AiJob, AiUsageSummary, AppNotification, Notice, PlanItem, Project, RunnerContainer, User } from '@/types';
+import type { AiJob, AiUsageSummary, AppNotification, Notice, PlanItem, PlanSummary, Project, RunnerContainer, User } from '@/types';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 import { isRunnerReady } from '@/components/project/ProjectCard';
 import { projectTabPath } from '@/config/projectWorkspace';
@@ -15,7 +15,7 @@ import { MemberHome } from '@/components/home/MemberHome';
 
 /**
  * 첫 화면 — 역할마다 다르다 (#107, 설계 docs/superpowers/specs/2026-11-19-role-dashboards-design.md 4절).
- * 관리자: 확인 필요 · KPI · 프로젝트 표 / PM: 확인할 것 칩 · 진척률 · 담당자별 · 승인 대기 / 팀원: 내 할 일 → 바로 실행.
+ * 관리자: 확인 필요 · KPI · 프로젝트 표 / PM: 확인할 것 칩 · 완료율 · 퍼널 · 담당자별 · 승인 대기 / 팀원: 내 할 일 → 바로 실행.
  * 공지는 맨 위 한 줄 띠. 한 사람이 프로젝트마다 PM · 팀원일 수 있어 두 구역이 같이 보일 수 있다.
  * 홈은 보기 · 이동 · 실행만 한다. 승인 · 판정 고치기는 각 탭에서.
  */
@@ -24,6 +24,7 @@ export function HomePage() {
   const { admin, me, roleIn } = useAccess();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [plans, setPlans] = useState<Record<string, PlanItem[]>>({});
+  const [summaries, setSummaries] = useState<Record<string, PlanSummary>>({});
   const [defects, setDefects] = useState<Record<string, number>>({});
   const [needsReview, setNeedsReview] = useState<AiJob[]>([]);
   const [aiJobs, setAiJobs] = useState<Record<string, AiJob[]>>({});
@@ -42,7 +43,11 @@ export function HomePage() {
         setProjects(list);
         for (const p of list) {
           api.plan.get(p.projectId)
-            .then((plan) => alive && setPlans((prev) => ({ ...prev, [p.projectId]: plan.items })))
+            .then((plan) => {
+              if (!alive) return;
+              setPlans((prev) => ({ ...prev, [p.projectId]: plan.items }));
+              setSummaries((prev) => ({ ...prev, [p.projectId]: plan.summary }));
+            })
             .catch(() => {});
           api.defects.list(p.projectId)
             .then((d) => alive && setDefects((prev) => ({ ...prev, [p.projectId]: d.open })))
@@ -144,7 +149,7 @@ export function HomePage() {
       )}
 
       {pmProjects.length > 0 && (
-        <PmHome projects={pmProjects} plans={plans} defects={defects} needsReview={needsReview} aiJobs={aiJobs} />
+        <PmHome projects={pmProjects} plans={plans} summaries={summaries} defects={defects} needsReview={needsReview} aiJobs={aiJobs} />
       )}
 
       {memberProjects.length > 0 && me?.id != null && (

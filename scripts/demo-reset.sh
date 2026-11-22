@@ -6,7 +6,7 @@
 #
 # 하는 일 — 시연용 PM 계정(.env 의 DEMO_PM_USERNAME · DEMO_PM_PASSWORD)으로:
 #   1. tests/demo.spec.ts 를 저장소 원본(링크 이름 '문의하기')으로 덮어쓴다
-#   2. 계획 표의 모든 항목을 '사용'으로 되돌린다
+#   2. 계획 표를 되돌린다 — 시연 중 연결한 계획 행은 연결 해제, 시드 3건 밖의 계획 행은 삭제, 모든 항목 '사용'
 #   3. 시연 프로젝트를 한 번 실행하고(실행 중이면 끝날 때까지 기다림) 끝나기를 기다린다
 #   4. 미해결 결함이 1건('문의하기 링크가 보인다')인지 확인한다 — 아니면 실패로 끝낸다
 #   그 밖에 프로젝트 상태를 '실행'으로 두고, 끝나면 게스트 계정의 알림을 비운다 (3-1)
@@ -39,9 +39,21 @@ echo "1/4 시연 spec 되돌리기"
 jq -n --rawfile c "$SPEC_SOURCE" '{content:$c}' \
   | curl -sf -X PUT "$API/files/content?path=$SPEC_PATH" -H "$AUTH" -H 'Content-Type: application/json' -d @- >/dev/null
 
-echo "2/4 계획 표 모두 '사용'으로"
-curl -sf "$API/plan" -H "$AUTH" | jq '{items: [.items[] | {specPath, grep}], enabled: true}' \
+echo "2/4 계획 표 되돌리기"
+# 시연 시드(DemoDataSeeder)가 넣는 미작성 계획 3건. 시연 중 붙여넣은 계획 · 연결은 지운다.
+SEED_TITLES='["첫 화면 제목이 보인다","안내 페이지가 열린다","첫 화면 설명 문구가 보인다"]'
+for id in $(curl -sf "$API/plan" -H "$AUTH" | jq -r '.items[] | select(.planId != null and .stage == "WRITTEN") | .planId'); do
+  curl -sf -X DELETE "$API/plan/entries/$id/link" -H "$AUTH" >/dev/null
+done
+for id in $(curl -sf "$API/plan" -H "$AUTH" | jq -r --argjson seed "$SEED_TITLES" \
+    '.items[] | select(.planId != null) | select(.title as $t | $seed | index($t) | not) | .planId'); do
+  curl -sf -X DELETE "$API/plan/entries/$id" -H "$AUTH" >/dev/null
+done
+# 미작성 행은 planId 로, 테스트 행은 파일 · grep 으로 '사용'
+curl -sf "$API/plan" -H "$AUTH" \
+  | jq '{items: [.items[] | if .stage == "UNWRITTEN" then {planId, specPath: "", grep: ""} else {specPath, grep} end], enabled: true}' \
   | curl -sf -X PATCH "$API/plan/items/enabled" -H "$AUTH" -H 'Content-Type: application/json' -d @- >/dev/null
+echo "   계획 $(curl -sf "$API/plan" -H "$AUTH" | jq -r '"\(.summary.total)건 · 미작성 \(.summary.unwritten)건"')"
 
 echo "3/4 시연 프로젝트 실행"
 EXEC_ID=""

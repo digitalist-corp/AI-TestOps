@@ -106,13 +106,13 @@ describe('ProjectsPage — 소속 프로젝트가 없는 팀원', () => {
   });
 });
 
-describe('ProjectsPage — 상태 · 기간 · 진척률 (#117)', () => {
-  it('카드에 상태 · 기간 · 진척률을 한글로 보인다', async () => {
+describe('ProjectsPage — 상태 · 기간 · 완료율 (#117)', () => {
+  it('카드에 상태 · 기간 · 완료율을 한글로 보인다', async () => {
     await renderPage();
 
     expect(screen.getByText('실행', { selector: 'span' })).toBeTruthy();
     expect(screen.getByText('2026-11-01 ~ 2026-12-01')).toBeTruthy();
-    expect(await screen.findByText('진척률 40%')).toBeTruthy();
+    expect(await screen.findByText('완료율 40%')).toBeTruthy();
     expect(screen.queryByText('RUNNING')).toBeNull();
   });
 

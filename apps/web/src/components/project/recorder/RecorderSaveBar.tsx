@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, CheckCircle2, Code2, Copy, Loader2, Play, Save, SquareX } from 'lucide-react';
-import { ApiError, type RecorderApi } from '@/api/client';
+import { api, ApiError, type RecorderApi } from '@/api/client';
 import type { RecordedStep } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/Dialog';
 import { Input } from '@/components/ui/Input';
+import { planSpecPath } from '@/lib/plan';
 import { checkSpecPath, recorderErrorMessage, stepsSignature } from '@/lib/recorder';
 
 type Saved = { specPath: string; title: string; signature: string };
@@ -38,6 +39,7 @@ export function RecorderSaveBar({
   rec,
   projectId,
   sessionId,
+  planId,
   steps,
   disabled,
   onSaved,
@@ -48,6 +50,7 @@ export function RecorderSaveBar({
   rec: RecorderApi;
   projectId: string;
   sessionId: string;
+  planId?: number;
   steps: RecordedStep[];
   /** 동작 · 단계 저장이 진행 중이거나 서버가 세션을 잊어서(lost) 코드 · 저장을 부를 수 없는 상태 */
   disabled: boolean;
@@ -57,8 +60,26 @@ export function RecorderSaveBar({
   onRun: (specPath: string, title: string) => void;
   onEnd: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [specPath, setSpecPath] = useState('');
+  const [titleInput, setTitle] = useState<string>();
+  const [pathInput, setSpecPath] = useState<string>();
+  const [suggestedPath, setSuggestedPath] = useState('');
+  const [planLookup, setPlanLookup] = useState<{ id: number; title: string | null }>();
+  const planTitle = planLookup?.id === planId ? planLookup?.title : undefined;
+  const waitingForPlan = planId != null && planLookup?.id !== planId;
+  const title = titleInput ?? planTitle ?? '';
+  const specPath = pathInput ?? (planId != null && planTitle ? planSpecPath(planId) : suggestedPath);
+
+  useEffect(() => {
+    if (planId == null) return;
+    let active = true;
+    api.plan.get(projectId)
+      .then(({ items }) => {
+        const item = items.find((candidate) => candidate.planId === planId);
+        if (active) setPlanLookup({ id: planId, title: item?.title ?? null });
+      })
+      .catch(() => { if (active) setPlanLookup({ id: planId, title: null }); });
+    return () => { active = false; };
+  }, [projectId, planId]);
   const pathTouched = useRef(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -80,10 +101,10 @@ export function RecorderSaveBar({
 
   /** 서버가 제안하는 저장 경로를 받아 채운다. 사람이 경로를 고친 뒤에는 건드리지 않는다. */
   const suggestPath = async (forTitle: string) => {
-    if (pathTouched.current) return;
+    if (pathTouched.current || waitingForPlan || planTitle) return;
     try {
       const res = await rec.code(projectId, sessionId, forTitle.trim() || undefined);
-      if (!pathTouched.current) setSpecPath(res.specPath);
+      if (!pathTouched.current) setSuggestedPath(res.specPath);
     } catch {
       // 제안을 못 받아도 직접 적으면 된다
     }
@@ -92,11 +113,11 @@ export function RecorderSaveBar({
   // 첫 단계가 생기면 한 번 제안을 받아 둔다.
   const suggested = useRef(false);
   useEffect(() => {
-    if (!hasSteps || suggested.current || disabled) return;
+    if (!hasSteps || suggested.current || disabled || waitingForPlan || planTitle) return;
     suggested.current = true;
     void suggestPath(title);
     // 제안은 첫 단계가 생길 때 한 번만 받는다 (이후엔 이름 입력칸을 벗어날 때 갱신)
-  }, [hasSteps, disabled]);
+  }, [hasSteps, disabled, waitingForPlan, planTitle]);
 
   const openCode = async () => {
     setCodeOpen(true);

@@ -6,6 +6,7 @@ import { byAssignee, failingScreens, inSuite, myTodo, overdue, planAsResults, pl
 const counts = { passed: 0, failed: 0, skipped: 0, notRun: 0 };
 const c = (specPath: string, title: string): ScreenCase => ({ specPath, title, state: 'NOT_RUN', change: null, errorMessage: null });
 const item = (over: Partial<PlanItem>): PlanItem => ({
+  planId: null, stage: 'WRITTEN', screenRouteKey: null, expected: null, aiJobId: null, aiJobStatus: null,
   specPath: 'a.spec.ts', grep: '가입', title: '가입', describePath: '', line: 1, enabled: true, parentEnabled: true, sortOrder: null,
   assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null,
   prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,
@@ -83,6 +84,7 @@ describe('planCounts', () => {
 
 describe('역할별 대시보드 집계', () => {
   const row = (over: Partial<PlanItem>): PlanItem => ({
+    planId: null, stage: 'WRITTEN', screenRouteKey: null, expected: null, aiJobId: null, aiJobStatus: null,
     specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
     sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null,
     prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,

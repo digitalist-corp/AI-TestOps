@@ -45,13 +45,14 @@ class DemoDataSeederTest {
     private DemoDataSeeder seeder;
     private UserRepository users;
     private ProjectMemberRepository members;
+    private com.playops.api.repository.PlanEntryRepository entries;
     private PasswordEncoder encoder;
     private ProjectRepository projects;
     private ProjectService projectService;
     private final Project project = new Project();
 
     private DemoDataSeeder seeder(String demoPmPassword) {
-        return new DemoDataSeeder(projects, projectService, templateService, planService, users, members, encoder,
+        return new DemoDataSeeder(projects, projectService, templateService, planService, users, members, entries, encoder,
                 "admin", "guest", "demo-pm", demoPmPassword);
     }
 
@@ -68,6 +69,7 @@ class DemoDataSeederTest {
         templateService = mock(PlaywrightTemplateService.class);
         users = mock(UserRepository.class);
         members = mock(ProjectMemberRepository.class);
+        entries = mock(com.playops.api.repository.PlanEntryRepository.class);
         encoder = new BCryptPasswordEncoder(4);
         seeder = seeder("pw-1234-abcd");
     }
@@ -176,5 +178,40 @@ class DemoDataSeederTest {
         u.setRole(UserRole.USER);
         u.setPassword(encoder.encode(password));
         return u;
+    }
+
+    // ── 시연 계획 행 (계획 우선 흐름): 계획 행이 하나도 없을 때만 ──
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void seedsUnwrittenPlanEntriesWhenThereAreNone() throws Exception {
+        User admin = demoPm("x");
+        admin.setUsername("admin");
+        admin.setDisplayName("관리자");
+        when(users.findByUsername("admin")).thenReturn(Optional.of(admin));
+        when(entries.findByProjectIdOrderByIdAsc("example.com")).thenReturn(List.of());
+
+        seeder.run();
+
+        ArgumentCaptor<List<com.playops.api.entity.PlanEntry>> saved = ArgumentCaptor.forClass(List.class);
+        verify(entries).saveAll(saved.capture());
+        assertThat(saved.getValue()).hasSize(3).allSatisfy(e -> {
+            assertThat(e.getProjectId()).isEqualTo("example.com");
+            assertThat(e.isLinked()).isFalse();
+            assertThat(e.getExpected()).isNotBlank();
+            assertThat(e.getTitle()).doesNotContain("@");
+            assertThat(e.getAssigneeUserId()).isEqualTo(42L);
+            assertThat(e.getDueDate()).isNotNull();
+        });
+        assertThat(saved.getValue()).extracting(com.playops.api.entity.PlanEntry::getTitle).contains("첫 화면 제목이 보인다");
+    }
+
+    @Test
+    void planEntriesAreSeededOnlyOnce() throws Exception {
+        when(entries.findByProjectIdOrderByIdAsc("example.com")).thenReturn(List.of(new com.playops.api.entity.PlanEntry()));
+
+        seeder.run();
+
+        verify(entries, never()).saveAll(any());
     }
 }
