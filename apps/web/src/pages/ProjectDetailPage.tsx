@@ -169,9 +169,10 @@ export function ProjectDetailPage() {
     }
   }, [projectId, tabParam, isAiTab, aiActive, aiChecked, navigate, access.me, activeTab, canManage]);
 
-  const goTab = (tab: ProjectTabId) => {
+  const goTab = useCallback((tab: ProjectTabId) => {
     if (projectId) navigate(projectTabPath(projectId, tab));
-  };
+  }, [navigate, projectId]);
+  const openDefects = useCallback(() => goTab('defects'), [goTab]);
 
   // 헤더에서 누른 동작은 주소(?do=)로 넘겨 테스트 탭이 받아 연다.
   const requestScenarioAction = (action: 'pick') => {
@@ -801,7 +802,8 @@ export function ProjectDetailPage() {
           )}
 
           {activeTab === 'plan' && projectId && (
-            <PlanTab projectId={projectId} onRun={() => handleRun()} readOnly={!canManage} runDisabled={!!activeRun} />
+            <PlanTab key={projectId} projectId={projectId} onRun={() => handleRun()} onOpenDefects={openDefects}
+                     readOnly={!canManage} runDisabled={!!activeRun} />
           )}
 
           {activeTab === 'schedules' && projectId && (

@@ -62,7 +62,7 @@ class DefectServiceTest {
 
     private static PlanItem item(String spec, String title, boolean enabled, Long assigneeUserId) {
         return new PlanItem(spec, title, title, "", 1, enabled, true, null, assigneeUserId == null ? null : "윤재",
-                assigneeUserId, null, null, null, null, null, null);
+                assigneeUserId, null, null, null, null, null, null, null, 0, null, null);
     }
 
     /** 최신 실행부터. "F"=실패, "P"=통과. 실행 번호는 뒤에서부터 1, 2, 3 ... */

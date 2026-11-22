@@ -1213,6 +1213,10 @@ export interface PlanItem {
   priority: PlanPriority | null;
   lastStatus: 'PASSED' | 'FAILED' | null;
   lastRunAt: string | null;
+  prevStatus: 'PASSED' | 'FAILED' | null;
+  prevRunAt: string | null;
+  defectStatus: DefectStatus | null;
+  defectFailCount: number;
   /** 계획 칸을 마지막으로 고친 사람 · 때 (#118). 고친 적이 없으면 null */
   updatedByName: string | null;
   updatedAt: string | null;
