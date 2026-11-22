@@ -31,12 +31,12 @@ export function usePlanDaily(projectId: string): PlanDailyResponse | null {
 export type DailyTotalRow = PlanItem & { dailyRates: (number | null)[] };
 
 export function dailyTotalRow(rates: (number | null)[]): DailyTotalRow {
-  return {
+  // 그리는 데 쓰는 칸만 채운다. PlanItem 에 칸이 늘어도 손댈 필요 없다.
+  const row: Partial<PlanItem> & { dailyRates: (number | null)[] } = {
     specPath: '', grep: '\u0000daily-total', title: '일자별 통과율', describePath: '', line: 0,
-    enabled: false, parentEnabled: false, sortOrder: null, assignee: null, assigneeUserId: null, dueDate: null,
-    priority: null, lastStatus: null, lastRunAt: null, updatedByName: null, updatedAt: null,
-    dailyRates: rates,
+    enabled: false, parentEnabled: false, dailyRates: rates,
   };
+  return row as DailyTotalRow;
 }
 
 /** defaultColDef 용: 고정 행에서는 기존 칸 대신 이 칸을 그린다 (체크박스 · 배지가 생기지 않게). */

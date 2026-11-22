@@ -174,7 +174,8 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
       {
         headerName: '순서',
         width: 80,
-        rowDrag: !readOnly && suiteId === '',
+        // 통과율 고정 행(F-3)은 끌지 않는다
+        rowDrag: (p) => !readOnly && suiteId === '' && !p.node.rowPinned,
         valueGetter: (p) => (p.node?.rowIndex ?? 0) + 1,
       },
       {
@@ -183,7 +184,7 @@ export function PlanTab({ projectId, onRun, readOnly = false, runDisabled = fals
         minWidth: 220,
         filter: true,
         valueGetter: (p) => p.data?.title,
-        tooltipValueGetter: (p) => p.data && `파일: ${p.data.specPath} (${p.data.line}줄)`,
+        tooltipValueGetter: (p) => (p.data && !p.node?.rowPinned ? `파일: ${p.data.specPath} (${p.data.line}줄)` : undefined),
         cellRenderer: (p: ICellRendererParams<PlanItem>) =>
           p.data ? (
             <span>

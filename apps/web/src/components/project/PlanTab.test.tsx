@@ -207,6 +207,32 @@ describe('PlanTab — 정기 실행 날짜 칸 (F-3)', () => {
     expect(await screen.findByLabelText('11/22 통과율 100%')).toBeTruthy();
   });
 
+  it('통과율 고정 행은 끌기 손잡이 · 파일 툴팁이 없다', async () => {
+    vi.mocked(api.plan.daily).mockResolvedValue(daily);
+    const { container } = render(<PlanTab projectId="p1" onRun={() => {}} />);
+    const pinnedCell = (await screen.findByText('일자별 통과율')).closest('.ag-cell')!;
+    const rowCell = screen.getByText('로그아웃된다').closest('.ag-cell')!;
+    expect(container.querySelectorAll('.ag-body .ag-row-drag').length).toBe(4);
+    expect(container.querySelectorAll('.ag-floating-bottom .ag-row-drag').length).toBe(0);
+
+    const hover = async (el: Element) => {
+      fireEvent.mouseOver(el);
+      fireEvent.mouseEnter(el);
+      fireEvent.mouseMove(el);
+      await new Promise((r) => setTimeout(r, 600)); // tooltipShowDelay 300ms
+    };
+    const leave = async (el: Element) => {
+      fireEvent.mouseOut(el);
+      fireEvent.mouseLeave(el);
+      await waitFor(() => expect(document.querySelector('.ag-tooltip')).toBeNull());
+    };
+    await hover(rowCell);
+    expect(document.querySelector('.ag-tooltip')?.textContent).toBe('파일: tests/login.spec.ts (9줄)'); // 일반 행은 그대로
+    await leave(rowCell);
+    await hover(pinnedCell);
+    expect(document.querySelector('.ag-tooltip')).toBeNull();
+  });
+
   it('정기 실행 기록이 하나도 없으면 날짜 칸 대신 안내를 보인다', async () => {
     render(<PlanTab projectId="p1" onRun={() => {}} />);
     expect(await screen.findByText(/정기 실행 기록이 아직 없어요/)).toBeTruthy();
