@@ -33,6 +33,7 @@ function startUrlFromQuery(): string | undefined {
 
 type RecorderTabProps = {
   project: Project;
+  planId?: number;
   /** 테스트 파일을 저장했을 때: 파일 · 케이스 목록을 새로 읽는 데 쓴다 */
   onSaved: () => void;
   onOpenTests: () => void;
@@ -63,6 +64,7 @@ export function RecorderTab(props: RecorderTabProps) {
 
 function RecorderTabBody({
   project,
+  planId,
   rec,
   mock,
   onSaved,
@@ -226,6 +228,7 @@ function RecorderTabBody({
         rec={rec}
         projectId={project.projectId}
         sessionId={state.sessionId}
+        planId={planId}
         steps={state.steps}
         disabled={saveDisabled}
         onSaved={(signature) => {

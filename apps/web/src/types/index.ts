@@ -1192,10 +1192,16 @@ export interface RecorderCode {
   code: string;
 }
 
-/** 테스트 계획 표(F-1). 계획 항목 = 테스트 케이스 하나 (파일 경로 + grep). */
+/** 테스트 계획 표의 계획 행과 기존 테스트 케이스. */
 export type PlanPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 
 export interface PlanItem {
+  planId: number | null;
+  stage: 'UNWRITTEN' | 'WRITTEN';
+  screenRouteKey: string | null;
+  expected: string | null;
+  aiJobId: number | null;
+  aiJobStatus: string | null;
   specPath: string;
   grep: string;
   title: string;
@@ -1222,11 +1228,14 @@ export interface PlanItem {
   updatedAt: string | null;
 }
 
-/** passed · failed · notRun 은 사용 중 항목만. completionRate 0~1 */
+/** 작성률과 완료율의 분모는 미작성을 포함한 사용 중 계획이다. */
 export interface PlanSummary {
   total: number;
   enabled: number;
   disabled: number;
+  unwritten: number;
+  written: number;
+  writtenRate: number;
   passed: number;
   failed: number;
   notRun: number;
@@ -1236,11 +1245,38 @@ export interface PlanSummary {
 export interface PlanResponse {
   items: PlanItem[];
   summary: PlanSummary;
+  screens: { routeKey: string; planned: number; written: number; passed: number; failed: number }[];
 }
 
 export interface PlanItemKey {
+  planId?: number;
   specPath: string;
   grep: string;
+}
+
+export interface PlanEntryInput {
+  title: string;
+  screenRouteKey?: string | null;
+  expected?: string | null;
+  assigneeUserId?: number | null;
+  dueDate?: string | null;
+  priority?: PlanPriority | null;
+}
+
+export type PlanEntryPatch = Omit<PlanEntryInput, 'title'> & {
+  title?: string | null;
+  enabled?: boolean | null;
+};
+
+export interface PlanLinkTarget {
+  specPath: string;
+  grep: string;
+}
+
+export interface PlanLinkSuggestion extends PlanLinkTarget {
+  planId: number;
+  caseTitle: string;
+  reason: string;
 }
 
 /** 케이스별 단계 기록 (#84 · #85). 문장은 서버가 규칙으로 만든다. offsetMs: 테스트 시작부터 그 단계까지 */

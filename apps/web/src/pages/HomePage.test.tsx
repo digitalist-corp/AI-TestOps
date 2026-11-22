@@ -33,6 +33,7 @@ const project = (projectId: string, projectName: string, over: Partial<Project> 
   ({ projectId, projectName, dockerStatus: 'RUNNING', status: 'RUNNING', startDate: '2026-11-01', endDate: null,
      latestExecutionStatus: 'FAILED', latestExecutionAt: null, latestExecutionId: null, ...over } as Project);
 const row = (over: Partial<PlanItem>): PlanItem => ({
+  planId: null, stage: 'WRITTEN', screenRouteKey: null, expected: null, aiJobId: null, aiJobStatus: null,
   specPath: 'a.spec.ts', grep: '로그인', title: '로그인', describePath: '', line: 1, enabled: true, parentEnabled: true,
   sortOrder: null, assignee: '윤재', dueDate: null, priority: null, lastStatus: 'PASSED', lastRunAt: null,
   prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,
@@ -48,7 +49,8 @@ beforeEach(() => {
   vi.mocked(api.getProjects).mockResolvedValue([project('shop', '쇼핑몰')]);
   vi.mocked(api.plan.get).mockResolvedValue({
     items,
-    summary: { total: 3, enabled: 3, disabled: 0, passed: 1, failed: 1, notRun: 1, completionRate: 1 / 3 },
+    screens: [],
+    summary: { total: 3, enabled: 3, unwritten: 0, written: 3, writtenRate: 1, disabled: 0, passed: 1, failed: 1, notRun: 1, completionRate: 1 / 3 },
   });
   vi.mocked(api.defects.list).mockResolvedValue({ defects: [], open: 1, resolved: 0 });
   vi.mocked(api.notices.list).mockResolvedValue([1, 2, 3, 4].map((id) => ({ id, title: `공지 ${id}`, pinned: id === 2, createdAt: '2026-11-17T00:00:00Z' }) as never));

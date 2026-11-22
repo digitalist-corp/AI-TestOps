@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { AlertCircle, KeyRound, ListChecks, Loader2, LogIn, Pencil, Play, RefreshCw, Settings2, Square, Terminal, Trash2, Upload } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthStateStatus, CaseFocus, Execution, RunTestOptions, PlaywrightTemplate, Project, RunnerActivity, RunnerOperationLog, ScenarioTree, TestSuite } from '@/types';
@@ -140,6 +140,10 @@ export function ProjectDetailPage() {
   const runningAnalyses = useRunningAnalyses();
   const { projectId, tab: tabParam } = useParams<{ projectId: string; tab: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const planQuery = searchParams.get('plan');
+  const recorderPlanId = planQuery && /^[1-9]\d*$/.test(planQuery) && Number.isSafeInteger(Number(planQuery))
+    ? Number(planQuery) : undefined;
   const activeTab: ProjectTabId = isValidProjectTab(tabParam) ? tabParam : DEFAULT_PROJECT_TAB;
 
   const { active: aiActive, checked: aiChecked } = useAiEnabled();
@@ -710,6 +714,7 @@ export function ProjectDetailPage() {
             <RecorderTab
               key={projectId}
               project={project}
+              planId={recorderPlanId}
               onSaved={() => {
                 // 새 테스트 파일이 파일 목록 · 케이스 목록에 보이도록 다시 읽는다.
                 loadFiles().catch(() => undefined);
@@ -803,7 +808,7 @@ export function ProjectDetailPage() {
 
           {activeTab === 'plan' && projectId && (
             <PlanTab key={projectId} projectId={projectId} onRun={() => handleRun()} onOpenDefects={openDefects}
-                     readOnly={!canManage} runDisabled={!!activeRun} onOpenExecution={handleSelectExecution} />
+                     readOnly={!canManage} runDisabled={!!activeRun} aiOff={aiChecked && !aiActive} onOpenExecution={handleSelectExecution} />
           )}
 
           {activeTab === 'schedules' && projectId && (
