@@ -63,7 +63,7 @@ const schedule = (over: Partial<ExecutionSchedule> = {}): ExecutionSchedule =>
 function renderTab(props: Partial<Parameters<typeof ProjectDashboardTab>[0]> = {}) {
   return render(
     <MemoryRouter>
-      <ProjectDashboardTab project={project} executions={[]} onRun={() => {}} {...props} />
+      <ProjectDashboardTab project={project} executions={[]} {...props} />
     </MemoryRouter>
   );
 }
@@ -202,26 +202,20 @@ describe('ProjectDashboardTab — 세 질문', () => {
 });
 
 describe('ProjectDashboardTab — 상단 버튼', () => {
-  it.each([['PM'], ['MEMBER']] as const)('%s: [전체 실행] 하나만 있고, 소스 · 이력 버튼은 없다', async (role) => {
+  it.each([['PM'], ['MEMBER']] as const)('%s: 카드에는 버튼이 없다 (전체 실행은 페이지 머리글에 있음)', async (role) => {
     me = user(role);
-    const onRun = vi.fn();
-    renderTab({ onRun });
+    renderTab({});
     await screen.findByRole('list', { name: '계획 진척 퍼널' });
-
-    expect(screen.getAllByRole('button').map((b) => b.textContent?.trim())).toEqual(['전체 실행']);
-    fireEvent.click(screen.getByRole('button', { name: '전체 실행' }));
-    expect(onRun).toHaveBeenCalledTimes(1);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
   });
 
   it('실행 중이면 전체 실행 대신 중지 버튼을 보이고, 누르면 그 실행을 멈춘다', async () => {
-    const onRun = vi.fn();
     const onStop = vi.fn();
-    renderTab({ executions: [{ id: 9, status: 'RUNNING' } as never], onRun, onStop });
+    renderTab({ executions: [{ id: 9, status: 'RUNNING' } as never], onStop });
 
     expect(screen.queryByRole('button', { name: /전체 실행/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /중지/ }));
     expect(onStop).toHaveBeenCalledWith(9);
-    expect(onRun).not.toHaveBeenCalled();
     await screen.findByRole('list', { name: '계획 진척 퍼널' });
   });
 

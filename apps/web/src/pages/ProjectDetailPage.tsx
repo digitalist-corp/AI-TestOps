@@ -686,7 +686,6 @@ export function ProjectDetailPage() {
             <ProjectDashboardTab
               project={project}
               executions={executions}
-              onRun={() => handleRun()}
               onStop={handleCancelExecution}
             />
           )}

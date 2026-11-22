@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Play, Square } from 'lucide-react';
+import { Square } from 'lucide-react';
 import { api } from '@/api/client';
 import type { Coverage, Execution, ExecutionSchedule, PlanResponse, Project, ScenarioTree, SiteMap } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -23,12 +23,10 @@ import { useAccess } from '@/lib/access';
 export function ProjectDashboardTab({
   project,
   executions,
-  onRun,
   onStop,
 }: {
   project: Project;
   executions: Execution[];
-  onRun: () => void;
   /** 실행 중일 때 전체 실행 대신 보이는 중지 */
   onStop?: (executionId: number) => void;
 }) {
@@ -101,17 +99,13 @@ export function ProjectDashboardTab({
           <h3 className="text-lg font-semibold text-foreground">품질 현황</h3>
           <p className="mt-1 text-sm text-muted-foreground">{project.projectName}의 계획이 어디까지 왔고 어디가 막혀 있는지 봅니다.</p>
         </div>
-        {activeRun ? (
+        {/* 전체 실행은 페이지 머리글에 이미 있다. 여기서는 실행 중일 때 멈추기만 */}
+        {activeRun && (
           <Button size="sm" variant="outline" disabled={activeRun.status === 'CANCEL_REQUESTED'}
                   onClick={() => onStop?.(activeRun.id)}
                   className="shrink-0 text-destructive hover:border-destructive hover:bg-destructive/10">
             <Square className="h-4 w-4" />
             {activeRun.status === 'CANCEL_REQUESTED' ? '중지 중' : '중지'}
-          </Button>
-        ) : (
-          <Button size="sm" onClick={onRun} className="shrink-0">
-            <Play className="h-4 w-4" />
-            전체 실행
           </Button>
         )}
       </div>
