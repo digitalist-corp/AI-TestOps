@@ -1233,9 +1233,6 @@ export interface PlanSummary {
   total: number;
   enabled: number;
   disabled: number;
-  unwritten: number;
-  written: number;
-  writtenRate: number;
   passed: number;
   failed: number;
   notRun: number;

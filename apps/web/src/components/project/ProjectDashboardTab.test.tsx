@@ -26,6 +26,7 @@ const project = { projectId: 'p1', projectName: '쇼핑몰' } as Project;
 const user = (role: 'PM' | 'MEMBER'): Me => ({ id: 9, username: 'u', displayName: null, role: 'USER', projects: [{ projectId: 'p1', role }] });
 
 const item = (over: Partial<PlanItem>): PlanItem => ({
+  planId: null, stage: 'WRITTEN', screenRouteKey: null, expected: null, aiJobId: null, aiJobStatus: null,
   specPath: '', grep: '', title: '', describePath: '', line: 0, enabled: true, parentEnabled: true,
   sortOrder: null, assignee: null, dueDate: null, priority: null, lastStatus: null, lastRunAt: null,
   prevStatus: null, prevRunAt: null, defectStatus: null, defectFailCount: 0,
