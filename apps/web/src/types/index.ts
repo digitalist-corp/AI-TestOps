@@ -537,8 +537,8 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   sourceRepositoryUrl: '',
   sourceRepositoryBranch: '',
   sourceRepositoryToken: '',
-  runnerLifecycle: 'PERSISTENT',
-  dockerEnabled: false,
+  runnerLifecycle: 'EPHEMERAL',
+  dockerEnabled: true,
   templateId: 'default',
   scaffoldOnCreate: true,
 };

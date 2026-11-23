@@ -1,6 +1,9 @@
 import { api } from '@/api/client';
 import type { Project } from '@/types';
 
+export const SERVER_RUN_UNAVAILABLE_MESSAGE =
+  "이 방식은 지금 테스트를 실행할 수 없어요. '일회용 러너'로 바꿔 주세요.";
+
 function normalizeVersion(value: string) {
   return value.trim().replace(/^[~^]/, '').replace(/^v/i, '');
 }
