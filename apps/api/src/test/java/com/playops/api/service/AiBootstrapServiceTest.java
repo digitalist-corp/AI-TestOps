@@ -1,5 +1,6 @@
 package com.playops.api.service;
 
+import com.playops.api.dto.AiBootstrapBriefingActionRequest;
 import com.playops.api.dto.AiBootstrapCredentialsRequest;
 import com.playops.api.dto.AiBootstrapResponse;
 import com.playops.api.dto.ExecutionCaseResultResponse;
@@ -48,8 +49,11 @@ class AiBootstrapServiceTest {
     private final FileStorageService files = mock(FileStorageService.class);
     private final ExecutionQueryService executions = mock(ExecutionQueryService.class);
     private final ExecutionRepository executionRepository = mock(ExecutionRepository.class);
+    private final PlanEntryService planEntries = mock(PlanEntryService.class);
+    private final OnboardingBriefingService briefing =
+            new OnboardingBriefingService(siteAnalysisService, siteMapPromptService, llm, planEntries);
     private final AiBootstrapService service = new AiBootstrapService(projectService, siteAnalysisService,
-            siteMapPromptService, llm, files, executions, executionRepository, new SyncTaskExecutor());
+            siteMapPromptService, llm, files, executions, executionRepository, briefing, new SyncTaskExecutor());
 
     @BeforeEach
     void setUp() {
@@ -274,5 +278,120 @@ class AiBootstrapServiceTest {
         assertThatThrownBy(() -> service.screenshotFile("p", id, "sub/n1.jpg"))
                 .isInstanceOf(ApiException.class)
                 .satisfies(e -> assertThat(((ApiException) e).getStatus()).isEqualTo(400));
+    }
+
+    // ---------------------------------------------------------------- 첫 실행 브리핑
+
+    private static final String BRIEFING_JSON = """
+            {"summary": "화면 2개를 살펴봤어요.", "screens": [{"routeKey": "/", "note": "메뉴가 있어요"}],
+             "tests": [{"title": "홈", "plain": "첫 화면이 뜨는지 봤어요"}], "resultNote": "통과했어요.", "cautions": [],
+             "suggestions": [{"title": "로그인할 수 있다", "screenRouteKey": "/login", "priority": "높음", "why": "가장 많이 써요"},
+                             {"title": "검색할 수 있다", "screenRouteKey": "/", "priority": "낮음", "why": "자주 써요"}]}
+            """;
+
+    private AiBootstrapResponse passedWithBriefing() {
+        when(siteAnalysisService.hasUsableNodes("p")).thenReturn(true);
+        when(siteAnalysisService.view("p")).thenReturn(new SiteAnalysisService.SiteMap("p", null, null, List.of(
+                new SiteAnalysisService.Node("/", "첫 화면", null, "OBSERVED", false, 3, false, null, "http://site/",
+                        false, false, 0, 0, 0, 0),
+                new SiteAnalysisService.Node("/login", "로그인", null, "OBSERVED", false, 3, false, null,
+                        "http://site/login", false, false, 0, 0, 0, 0)), List.of(), List.of()));
+        when(llm.chat(any(), anyString(), anyString(), eq("첫 실행 브리핑"), eq("p"))).thenReturn(BRIEFING_JSON);
+        runs(ExecutionStatus.PASSED);
+        return service.start("p", "확인", null);
+    }
+
+    private static AiBootstrapBriefingActionRequest action(String name, String surfaceId, Object selected) {
+        return new AiBootstrapBriefingActionRequest("1.0", new AiBootstrapBriefingActionRequest.Action(
+                name, surfaceId, "addButton", "2026-11-23T00:00:00Z", Map.of("selected", selected)));
+    }
+
+    private static int status(Throwable e) {
+        return ((ApiException) e).getStatus();
+    }
+
+    @Test
+    void finishedRunCarriesAReadyBriefing() {
+        AiBootstrapResponse response = passedWithBriefing();
+
+        assertThat(response.phase()).isEqualTo("PASSED");
+        assertThat(response.briefingStatus()).isEqualTo("READY");
+        assertThat(response.briefing()).hasSize(2);
+        assertThat(response.briefing().get(0)).containsKey("createSurface");
+        assertThat(response.briefing().get(1)).containsKey("updateComponents");
+        verify(llm).chat(any(), contains("개발 용어"), contains("- 홈"), eq("첫 실행 브리핑"), eq("p"));
+    }
+
+    @Test
+    void unreadableBriefingFromLlmStillEndsReadyWithPlainBriefing() {
+        // setUp 의 LLM 목은 브리핑 요청에도 spec 코드를 돌려준다 → JSON 이 아니므로 기본 브리핑
+        when(siteAnalysisService.hasUsableNodes("p")).thenReturn(true);
+        runs(ExecutionStatus.FAILED, ExecutionStatus.FAILED, ExecutionStatus.FAILED);
+
+        AiBootstrapResponse response = service.start("p", "확인", null);
+
+        assertThat(response.phase()).isEqualTo("FAILED");
+        assertThat(response.briefingStatus()).isEqualTo("READY");
+        assertThat(response.briefing()).hasSize(2);
+    }
+
+    @Test
+    void errorPhaseHasNoBriefing() {
+        when(siteAnalysisService.hasUsableNodes("p")).thenReturn(true);
+        when(llm.chat(any(), anyString(), anyString(), eq("테스트 생성"), eq("p"))).thenReturn("");
+
+        AiBootstrapResponse response = service.start("p", "확인", null);
+
+        assertThat(response.phase()).isEqualTo("ERROR");
+        assertThat(response.briefingStatus()).isNull();
+        assertThat(response.briefing()).isEmpty();
+        verify(llm, never()).chat(any(), anyString(), anyString(), eq("첫 실행 브리핑"), anyString());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void addToPlanCreatesOnlyKnownCandidatesOnce() {
+        String id = passedWithBriefing().bootstrapId();
+        when(planEntries.createAll(eq("p"), any())).thenReturn(2);
+
+        AiBootstrapResponse first = service.briefingAction("p", id,
+                action("add_to_plan", "onboarding-" + id, List.of("test-0", "suggest-1", "suggest-99")));
+        AiBootstrapResponse second = service.briefingAction("p", id,
+                action("add_to_plan", "onboarding-" + id, List.of("suggest-0")));
+
+        org.mockito.ArgumentCaptor<List<com.playops.api.dto.PlanDtos.EntryRequest>> captor =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(planEntries, times(1)).createAll(eq("p"), captor.capture());
+        assertThat(captor.getValue()).containsExactly(
+                new com.playops.api.dto.PlanDtos.EntryRequest("홈", null, null, null, null, null),
+                new com.playops.api.dto.PlanDtos.EntryRequest("검색할 수 있다", "/", "자주 써요", null, null, "LOW"));
+        assertThat(second).isEqualTo(first);
+        Map<String, Object> update = (Map<String, Object>) second.briefing().get(1).get("updateComponents");
+        assertThat((List<Map<String, Object>>) update.get("components"))
+                .anySatisfy(c -> assertThat(c).containsEntry("id", "plan").containsEntry("children", List.of("planDone")))
+                .anySatisfy(c -> assertThat(c).containsEntry("id", "planDone")
+                        .containsEntry("text", "2건을 계획에 넣었어요. 계획 탭에서 볼 수 있어요."));
+        Map<String, Object> create = (Map<String, Object>) second.briefing().get(0).get("createSurface");
+        assertThat((Map<String, Object>) create.get("dataModel")).containsEntry("doneCount", 2);
+    }
+
+    @Test
+    void addToPlanRejectsWrongActionSurfaceOrBootstrap() {
+        String id = passedWithBriefing().bootstrapId();
+
+        assertThatThrownBy(() -> service.briefingAction("p", id, action("delete_all", "onboarding-" + id, List.of("test-0"))))
+                .satisfies(e -> assertThat(status(e)).isEqualTo(400));
+        assertThatThrownBy(() -> service.briefingAction("p", id, action("add_to_plan", "onboarding-other", List.of("test-0"))))
+                .satisfies(e -> assertThat(status(e)).isEqualTo(400));
+        assertThatThrownBy(() -> service.briefingAction("p", id, new AiBootstrapBriefingActionRequest("0.9",
+                new AiBootstrapBriefingActionRequest.Action("add_to_plan", "onboarding-" + id, null, null, Map.of()))))
+                .satisfies(e -> assertThat(status(e)).isEqualTo(400));
+        assertThatThrownBy(() -> service.briefingAction("p", id, action("add_to_plan", "onboarding-" + id, List.of("nope"))))
+                .satisfies(e -> assertThat(status(e)).isEqualTo(400));
+        assertThatThrownBy(() -> service.briefingAction("other", id, action("add_to_plan", "onboarding-" + id, List.of("test-0"))))
+                .satisfies(e -> assertThat(status(e)).isEqualTo(404));
+        assertThatThrownBy(() -> service.briefingAction("p", "missing", action("add_to_plan", "onboarding-missing", List.of("test-0"))))
+                .satisfies(e -> assertThat(status(e)).isEqualTo(404));
+        verify(planEntries, never()).createAll(anyString(), any());
     }
 }

@@ -2,6 +2,7 @@ package com.playops.api.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.playops.api.dto.AiBootstrapBriefingActionRequest;
 import com.playops.api.dto.AiBootstrapCredentialsRequest;
 import com.playops.api.dto.AiBootstrapResponse;
 import com.playops.api.dto.ExecutionCaseResultResponse;
@@ -47,6 +48,9 @@ import java.util.concurrent.TimeUnit;
  * 3. 실행 검증 + 자율 교정(Lv3): 수동 실행과 같은 경로({@link ExecutionQueryService#triggerRun})로 돌리고, 실패하면
  *    실패 로그 + 실측 화면 정보로 최대 {@link #MAX_HEAL_ATTEMPTS}번 고쳐 다시 돌린다.
  *
+ * 4. 브리핑: PASSED · FAILED 로 끝나면 비전공자용 브리핑을 이어서 만든다({@link OnboardingBriefingService}).
+ *    사용자가 고른 항목은 {@link #briefingAction} 으로 계획 행이 된다.
+ *
  * 등록 직후의 초기 소스라 스캐폴드와 같은 성격이므로 AI 검토 큐를 거치지 않고 바로 파일에 쓴다.
  * 진행 상태는 메모리에만 둔다 — 서버가 다시 뜨면 상태 조회는 404 가 되지만, 만들어진 파일과 실행 이력은 남는다.
  */
@@ -81,6 +85,7 @@ public class AiBootstrapService {
     private final FileStorageService fileStorageService;
     private final ExecutionQueryService executionQueryService;
     private final ExecutionRepository executionRepository;
+    private final OnboardingBriefingService briefingService;
     private final TaskExecutor executor;
     private final Map<String, State> states = new ConcurrentHashMap<>();
     private Duration credentialWaitTimeout = DEFAULT_CREDENTIAL_WAIT_TIMEOUT;
@@ -93,6 +98,7 @@ public class AiBootstrapService {
             FileStorageService fileStorageService,
             ExecutionQueryService executionQueryService,
             ExecutionRepository executionRepository,
+            OnboardingBriefingService briefingService,
             @Qualifier("aiBootstrapExecutor") TaskExecutor executor
     ) {
         this.projectService = projectService;
@@ -102,6 +108,7 @@ public class AiBootstrapService {
         this.fileStorageService = fileStorageService;
         this.executionQueryService = executionQueryService;
         this.executionRepository = executionRepository;
+        this.briefingService = briefingService;
         this.executor = executor;
     }
 
@@ -134,6 +141,11 @@ public class AiBootstrapService {
         Path screensDir;
         boolean visualOnly;
         Instant credentialsDeadline;
+        /** null · PENDING · READY · FAILED. finish(PASSED|FAILED) 와 같은 잠금 안에서 PENDING 이 돼야 프론트가 폴링을 멈추지 않는다. */
+        String briefingStatus;
+        OnboardingBriefingService.Content briefing;
+        /** 계획에 넣은 건수. null 이면 아직 넣지 않았다(두 번째 요청을 막는 표시이기도 하다). */
+        Integer briefingDoneCount;
 
         State(String projectId, String instruction, AiModelProvider provider) {
             this.projectId = projectId;
@@ -148,6 +160,9 @@ public class AiBootstrapService {
         synchronized void finish(String finalPhase) {
             phase = finalPhase;
             finishedAt = Instant.now();
+            if ("PASSED".equals(finalPhase) || "FAILED".equals(finalPhase)) {
+                briefingStatus = "PENDING";
+            }
         }
 
         synchronized void warn(String warning) {
@@ -224,7 +239,11 @@ public class AiBootstrapService {
                     List.copyOf(events),
                     currentUrl,
                     visitedCount,
-                    credentialRequest
+                    credentialRequest,
+                    briefingStatus,
+                    "READY".equals(briefingStatus) && briefing != null
+                            ? OnboardingBriefingService.messages(id, briefing, briefingDoneCount)
+                            : List.of()
             );
         }
     }
@@ -369,6 +388,40 @@ public class AiBootstrapService {
         return state.snapshot();
     }
 
+    /**
+     * 브리핑의 "계획에 넣기" 버튼. 서버가 저장한 후보에서 id 로만 찾아 계획 행을 만든다.
+     * 두 번 눌러도 한 번만 반영한다 — 이미 넣었으면 지금 상태를 그대로 돌려준다.
+     * 잠금을 쥔 채 저장하는 것은 동시에 두 번 눌렀을 때 두 번 만들지 않기 위해서다(상태 조회가 잠깐 기다릴 뿐이다).
+     */
+    public AiBootstrapResponse briefingAction(String projectId, String bootstrapId, AiBootstrapBriefingActionRequest request) {
+        State state = findState(projectId, bootstrapId);
+        AiBootstrapBriefingActionRequest.Action action = request != null ? request.action() : null;
+        if (request == null || !OnboardingBriefingService.VERSION.equals(request.version()) || action == null) {
+            throw new ApiException(400, "올바르지 않은 브리핑 요청입니다.");
+        }
+        if (!OnboardingBriefingService.ACTION_ADD_TO_PLAN.equals(action.name())) {
+            throw new ApiException(400, "지원하지 않는 브리핑 동작입니다: " + action.name());
+        }
+        if (!OnboardingBriefingService.surfaceId(state.id).equals(action.surfaceId())) {
+            throw new ApiException(400, "이 첫 테스트 생성의 브리핑이 아닙니다.");
+        }
+        synchronized (state) {
+            if (!"READY".equals(state.briefingStatus) || state.briefing == null) {
+                throw new ApiException(409, "브리핑이 아직 준비되지 않았습니다.");
+            }
+            if (state.briefingDoneCount != null) {
+                return state.snapshot();
+            }
+            Object selected = action.context() != null ? action.context().get("selected") : null;
+            List<OnboardingBriefingService.Candidate> chosen = OnboardingBriefingService.pick(state.briefing, selected);
+            if (chosen.isEmpty()) {
+                throw new ApiException(400, "계획에 넣을 항목을 하나 이상 골라 주세요.");
+            }
+            state.briefingDoneCount = briefingService.addToPlan(state.projectId, chosen);
+            return state.snapshot();
+        }
+    }
+
     /** 탐색 중 찍은 화면 스크린샷 파일을 돌려준다. 경로 탈출(../, /, \) 시도는 즉시 거절한다. */
     public Path screenshotFile(String projectId, String bootstrapId, String fileName) {
         if (fileName == null || fileName.isBlank()
@@ -469,6 +522,7 @@ public class AiBootstrapService {
             Execution execution = runOnce(state);
             if (execution.getStatus() == ExecutionStatus.PASSED) {
                 state.finish("PASSED");
+                brief(state, spec, true);
                 return;
             }
             String failure = failureText(execution.getId());
@@ -480,6 +534,7 @@ public class AiBootstrapService {
                     state.failureLog = failure;
                 }
                 state.finish("FAILED");
+                brief(state, spec, false);
                 return;
             }
             synchronized (state) {
@@ -488,6 +543,30 @@ public class AiBootstrapService {
             }
             spec = heal(state, project, spec, failure);
             writeSpec(state, spec, screens);
+        }
+    }
+
+    /**
+     * 끝난 뒤 브리핑을 만든다. LLM 실패는 서비스가 기본 브리핑으로 받아 주므로, 여기서 잡히는 것은 예상 못 한 예외뿐이다.
+     * 브리핑 실패가 테스트 결과(PASSED · FAILED)를 ERROR 로 바꾸면 안 되므로 밖으로 던지지 않는다.
+     */
+    private void brief(State state, String spec, boolean passed) {
+        String failureLog;
+        synchronized (state) {
+            failureLog = state.failureLog;
+        }
+        try {
+            OnboardingBriefingService.Content content = briefingService.build(
+                    state.projectId, state.provider, state.instruction, spec, passed, failureLog);
+            synchronized (state) {
+                state.briefing = content;
+                state.briefingStatus = "READY";
+            }
+        } catch (Exception e) {
+            log.warn("첫 실행 브리핑 생성 실패 (project={}): {}", state.projectId, e.getMessage());
+            synchronized (state) {
+                state.briefingStatus = "FAILED";
+            }
         }
     }
 

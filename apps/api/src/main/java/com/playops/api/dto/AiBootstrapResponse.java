@@ -2,6 +2,7 @@ package com.playops.api.dto;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 등록 직후 첫 테스트 생성 파이프라인(사이트 탐색 → 코드 생성 → 실행 → 자율 교정)의 현재 상태.
@@ -10,6 +11,10 @@ import java.util.List;
  * phase: ANALYZING_SITE · NEEDS_CREDENTIALS · LOGGING_IN · GENERATING · RUNNING · HEALING · PASSED · FAILED · ERROR
  * healAttempt 는 지금(또는 마지막으로) 몇 번째 교정인지, maxHealAttempts 는 교정 상한이다.
  * estimatedDurationMs 는 최근 실행 이력 평균에서 뽑은 1회 실행 예상 시간으로, 카운트다운 표시에 쓰인다.
+ *
+ * briefingStatus: null(시작 전 · ERROR 로 끝남) · PENDING · READY · FAILED. PASSED/FAILED 로 끝난 뒤 비전공자용 브리핑을
+ * 만드는 동안 PENDING 이라 프론트는 phase 가 끝났어도 계속 읽는다. briefing 은 READY 일 때 A2UI v1.0 메시지 배열, 그 밖에는 [].
+ * (docs/design/onboarding-briefing-contract.md)
  */
 public record AiBootstrapResponse(
         String bootstrapId,
@@ -29,7 +34,9 @@ public record AiBootstrapResponse(
         List<ProgressEvent> events,
         String currentUrl,
         int visitedCount,
-        CredentialRequest credentialRequest
+        CredentialRequest credentialRequest,
+        String briefingStatus,
+        List<Map<String, Object>> briefing
 ) {
     public AiBootstrapResponse(
             String bootstrapId,
@@ -49,7 +56,7 @@ public record AiBootstrapResponse(
     ) {
         this(bootstrapId, phase, healAttempt, maxHealAttempts, executionId, generatedFiles, specPath,
                 estimatedDurationMs, siteAnalysis, warnings, error, failureLog, startedAt, finishedAt,
-                List.of(), null, 0, null);
+                List.of(), null, 0, null, null, List.of());
     }
 
     /** 이번 생성에 쓴 사이트 탐색 결과. 탐색을 건너뛰었으면 null 이다. */
