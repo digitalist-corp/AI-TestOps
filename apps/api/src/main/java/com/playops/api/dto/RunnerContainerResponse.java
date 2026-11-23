@@ -10,6 +10,7 @@ public record RunnerContainerResponse(
         DockerStatus dockerStatus,
         String containerType,
         String projectId,
+        String projectName,
         Boolean knownProject,
         Boolean dockerEnabled,
         ProjectStatus projectStatus,

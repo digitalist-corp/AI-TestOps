@@ -57,6 +57,8 @@ export interface RunnerContainer {
   dockerStatus: DockerStatus;
   containerType: 'DB' | 'PLAYOPS' | 'RUNNER' | 'OTHER' | string;
   projectId: string;
+  /** 연결된 프로젝트 이름 (DB 에 있는 프로젝트일 때) */
+  projectName: string | null;
   knownProject: boolean;
   dockerEnabled: boolean;
   /** 프로젝트 상태 (러너가 프로젝트 것일 때) */

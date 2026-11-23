@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import type { DockerHostResource, DockerStatus, RunnerCapacity, RunnerCapacityFormData, RunnerContainer } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { cn, dockerStatusLabel, projectStatusLabel } from '@/lib/utils';
+import { containerProjectLabel, deleteConfirmMessage } from '@/lib/runnerContainers';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 const dockerStatusColor: Record<DockerStatus, string> = {
@@ -273,7 +274,12 @@ export function RunnerContainersPage() {
   };
 
   const cleanupUnusedRunners = async () => {
-    const ok = confirm('DB 프로젝트에 연결되지 않았거나 Docker Runner가 꺼진 미사용 Runner 컨테이너를 삭제하시겠습니까?');
+    const unused = containers.filter((c) => c.removable && (!c.knownProject || !c.dockerEnabled));
+    if (unused.length === 0) {
+      alert('지울 미사용 Runner 컨테이너가 없습니다.');
+      return;
+    }
+    const ok = confirm(deleteConfirmMessage(unused).replace('선택한 컨테이너', '미사용 Runner 컨테이너'));
     if (!ok) return;
     setLoading(true);
     try {
@@ -292,7 +298,7 @@ export function RunnerContainersPage() {
   const cleanupSelectedRunners = async () => {
     const names = [...selectedNames];
     if (names.length === 0) return;
-    const ok = confirm(`선택한 Runner 컨테이너 ${names.length}개를 삭제하시겠습니까? AI-TestOps/Other 컨테이너는 삭제 대상에서 제외됩니다.`);
+    const ok = confirm(deleteConfirmMessage(containers.filter((c) => selectedNames.has(c.name))));
     if (!ok) return;
     setLoading(true);
     try {
@@ -477,7 +483,7 @@ export function RunnerContainersPage() {
                   </span>
                 </td>
                 <td className="px-3 py-2">
-                  <div className="font-mono">{container.projectId || '-'}</div>
+                  <div className={cn(!container.knownProject && container.containerType === 'RUNNER' && 'text-amber-700 dark:text-amber-300')}>{containerProjectLabel(container)}</div>
                   <div className="text-[11px] text-muted-foreground">{container.projectStatus ? projectStatusLabel[container.projectStatus] : ''}</div>
                 </td>
                 <td className="px-3 py-2">
