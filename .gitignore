@@ -37,8 +37,10 @@ graphify-out/
 docs/aQm-산출물/
 .claude/settings.local.json
 
-# 개인 에이전트 설정 · 메모 (커밋하지 않음). AGENTS.md · CLAUDE.md 는 팀 공용이라 추적한다
+# 에이전트 설정 · 메모 (개인 로컬 전용, 커밋하지 않음)
+CLAUDE.md
 CLAUDE.local.md
+AGENTS.md
 AGENTS.local.md
 GEMINI.md
 .claude/
