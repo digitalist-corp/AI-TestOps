@@ -12,6 +12,7 @@ import { DefectsTab } from '@/components/project/DefectsTab';
 import { caseRun, groupRun } from '@/lib/caseRun';
 import { PlanTab } from '@/components/project/PlanTab';
 import { MembersTab } from '@/components/project/MembersTab';
+import { CodeAutoFixTab } from '@/components/project/CodeAutoFixTab';
 import { useAccess } from '@/lib/access';
 import { ScenarioTab, type SelectedCase, type SelectedScenario } from '@/components/project/ScenarioTab';
 import { ExecutionsTab } from '@/components/project/ExecutionsTab';
@@ -814,6 +815,9 @@ export function ProjectDetailPage() {
 
           {activeTab === 'members' && projectId && (
             <MembersTab projectId={projectId} role={access.roleIn(projectId)} />
+          )}
+          {activeTab === 'code-auto-fix' && projectId && (
+            <CodeAutoFixTab projectId={projectId} />
           )}
 
           {activeTab === 'settings' && (

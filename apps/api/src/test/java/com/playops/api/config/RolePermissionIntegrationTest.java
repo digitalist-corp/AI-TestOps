@@ -160,6 +160,58 @@ class RolePermissionIntegrationTest {
     }
 
     @Test
+    void teamMemberReadsAndRequestsFixProposalsOnlyInTheirProject() throws Exception {
+        String body = "{\"specPath\":\"tests/none.spec.ts\",\"grep\":\"none\"}";
+        assertThat(status(get("/api/projects/google.com/defects/fix-proposals?specPath=tests/none.spec.ts&grep=none"), member)).isEqualTo(403);
+        assertThat(status(post("/api/projects/google.com/defects/fix-proposals").content(body), member)).isEqualTo(403);
+        // 자기 프로젝트에서는 권한을 통과하고, 없는 결함이라 404
+        assertThat(status(get("/api/projects/example.com/defects/fix-proposals?specPath=tests/none.spec.ts&grep=none"), member)).isEqualTo(404);
+        assertThat(status(post("/api/projects/example.com/defects/fix-proposals").content(body), member)).isEqualTo(404);
+        assertThat(status(post("/api/projects/google.com/defects/fix-proposals").content(body), admin)).isEqualTo(404);
+    }
+
+    @Test
+    void autoFixAccessFlowsFromRequestToPmNotificationToGrantAndEndsWithMembership() throws Exception {
+        String base = "/api/projects/example.com/code-auto-fix";
+        JsonNode me = call(get(base + "/me"), member, 200);
+        assertThat(me.get("role").asText()).isEqualTo("MEMBER");
+        assertThat(me.get("scopes")).isEmpty();
+        assertThat(me.get("integrationReady").asBoolean()).isFalse();
+        assertThat(status(get("/api/projects/google.com/code-auto-fix/me"), member)).isEqualTo(403);
+        assertThat(status(post("/api/projects/google.com/code-auto-fix/requests").content("{}"), member)).isEqualTo(403);
+
+        long id = call(post(base + "/requests").content("{\"note\":\"결제 결함\"}"), member, 200).get("id").asLong();
+        assertThat(call(post(base + "/requests").content("{}"), member, 200).get("id").asLong()).isEqualTo(id);
+
+        // 팀원은 목록 · 부여를 못 한다
+        assertThat(status(get(base + "/requests"), member)).isEqualTo(403);
+        assertThat(status(post(base + "/requests/" + id + "/grant").content("{\"scopes\":[\"AUTO_FIX\"]}"), member)).isEqualTo(403);
+        // 그 프로젝트 PM(시드: admin)에게 알림 한 건, 누르면 요청 행으로. 요청한 팀원에게는 가지 않는다
+        java.util.List<JsonNode> sent = new ArrayList<>();
+        call(get("/api/notifications"), admin, 200).forEach(n -> {
+            if ("AUTO_FIX_ACCESS_REQUESTED".equals(n.get("kind").asText())
+                    && n.get("link").asText().equals("/projects/example.com/code-auto-fix?request=" + id)) sent.add(n);
+        });
+        assertThat(sent).hasSize(1);
+        assertThat(sent.get(0).get("title").asText()).isEqualTo("팀원이 자동 수정 권한을 요청했습니다");
+        call(get("/api/notifications"), member, 200)
+                .forEach(n -> assertThat(n.get("kind").asText()).isNotEqualTo("AUTO_FIX_ACCESS_REQUESTED"));
+
+        JsonNode granted = call(post(base + "/requests/" + id + "/grant").content("{\"scopes\":[\"AUTO_FIX\"]}"), admin, 200);
+        assertThat(granted.get("status").asText()).isEqualTo("GRANTED");
+        assertThat(call(get(base + "/me"), member, 200).get("scopes").toString()).isEqualTo("[\"AUTO_FIX\"]");
+        assertThat(call(get(base + "/requests"), admin, 200).get(0).get("userName").asText()).isNotBlank();
+
+        // 멤버에서 빠지면 쓸 수 없고, 다시 넣어도 예전 범위가 살아나지 않는다
+        call(delete("/api/projects/example.com/members/" + memberId), admin, 200);
+        assertThat(status(get(base + "/me"), member)).isEqualTo(403);
+        call(post("/api/projects/example.com/members").content("{\"userId\":" + memberId + ",\"role\":\"MEMBER\"}"), admin, 200);
+        JsonNode again = call(get(base + "/me"), member, 200);
+        assertThat(again.get("scopes")).isEmpty();
+        assertThat(again.get("request").isNull()).isTrue();
+    }
+
+    @Test
     void teamMemberReadsStepsOfTheirProjectsRunsOnly() throws Exception {
         var mine = new com.playops.api.entity.Execution();
         mine.setProjectId("example.com");

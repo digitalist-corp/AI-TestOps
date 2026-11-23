@@ -246,7 +246,8 @@ export const api = {
     request<import('@/types').Coverage>(`/api/projects/${projectId}/sitemap/coverage`),
 
   // token 은 write-only: undefined 면 기존 토큰 유지, 값을 주면 교체.
-  updateSiteMapSource: (projectId: string, source: { url: string; branch: string; token?: string }) =>
+  // appRoot: 빈 문자열이면 지운다 (모노레포 앱 폴더)
+  updateSiteMapSource: (projectId: string, source: { url: string; branch: string; token?: string; appRoot?: string }) =>
     request<SiteMap>(`/api/projects/${projectId}/sitemap/source`, {
       method: 'PUT',
       body: JSON.stringify(source),
@@ -596,6 +597,17 @@ export const api = {
     /** 고른 결함만 다시 실행하고 원래 실행에 잇는다. 빈 배열이면 미해결 결함 전부(실패만 다시 실행) (#82) */
     rerun: (projectId: string, items: import('@/types').PlanItemKey[]) =>
       request<Execution>(`/api/projects/${projectId}/defects/rerun`, { method: 'POST', body: JSON.stringify({ items }) }),
+    /** 결함의 서버 분류와 가장 최근 제품 코드 수정안. 원격 저장소는 읽지 않아 폴링에 쓴다 */
+    fixProposal: (projectId: string, key: import('@/types').PlanItemKey) =>
+      request<import('@/types').AppFixView>(
+        `/api/projects/${projectId}/defects/fix-proposals?${new URLSearchParams({ specPath: key.specPath, grep: key.grep })}`,
+      ),
+    /** 같은 실패 · 같은 기준 커밋이면 있는 수정안을 돌려주고, 없으면 분석을 시작한다 */
+    requestFixProposal: (projectId: string, key: import('@/types').PlanItemKey, executionId: number) =>
+      request<import('@/types').AppFixView>(`/api/projects/${projectId}/defects/fix-proposals`, {
+        method: 'POST',
+        body: JSON.stringify({ specPath: key.specPath, grep: key.grep, executionId }),
+      }),
   },
 
   rounds: {
@@ -803,6 +815,27 @@ export const api = {
       request<import('@/types').AiJob>(`/api/ai-jobs/${id}/proceed`, { method: 'POST' }),
     dismiss: (id: number) =>
       request<import('@/types').AiJob>(`/api/ai-jobs/${id}/dismiss`, { method: 'POST' }),
+  },
+
+  /** 코드 자동 수정 사용권. 팀원은 본인 요청, 목록 · 부여 · 거절 · 회수는 PM · 관리자 (서버가 역할을 다시 확인) */
+  codeAutoFix: {
+    me: (projectId: string) => request<import('@/types').CodeAutoFixMine>(`/api/projects/${projectId}/code-auto-fix/me`),
+    request: (projectId: string, note: string) =>
+      request<import('@/types').CodeAutoFixRequest>(`/api/projects/${projectId}/code-auto-fix/requests`, {
+        method: 'POST',
+        body: JSON.stringify({ note }),
+      }),
+    list: (projectId: string) =>
+      request<import('@/types').CodeAutoFixRequest[]>(`/api/projects/${projectId}/code-auto-fix/requests`),
+    grant: (projectId: string, id: number, scopes: import('@/types').CodeAutoFixScope[]) =>
+      request<import('@/types').CodeAutoFixRequest>(`/api/projects/${projectId}/code-auto-fix/requests/${id}/grant`, {
+        method: 'POST',
+        body: JSON.stringify({ scopes }),
+      }),
+    reject: (projectId: string, id: number) =>
+      request<import('@/types').CodeAutoFixRequest>(`/api/projects/${projectId}/code-auto-fix/requests/${id}/reject`, { method: 'POST' }),
+    revoke: (projectId: string, id: number) =>
+      request<import('@/types').CodeAutoFixRequest>(`/api/projects/${projectId}/code-auto-fix/requests/${id}/revoke`, { method: 'POST' }),
   },
 
   /** 실패 묶음 · 원인 · 과거 수정 (학습 루프 E-04 · E-05) */

@@ -16,7 +16,7 @@ describe('shellNav', () => {
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'input')?.tabs).toEqual(['input']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'plan')?.tabs).toEqual(['plan', 'scenarios', 'recorder', 'structure']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'defects', 'results', 'schedules']);
-    expect(WORKSPACE_GROUPS.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members', 'source']);
+    expect(WORKSPACE_GROUPS.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members', 'code-auto-fix', 'source']);
     expect(WORKSPACE_GROUPS.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-generate', 'ai-analysis', 'ai-review']);
     expect(tabLabel('structure')).toBe('화면 지도');
   });
@@ -63,7 +63,8 @@ describe('팀원에게 보이는 탭', () => {
     expect(groups.map((g) => g.id)).toEqual(['plan', 'runs', 'dashboard', 'settings', 'ai']);
     expect(groups.find((g) => g.id === 'plan')?.tabs).toEqual(['plan', 'structure']);
     expect(groups.find((g) => g.id === 'runs')?.tabs).toEqual(['runs', 'defects', 'results']);
-    expect(groups.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members']);
+    // 코드 자동 수정은 팀원도 본인 사용권을 요청 · 조회하므로 보인다
+    expect(groups.find((g) => g.id === 'settings')?.tabs).toEqual(['settings', 'members', 'code-auto-fix']);
     expect(groups.find((g) => g.id === 'ai')?.tabs).toEqual(['ai-analysis']);
   });
 

@@ -132,7 +132,8 @@ class PlanServiceTest {
         SiteCoverageService coverage = mock(SiteCoverageService.class);
         when(coverage.view("p1")).thenReturn(new SiteCoverageService.Coverage(null, List.of(), List.of(), List.of()));
         DefectService defects = new DefectService(service, coverage, mock(TestSuiteRepository.class),
-                mock(ExecutionRepository.class), mock(ExecutionQueryService.class));
+                mock(ExecutionRepository.class), mock(ExecutionQueryService.class),
+                mock(com.playops.api.repository.AiClassifyFeedbackRepository.class));
         var defect = defects.list("p1", null, null, null, null).defects().getFirst();
 
         assertThat(item.defectStatus()).isEqualTo(DefectService.OPEN).isEqualTo(defect.status());

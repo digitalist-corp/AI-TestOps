@@ -58,7 +58,7 @@ export const WORKSPACE_GROUPS: WorkspaceGroup[] = [
   { id: 'plan', label: '계획', icon: ClipboardList, tabs: ['plan', 'scenarios', 'recorder', 'structure'] },
   { id: 'runs', label: '실행', icon: Play, tabs: ['runs', 'defects', 'results', 'schedules'] },
   { id: 'dashboard', label: '대시보드', icon: LayoutDashboard, tabs: ['dashboard'] },
-  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'members', 'source'] },
+  { id: 'settings', label: '설정', icon: Settings, tabs: ['settings', 'members', 'code-auto-fix', 'source'] },
   { id: 'ai', label: 'AI', icon: Sparkles, tabs: ['ai-generate', 'ai-analysis', 'ai-review'], aiOnly: true },
 ];
 

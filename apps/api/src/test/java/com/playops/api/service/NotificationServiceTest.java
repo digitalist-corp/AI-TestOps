@@ -124,4 +124,30 @@ class NotificationServiceTest {
 
         assertThat(saved()).extracting(Notification::getUserId).containsExactly(1L, 2L);
     }
+
+    @Test
+    void autoFixAccessRequestGoesOnlyToActivePmsOfThatProject() {
+        User pm = user(1, true);
+        User disabledPm = user(2, false);
+        User member = user(3, true);
+        User admin = user(4, true);
+        admin.setRole(com.playops.api.entity.UserRole.ADMIN);
+        when(memberRepository.findByProjectId("demo")).thenReturn(List.of(
+                com.playops.api.entity.ProjectMember.of("demo", 1L, com.playops.api.entity.ProjectRole.PM, null),
+                com.playops.api.entity.ProjectMember.of("demo", 2L, com.playops.api.entity.ProjectRole.PM, null),
+                com.playops.api.entity.ProjectMember.of("demo", 3L, com.playops.api.entity.ProjectRole.MEMBER, null)));
+        when(userRepository.findAllById(any())).thenReturn(List.of(pm, disabledPm));
+        when(userRepository.findAll()).thenReturn(List.of(pm, disabledPm, member, admin));
+
+        service.autoFixAccessRequested(project(), "윤재", 9L);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Notification>> rows = ArgumentCaptor.forClass(List.class);
+        verify(repository).saveAll(rows.capture());
+        assertThat(rows.getValue()).extracting(Notification::getUserId).containsExactly(1L);
+        Notification n = rows.getValue().get(0);
+        assertThat(n.getTitle()).isEqualTo("팀원이 자동 수정 권한을 요청했습니다");
+        assertThat(n.getLink()).isEqualTo("/projects/demo/code-auto-fix?request=9");
+        assertThat(n.getProjectId()).isEqualTo("demo");
+    }
 }

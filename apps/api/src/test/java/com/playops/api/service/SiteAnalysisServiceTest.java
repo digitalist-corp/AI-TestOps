@@ -442,4 +442,30 @@ class SiteAnalysisServiceTest {
         assertThat(old.getStatus()).isEqualTo(com.playops.api.entity.SiteAnalysisRun.FAILED);
         assertThat(fresh.getStatus()).isEqualTo(com.playops.api.entity.SiteAnalysisRun.RUNNING);
     }
+
+    @Test
+    void sourceAppRootMustStayInsideTheRepositoryAndBlankClearsIt() {
+        ProjectService projectService = mock(ProjectService.class);
+        com.playops.api.repository.ProjectRepository projectRepository = mock(com.playops.api.repository.ProjectRepository.class);
+        GitRepositoryService git = mock(GitRepositoryService.class);
+        com.playops.api.entity.Project project = new com.playops.api.entity.Project();
+        project.setProjectId("p1");
+        when(projectService.getProject("p1")).thenReturn(project);
+        SiteAnalysisService sources = new SiteAnalysisService(
+                projectService, projectRepository, git, null, null, null, new ScreenFinder(), null,
+                null, nodeRepository, editRepository, edgeRepository, originRepository, null, null, null, caseResultRepository);
+        String url = "https://github.com/acme/shop";
+
+        sources.updateSource("p1", new SiteAnalysisService.SourceRequest(url, null, null, "apps/web/"));
+        org.assertj.core.api.Assertions.assertThat(project.getSourceAppRoot()).isEqualTo("apps/web");
+        for (String bad : java.util.List.of("../secrets", "/etc", "apps/../../x")) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                    sources.updateSource("p1", new SiteAnalysisService.SourceRequest(url, null, null, bad)))
+                    .isInstanceOf(com.playops.api.exception.ApiException.class);
+        }
+        sources.updateSource("p1", new SiteAnalysisService.SourceRequest(url, null, null, null));
+        org.assertj.core.api.Assertions.assertThat(project.getSourceAppRoot()).isEqualTo("apps/web");
+        sources.updateSource("p1", new SiteAnalysisService.SourceRequest(url, null, null, ""));
+        org.assertj.core.api.Assertions.assertThat(project.getSourceAppRoot()).isNull();
+    }
 }

@@ -132,7 +132,8 @@ public class SiteAnalysisService {
     // ---------------------------------------------------------------- 응답 형태
 
     /** tokenSet 만 돌려주고 토큰 값은 응답에 싣지 않는다. */
-    public record Source(String url, String branch, boolean tokenSet, boolean usesProjectRepository, String siteUrl) {}
+    /** appRoot: 저장소 안의 앱 폴더 (모노레포). 비면 package.json 으로 찾는다 */
+    public record Source(String url, String branch, boolean tokenSet, boolean usesProjectRepository, String siteUrl, String appRoot) {}
 
     public record Analysis(String status, String commitSha, String framework, boolean partial, int screenCount,
                            int processedCount, int llmCalls, Long etaSeconds,
@@ -177,7 +178,10 @@ public class SiteAnalysisService {
 
     public record AnalyzeUrlRequest(String loginUrl, String loginId, String loginPassword) {}
 
-    public record SourceRequest(String url, String branch, String token) {}
+    /** appRoot 는 null 이면 그대로 두고, 빈 문자열이면 지운다 (token 과 같은 규칙) */
+    public record SourceRequest(String url, String branch, String token, String appRoot) {}
+
+    private static final Pattern APP_ROOT = Pattern.compile("^(?!/)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,200}$");
 
     // ---------------------------------------------------------------- 조회 · 설정
 
@@ -531,12 +535,20 @@ public class SiteAnalysisService {
             project.setSourceRepositoryUrl(null);
             project.setSourceRepositoryBranch(null);
             project.setSourceRepositoryTokenEncrypted(null);
+            project.setSourceAppRoot(null);
         } else {
             gitRepositoryService.validateAndNormalize(url);
             project.setSourceRepositoryUrl(url);
             project.setSourceRepositoryBranch(gitRepositoryService.validateBranch(request.branch()));
             if (request.token() != null) {
                 project.setSourceRepositoryTokenEncrypted(secretCipherService.encrypt(request.token()));
+            }
+            if (request.appRoot() != null) {
+                String root = request.appRoot().trim().replaceAll("/+$", "");
+                if (!root.isEmpty() && !APP_ROOT.matcher(root).matches()) {
+                    throw new ApiException(400, "앱 폴더는 저장소 안의 상대 경로여야 합니다 (예: apps/web).");
+                }
+                project.setSourceAppRoot(root.isEmpty() ? null : root);
             }
         }
         projectRepository.save(project);
@@ -549,7 +561,8 @@ public class SiteAnalysisService {
                 own ? project.getSourceRepositoryBranch() : null,
                 own && project.getSourceRepositoryTokenEncrypted() != null,
                 !own && project.isRepositoryConnected(),
-                project.getBaseUrl());
+                project.getBaseUrl(),
+                own ? project.getSourceAppRoot() : null);
     }
 
     private static boolean hasOwnSource(Project project) {
