@@ -241,7 +241,7 @@ export function UsersPage() {
         <span
           className={cn(
             'inline-flex px-2 py-0.5 rounded-full text-xs font-medium',
-            p.value === 'ADMIN' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+            p.value === 'ADMIN' ? 'bg-primary/10 text-primary' : p.value === 'PM' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-muted text-muted-foreground'
           )}
         >
           {userRoleLabel[p.value as UserRole] ?? p.value}
@@ -525,8 +525,9 @@ export function UsersPage() {
                 value={form.role}
                 onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
               >
-                <option value="USER">{userRoleLabel.USER}</option>
                 <option value="ADMIN">{userRoleLabel.ADMIN}</option>
+                <option value="PM">{userRoleLabel.PM}</option>
+                <option value="USER">{userRoleLabel.USER}</option>
               </select>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
@@ -557,8 +558,9 @@ export function UsersPage() {
                 disabled={editingUser?.username === 'admin'}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, role: e.target.value as UserRole }))}
               >
-                <option value="USER">{userRoleLabel.USER}</option>
                 <option value="ADMIN">{userRoleLabel.ADMIN}</option>
+                <option value="PM">{userRoleLabel.PM}</option>
+                <option value="USER">{userRoleLabel.USER}</option>
               </select>
               {editingUser?.username === 'admin' && (
                 <p className="text-xs text-muted-foreground">admin 계정의 역할은 변경할 수 없습니다.</p>

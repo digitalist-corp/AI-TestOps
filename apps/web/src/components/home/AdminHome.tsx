@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import type { AiJob, AiUsageSummary, AppNotification, PlanItem, Project, RunnerContainer, User } from '@/types';
 import { projectTabPath } from '@/config/projectWorkspace';
 import { planCounts } from '@/lib/plan';
-import { formatRelative, projectStatusLabel } from '@/lib/utils';
+import { formatRelative, projectStatusLabel, userRoleLabel } from '@/lib/utils';
 import { OpenDefects, Section, StatusAndPeriod, VerdictBar, daysSince, progressOf } from './parts';
 
 type Check = { level: 0 | 1 | 2; text: string; to: string };
@@ -145,7 +145,7 @@ export function AdminHome({ projects, plans, defects, needsReview, users, runner
                 return (
                   <tr key={u.id} className="border-t border-border">
                     <td className="px-4 py-2 text-foreground">{u.displayName || u.username}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{u.role === 'ADMIN' ? '관리자' : '팀원'}</td>
+                    <td className="px-4 py-2 text-muted-foreground">{userRoleLabel[u.role] ?? u.role}</td>
                     <td className={`px-4 py-2 ${idle === null || idle > 30 ? 'text-warning' : 'text-muted-foreground'}`}>
                       {idle === null ? '▲ 기록 없음' : idle > 30 ? `▲ ${idle}일 전` : formatRelative(u.lastLoginAt ?? '')}
                     </td>

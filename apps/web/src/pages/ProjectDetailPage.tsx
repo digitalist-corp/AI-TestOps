@@ -36,7 +36,7 @@ import {
   isRequiredEnvMissing,
   resolveEnvRequirementState,
 } from '@/lib/envVariables';
-import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
+import { confirmPlaywrightVersion, SERVER_RUN_UNAVAILABLE_MESSAGE } from '@/lib/projectRuntime';
 import { confirmFullRun } from '@/lib/runConfirm';
 import { useAiEnabled } from '@/lib/aiEnabled';
 import { cn, executionStatusLabel, formatRelative } from '@/lib/utils';
@@ -358,7 +358,9 @@ export function ProjectDetailPage() {
           runnableProject = await api.startDocker(projectId);
           setProject(runnableProject);
         } else {
-          alert('Docker Runner를 사용할 수 없습니다. 프로젝트 설정을 확인하세요.');
+          alert(runnableProject.dockerEnabled
+            ? 'Docker Runner를 사용할 수 없습니다. 프로젝트 설정을 확인하세요.'
+            : SERVER_RUN_UNAVAILABLE_MESSAGE);
           goTab('settings');
           return;
         }
@@ -585,7 +587,9 @@ export function ProjectDetailPage() {
                   ? undefined
                   : canStartPersistentRunner
                     ? '상주 Docker Runner를 시작한 뒤 실행합니다'
-                    : '설정에서 Docker Runner를 먼저 시작하세요'
+                    : project.dockerEnabled
+                      ? '설정에서 Docker Runner를 먼저 시작하세요'
+                      : SERVER_RUN_UNAVAILABLE_MESSAGE
             }
           >
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
@@ -599,7 +603,9 @@ export function ProjectDetailPage() {
         <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           <div className="flex items-center gap-2 min-w-0">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <span className="truncate">테스트 실행 전 Docker Runner를 시작해야 합니다.</span>
+            <span className={project.dockerEnabled ? 'truncate' : undefined}>
+              {project.dockerEnabled ? '테스트 실행 전 Docker Runner를 시작해야 합니다.' : SERVER_RUN_UNAVAILABLE_MESSAGE}
+            </span>
           </div>
           <Button size="sm" variant="outline" onClick={() => goTab('settings')}>
             설정으로 이동

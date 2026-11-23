@@ -39,4 +39,4 @@
 - **홈 'AI 브리핑·다음 할 일' 카드**(화면 구조 관점): 3-1 역할별 홈과 거의 겹칩니다. LLM 브리핑은 채울 분류 데이터(E-05)가 아직 없고, 비용·환각 위험을 첫 화면에 들입니다. 대신 3-1 체크리스트에 'AiTaskQueue를 채팅 패널 밖에서 재사용', '/sitemap/coverage로 테스트 없는 화면 N곳 표시' 두 줄만 덧붙입니다.
 - **프로젝트 AI 예산 집행·비용 표시·LLM 전송 마스킹**(신뢰·통제 관점): 예산은 설정할 경로가 없고, AiUsage의 jobId·costUsd는 어디서도 채워지지 않습니다. 비밀 값 표시 필드도 없어 과장된 항목입니다. LlmGatewayService.record에 jobId를 넘기는 한 줄만 E-09 안에서 처리합니다.
 
-참고: 근거 파일은 모두 `/Users/junho/Developer/AI-TestOps` 아래에 있습니다. 2위의 경로 검사 구멍은 `/Users/junho/Developer/AI-TestOps/apps/api/src/main/java/com/playops/api/service/AiJobService.java` 188행에서 직접 확인했고, 나머지 근거는 각 관점 비판자의 코드 확인 결과를 따랐습니다.
+참고: 근거 파일은 모두 `저장소 루트` 아래에 있습니다. 2위의 경로 검사 구멍은 `apps/api/src/main/java/com/playops/api/service/AiJobService.java` 188행에서 직접 확인했고, 나머지 근거는 각 관점 비판자의 코드 확인 결과를 따랐습니다.

@@ -1,5 +1,6 @@
 package com.playops.api.controller;
 
+import com.playops.api.dto.AiBootstrapBriefingActionRequest;
 import com.playops.api.dto.AiBootstrapCredentialsRequest;
 import com.playops.api.dto.AiBootstrapRequest;
 import com.playops.api.dto.AiBootstrapResponse;
@@ -66,6 +67,19 @@ public class AiEditAssistController {
             @RequestBody AiBootstrapCredentialsRequest body
     ) {
         return aiBootstrapService.submitCredentials(projectId, bootstrapId, body);
+    }
+
+    /**
+     * 첫 실행 브리핑의 버튼(A2UI action 메시지). 지금은 "계획에 넣기"(add_to_plan) 하나뿐이다.
+     * 권한은 계획 행 일괄 생성(POST /plan/entries/bulk)과 같다 — ProjectAccessInterceptor 가 프로젝트 경로의 쓰기를 PM 이상으로 막는다.
+     */
+    @PostMapping("/api/projects/{projectId}/ai/bootstrap/{bootstrapId}/briefing/action")
+    public AiBootstrapResponse bootstrapBriefingAction(
+            @PathVariable String projectId,
+            @PathVariable String bootstrapId,
+            @RequestBody AiBootstrapBriefingActionRequest body
+    ) {
+        return aiBootstrapService.briefingAction(projectId, bootstrapId, body);
     }
 
     @GetMapping({"/api/projects/{projectId}/ai/bootstrap/{bootstrapId}/screens/{file}", "/api/ai/bootstrap/{bootstrapId}/screens/{file}"})

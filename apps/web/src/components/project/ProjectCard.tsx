@@ -12,6 +12,7 @@ import { AnalysisProgress } from '@/components/project/AnalysisProgress';
 import { Button } from '@/components/ui/Button';
 import { cn, dockerStatusLabel, executionStatusLabel, formatDuration, formatRelative, projectStatusLabel } from '@/lib/utils';
 import { resolveEnvRequirementState, ENV_ASK_PM } from '@/lib/envVariables';
+import { SERVER_RUN_UNAVAILABLE_MESSAGE } from '@/lib/projectRuntime';
 import { parseRunProgress } from '@/lib/runProgress';
 import { useExecutionLogStream } from '@/components/project/ExecutionLogPanel';
 import { useAccess } from '@/lib/access';
@@ -300,7 +301,9 @@ export function ProjectCard({
             </Button>
           ) : (
             <Button size="sm" onClick={onRun} disabled={running || missingEnv}
-                    title={missingEnv ? '환경변수를 먼저 입력하세요' : '전체 테스트 실행'}>
+                    title={missingEnv ? '환경변수를 먼저 입력하세요'
+                      : !project.dockerEnabled && !isRunnerReady(project) ? SERVER_RUN_UNAVAILABLE_MESSAGE
+                        : '전체 테스트 실행'}>
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               실행
             </Button>

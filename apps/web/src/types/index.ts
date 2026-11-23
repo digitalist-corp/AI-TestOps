@@ -2,7 +2,7 @@ export type PackageManager = 'NPM' | 'YARN' | 'PNPM';
 export type DockerStatus = 'STOPPED' | 'RUNNING' | 'ERROR' | 'NOT_CONFIGURED';
 export type RunnerActivity = 'IDLE' | 'TESTING' | 'UNAVAILABLE';
 export type RunnerLifecycle = 'PERSISTENT' | 'EPHEMERAL';
-export type UserRole = 'ADMIN' | 'USER';
+export type UserRole = 'ADMIN' | 'PM' | 'USER';
 /** 프로젝트 상태 (#117): 계획 · 실행 · 종료 */
 export type ProjectStatus = 'PLANNED' | 'RUNNING' | 'CLOSED';
 
@@ -537,8 +537,8 @@ export const DEFAULT_PROJECT_FORM: ProjectFormData = {
   sourceRepositoryUrl: '',
   sourceRepositoryBranch: '',
   sourceRepositoryToken: '',
-  runnerLifecycle: 'PERSISTENT',
-  dockerEnabled: false,
+  runnerLifecycle: 'EPHEMERAL',
+  dockerEnabled: true,
   templateId: 'default',
   scaffoldOnCreate: true,
 };
@@ -633,6 +633,10 @@ export interface AiBootstrapResponse {
   currentUrl?: string | null;
   visitedCount?: number;
   credentialRequest?: AiBootstrapCredentialRequest | null;
+  /** 첫 실행 브리핑 상태. null 이면 아직 시작 안 했거나 ERROR 로 끝나 만들지 않는다 */
+  briefingStatus?: 'PENDING' | 'READY' | 'FAILED' | null;
+  /** READY 일 때 A2UI v1.0 메시지 배열 (docs/design/onboarding-briefing-contract.md). 그 밖에는 [] */
+  briefing?: unknown[];
 }
 
 export interface AiEditAssistVerifyResponse {

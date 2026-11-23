@@ -12,7 +12,7 @@ export type Me = {
   id: number;
   username: string;
   displayName: string | null;
-  role: 'ADMIN' | 'USER';
+  role: 'ADMIN' | 'PM' | 'USER';
   projects: { projectId: string; role: ProjectRole }[];
 };
 export type RoleInProject = 'ADMIN' | ProjectRole;
@@ -42,7 +42,7 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   // 받아오기 전에는 저장된 전역 역할로 관리자 메뉴만 먼저 맞춰 둔다.
   const [me, setMe] = useState<Me | null>(() => {
     const stored = getStoredAuth();
-    return stored ? { id: 0, username: stored.username, displayName: null, role: stored.role === 'ADMIN' ? 'ADMIN' : 'USER', projects: [] } : null;
+    return stored ? { id: 0, username: stored.username, displayName: null, role: stored.role === 'ADMIN' || stored.role === 'PM' ? stored.role : 'USER', projects: [] } : null;
   });
 
   // PM 이 팀원을 넣으면 화면을 옮길 때 반영된다.

@@ -90,7 +90,9 @@ export function HomePage() {
   const ensureRunner = async (project: Project) => {
     if (isRunnerReady(project)) return true;
     if (!(project.dockerEnabled && project.runnerLifecycle === 'PERSISTENT')) {
-      alert('Docker Runner를 사용할 수 없습니다. PM에게 프로젝트 설정 확인을 요청하세요.');
+      alert(project.dockerEnabled
+        ? 'Docker Runner를 사용할 수 없습니다. PM에게 프로젝트 설정 확인을 요청하세요.'
+        : "이 방식은 지금 테스트를 실행할 수 없어요. PM에게 '일회용 러너'로 바꿔 달라고 요청해 주세요.");
       return false;
     }
     await api.startDocker(project.projectId);

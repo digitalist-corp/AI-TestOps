@@ -672,15 +672,15 @@
 ---
 
 **근거로 본 파일**
-- /Users/junho/Developer/AI-TestOps/docs/design/qa-dashboard-research.md
-- /Users/junho/Developer/AI-TestOps/docs/demo/시연-순서.md
-- /Users/junho/Developer/AI-TestOps/docs/handoff/2026-11-18-LangGraph-개선-인수인계.md (2-3, 2-5, 3-1 ~ 3-3, 4절)
-- /Users/junho/Developer/AI-TestOps/apps/web/src/pages/HomePage.tsx, /Users/junho/Developer/AI-TestOps/apps/web/src/pages/HomePage.test.tsx (65 · 72 · 112 ~ 119행)
-- /Users/junho/Developer/AI-TestOps/apps/web/src/config/shellNav.ts, /Users/junho/Developer/AI-TestOps/apps/web/src/config/projectWorkspace.ts
-- /Users/junho/Developer/AI-TestOps/apps/web/src/components/project/PlanTab.tsx, ProjectDashboardTab.tsx, DefectsTab.tsx, ProjectCard.tsx
-- /Users/junho/Developer/AI-TestOps/apps/web/src/lib/plan.ts, /Users/junho/Developer/AI-TestOps/apps/web/src/lib/utils.ts (`executionStatusLabel` `PASSED: '성공'`, `projectStatusLabel` `RUNNING: '실행'`)
-- /Users/junho/Developer/AI-TestOps/apps/web/src/types/index.ts (`PlanItem.lastStatus`, `PlanSummary.completionRate`, `Defect`, `AiJob`(reviewedBy 없음), `CoverageIssueKind`, `CoverageFlowSource`, `RunnerContainer.removable/knownProject`, `Project.latestExecutionAt`, `lastLoginAt`, `ServiceStatus`)
-- /Users/junho/Developer/AI-TestOps/apps/web/src/api/client.ts (`runTests` specPath · caseTitle, `defects.rerun`, `aiJobs.needsReview`, `getAiUsage`)
-- /Users/junho/Developer/AI-TestOps/apps/api/src/main/java/com/playops/api/controller/AiJobController.java (needs-review = 멤버 프로젝트만), /Users/junho/Developer/AI-TestOps/apps/api/src/main/java/com/playops/api/service/AiJobService.java (`listNeedsReview` = NEEDS_REVIEW, 오래된 순), /Users/junho/Developer/AI-TestOps/apps/api/src/main/java/com/playops/api/dto/AiJobResponse.java (`reviewedBy`), /Users/junho/Developer/AI-TestOps/apps/api/src/main/java/com/playops/api/dto/PlanDtos.java (`completionRate = passed / enabled`)
-- /Users/junho/Developer/AI-TestOps/apps/api/src/main/resources/db/migration/ (최신 V21, V11 계획 칸, V17 `executions.created_by`, V1 `ai_usage.project_id` · `last_login_at`)
-- /Users/junho/Developer/AI-TestOps/playwright-projects/playops-self/tests/demo-rehearsal.spec.ts (41 · 51 · 56 · 57 · 67 · 72 · 101 · 102 · 107 · 108행)
+- docs/design/qa-dashboard-research.md
+- docs/demo/시연-순서.md
+- docs/handoff/2026-11-18-LangGraph-개선-인수인계.md (2-3, 2-5, 3-1 ~ 3-3, 4절)
+- apps/web/src/pages/HomePage.tsx, apps/web/src/pages/HomePage.test.tsx (65 · 72 · 112 ~ 119행)
+- apps/web/src/config/shellNav.ts, apps/web/src/config/projectWorkspace.ts
+- apps/web/src/components/project/PlanTab.tsx, ProjectDashboardTab.tsx, DefectsTab.tsx, ProjectCard.tsx
+- apps/web/src/lib/plan.ts, apps/web/src/lib/utils.ts (`executionStatusLabel` `PASSED: '성공'`, `projectStatusLabel` `RUNNING: '실행'`)
+- apps/web/src/types/index.ts (`PlanItem.lastStatus`, `PlanSummary.completionRate`, `Defect`, `AiJob`(reviewedBy 없음), `CoverageIssueKind`, `CoverageFlowSource`, `RunnerContainer.removable/knownProject`, `Project.latestExecutionAt`, `lastLoginAt`, `ServiceStatus`)
+- apps/web/src/api/client.ts (`runTests` specPath · caseTitle, `defects.rerun`, `aiJobs.needsReview`, `getAiUsage`)
+- apps/api/src/main/java/com/playops/api/controller/AiJobController.java (needs-review = 멤버 프로젝트만), apps/api/src/main/java/com/playops/api/service/AiJobService.java (`listNeedsReview` = NEEDS_REVIEW, 오래된 순), apps/api/src/main/java/com/playops/api/dto/AiJobResponse.java (`reviewedBy`), apps/api/src/main/java/com/playops/api/dto/PlanDtos.java (`completionRate = passed / enabled`)
+- apps/api/src/main/resources/db/migration/ (최신 V21, V11 계획 칸, V17 `executions.created_by`, V1 `ai_usage.project_id` · `last_login_at`)
+- playwright-projects/playops-self/tests/demo-rehearsal.spec.ts (41 · 51 · 56 · 57 · 67 · 72 · 101 · 102 · 107 · 108행)

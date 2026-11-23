@@ -507,6 +507,20 @@ export const api = {
       }
     ),
 
+  /** 첫 실행 브리핑의 버튼 동작. 본문은 렌더러가 만든 A2UI v1.0 action 메시지 그대로, 응답은 갱신된 상태 */
+  sendAiBootstrapBriefingAction: (
+    projectId: string,
+    bootstrapId: string,
+    message: import('@/components/a2ui/A2uiSurface').A2uiActionMessage
+  ) =>
+    request<import('@/types').AiBootstrapResponse>(
+      `/api/projects/${projectId}/ai/bootstrap/${bootstrapId}/briefing/action`,
+      {
+        method: 'POST',
+        body: JSON.stringify(message),
+      }
+    ),
+
   fetchAiBootstrapScreenshot: async (
     projectId: string,
     bootstrapId: string,

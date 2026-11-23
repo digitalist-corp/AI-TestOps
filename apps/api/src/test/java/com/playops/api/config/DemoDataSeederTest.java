@@ -135,7 +135,7 @@ class DemoDataSeederTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(users).save(saved.capture());
-        assertThat(saved.getValue().getRole()).isEqualTo(UserRole.USER);
+        assertThat(saved.getValue().getRole()).isEqualTo(UserRole.PM);
         assertThat(saved.getValue().getDisplayName()).isEqualTo("시연 PM");
         assertThat(encoder.matches("pw-1234-abcd", saved.getValue().getPassword())).isTrue();
         ArgumentCaptor<ProjectMember> member = ArgumentCaptor.forClass(ProjectMember.class);
