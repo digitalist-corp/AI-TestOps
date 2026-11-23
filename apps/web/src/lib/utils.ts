@@ -41,8 +41,16 @@ export const aiJobStatusLabel: Record<AiJobStatus, string> = {
 /** 전역 역할. 프로젝트 안 역할(PM · 팀원)은 lib/access 의 ROLE_LABEL */
 export const userRoleLabel: Record<UserRole, string> = {
   ADMIN: '관리자',
+  PM: 'PM',
   USER: '팀원',
 };
+
+/** 프로젝트 등록 때 PM 으로 고를 수 있는 계정 — 계정 역할이 PM 인 사람만 */
+export function pmCandidates(users: { id: number; username: string; displayName?: string | null; role: UserRole }[]) {
+  return users
+    .filter((u) => u.role === 'PM')
+    .map((u) => ({ id: u.id, label: u.displayName ? `${u.displayName} (${u.username})` : u.username }));
+}
 
 export const dockerStatusLabel: Record<DockerStatus, string> = {
   RUNNING: '실행 중',

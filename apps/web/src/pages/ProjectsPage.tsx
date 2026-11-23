@@ -15,7 +15,7 @@ import { ProjectCard, isRunnerReady } from '@/components/project/ProjectCard';
 import { ENV_ASK_PM, isRequiredEnvMissing } from '@/lib/envVariables';
 import { confirmPlaywrightVersion } from '@/lib/projectRuntime';
 import { confirmFullRun } from '@/lib/runConfirm';
-import { cn, projectStatusLabel } from '@/lib/utils';
+import { cn, pmCandidates as toPmCandidates, projectStatusLabel } from '@/lib/utils';
 import { ConsoleEyebrow } from '@/components/console/ConsoleText';
 
 /** 등록 직후 카드를 강조해 두는 시간 */
@@ -57,9 +57,7 @@ export function ProjectsPage() {
   useEffect(() => {
     if (!dialogOpen || !admin) return;
     api.getUsers()
-      .then((users) => setPmCandidates(users
-        .filter((u) => u.role !== 'ADMIN')
-        .map((u) => ({ id: u.id, label: u.displayName ? `${u.displayName} (${u.username})` : u.username }))))
+      .then((users) => setPmCandidates(toPmCandidates(users)))
       .catch(() => setPmCandidates([]));
   }, [dialogOpen, admin]);
 

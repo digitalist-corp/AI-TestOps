@@ -144,7 +144,7 @@ public class DemoDataSeeder implements CommandLineRunner {
             user = new User();
             user.setUsername(demoPmUsername);
             user.setDisplayName(DEMO_PM_NAME);
-            user.setRole(UserRole.USER);
+            user.setRole(UserRole.PM);
             user.setPassword(passwordEncoder.encode(demoPmPassword));
             user = userRepository.save(user);
         } else if (!DEMO_PM_NAME.equals(user.getDisplayName())) {
