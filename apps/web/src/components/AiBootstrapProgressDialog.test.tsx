@@ -52,6 +52,20 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('AiBootstrapProgressDialog — 첫 실행 브리핑', () => {
+  it('오류로 끝나면 원문 오류 아래에 준비된 브리핑을 보여 준다', async () => {
+    const error = '상주 Docker Runner가 중지되어 있습니다.';
+    api.aiBootstrap.mockResolvedValue(status({ phase: 'GENERATING', finishedAt: null }));
+    api.getAiBootstrap.mockResolvedValue(
+      status({ phase: 'ERROR', error, briefingStatus: 'READY', briefing: briefingMessages() })
+    );
+    renderDialog();
+
+    const briefing = await screen.findByText('AI가 이 사이트를 살펴봤어요', {}, { timeout: 3000 });
+    const rawError = screen.getByText(error);
+    expect(rawError.compareDocumentPosition(briefing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(api.getAiBootstrap).toHaveBeenCalledWith('p1', 'bt-1');
+  });
+
   it('끝났어도 브리핑을 정리하는 중이면 계속 읽고, 다 되면 브리핑을 보여 준다', async () => {
     api.aiBootstrap.mockResolvedValue(status({ briefingStatus: 'PENDING' }));
     api.getAiBootstrap.mockResolvedValue(status({ briefingStatus: 'READY', briefing: briefingMessages() }));

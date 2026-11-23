@@ -49,6 +49,7 @@ import java.util.concurrent.TimeUnit;
  *    실패 로그 + 실측 화면 정보로 최대 {@link #MAX_HEAL_ATTEMPTS}번 고쳐 다시 돌린다.
  *
  * 4. 브리핑: PASSED · FAILED 로 끝나면 비전공자용 브리핑을 이어서 만든다({@link OnboardingBriefingService}).
+ *    ERROR 로 끝나도 화면 지도나 이미 저장한 테스트 파일이 있으면 기본 브리핑을 만든다.
  *    사용자가 고른 항목은 {@link #briefingAction} 으로 계획 행이 된다.
  *
  * 등록 직후의 초기 소스라 스캐폴드와 같은 성격이므로 AI 검토 큐를 거치지 않고 바로 파일에 쓴다.
@@ -130,6 +131,7 @@ public class AiBootstrapService {
         int healAttempt;
         Long executionId;
         String specPath;
+        String writtenSpec;
         long estimatedDurationMs = DEFAULT_ESTIMATED_DURATION_MS;
         AiBootstrapResponse.SiteAnalysisSummary site;
         String error;
@@ -141,7 +143,7 @@ public class AiBootstrapService {
         Path screensDir;
         boolean visualOnly;
         Instant credentialsDeadline;
-        /** null · PENDING · READY · FAILED. finish(PASSED|FAILED) 와 같은 잠금 안에서 PENDING 이 돼야 프론트가 폴링을 멈추지 않는다. */
+        /** null · PENDING · READY · FAILED. 종료 phase 와 함께 갱신해야 웹이 브리핑을 받기 전에 폴링을 멈추지 않는다. */
         String briefingStatus;
         OnboardingBriefingService.Content briefing;
         /** 계획에 넣은 건수. null 이면 아직 넣지 않았다(두 번째 요청을 막는 표시이기도 하다). */
@@ -160,6 +162,7 @@ public class AiBootstrapService {
         synchronized void finish(String finalPhase) {
             phase = finalPhase;
             finishedAt = Instant.now();
+            writtenSpec = null;
             if ("PASSED".equals(finalPhase) || "FAILED".equals(finalPhase)) {
                 briefingStatus = "PENDING";
             }
@@ -379,11 +382,9 @@ public class AiBootstrapService {
         try {
             executor.execute(() -> resumeAfterCredentials(state, finalLoginSpec));
         } catch (TaskRejectedException e) {
-            synchronized (state) {
-                state.error = "첫 테스트 생성 요청이 많습니다. 잠시 뒤 다시 시도하세요.";
-            }
-            state.finish("ERROR");
-            throw new ApiException(429, "첫 테스트 생성 요청이 많습니다. 잠시 뒤 다시 시도하세요.");
+            String message = "첫 테스트 생성 요청이 많습니다. 잠시 뒤 다시 시도하세요.";
+            finishError(state, message);
+            throw new ApiException(429, message);
         }
         return state.snapshot();
     }
@@ -476,10 +477,7 @@ public class AiBootstrapService {
             generateAndExecute(state, project);
         } catch (Exception e) {
             log.warn("첫 테스트 생성 실패 (project={}): {}", state.projectId, e.getMessage());
-            synchronized (state) {
-                state.error = e.getMessage() != null ? e.getMessage() : "첫 테스트 생성에 실패했습니다.";
-            }
-            state.finish("ERROR");
+            finishError(state, e.getMessage());
         }
     }
 
@@ -499,8 +497,21 @@ public class AiBootstrapService {
             generateAndExecute(state, project);
         } catch (Exception e) {
             log.warn("첫 테스트 생성 재개 실패 (project={}): {}", state.projectId, e.getMessage());
-            synchronized (state) {
-                state.error = e.getMessage() != null ? e.getMessage() : "첫 테스트 생성에 실패했습니다.";
+            finishError(state, e.getMessage());
+        }
+    }
+
+    private void finishError(State state, String message) {
+        synchronized (state) {
+            state.error = message != null ? message : "첫 테스트 생성에 실패했습니다.";
+            try {
+                state.briefing = briefingService.buildForError(state.projectId, state.writtenSpec, state.error);
+                if (state.briefing != null) {
+                    state.briefingStatus = "READY";
+                }
+            } catch (Exception e) {
+                log.warn("오류 브리핑 생성 실패 (project={}): {}", state.projectId, e.getMessage());
+                state.briefingStatus = "FAILED";
             }
             state.finish("ERROR");
         }
@@ -693,10 +704,7 @@ public class AiBootstrapService {
         try {
             executor.execute(() -> resumeAfterCredentials(state, null));
         } catch (TaskRejectedException e) {
-            synchronized (state) {
-                state.error = "첫 테스트 생성 요청이 많아 재개하지 못했습니다.";
-            }
-            state.finish("ERROR");
+            finishError(state, "첫 테스트 생성 요청이 많아 재개하지 못했습니다.");
         }
     }
 
@@ -782,18 +790,19 @@ public class AiBootstrapService {
             throw new ApiException(502, "AI가 실행 가능한 spec 을 만들지 못했습니다. 요청 내용을 조금 더 구체적으로 적어보세요.");
         }
         fileStorageService.writeFile(state.projectId, SPEC_PATH, spec);
+        synchronized (state) {
+            state.writtenSpec = spec;
+            state.specPath = SPEC_PATH;
+            if (!state.generatedFiles.contains(SPEC_PATH)) {
+                state.generatedFiles.add(SPEC_PATH);
+            }
+        }
         SiteMapPromptService.SelectorCheck check = siteMapPromptService.check(state.projectId, spec);
         if (!screens.isBlank() && !check.unknown().isEmpty()) {
             state.warn("화면 정보에 없는 셀렉터 " + check.unknown().size() + "개: "
                     + String.join(", ", check.unknown().subList(0, Math.min(5, check.unknown().size()))));
         }
         siteMapPromptService.recordOrigin(state.projectId, SPEC_PATH, List.of(), check.used());
-        synchronized (state) {
-            state.specPath = SPEC_PATH;
-            if (!state.generatedFiles.contains(SPEC_PATH)) {
-                state.generatedFiles.add(SPEC_PATH);
-            }
-        }
     }
 
     private Execution runOnce(State state) throws InterruptedException {
