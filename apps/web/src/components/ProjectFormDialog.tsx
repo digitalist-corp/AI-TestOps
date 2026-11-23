@@ -21,6 +21,7 @@ import type { PlaywrightTemplate, Project, ProjectFormData, ProjectStatus, SiteC
 import { DEFAULT_PROJECT_FORM } from '@/types';
 import { api } from '@/api/client';
 import { useAiEnabled } from '@/lib/aiEnabled';
+import { SERVER_RUN_UNAVAILABLE_MESSAGE } from '@/lib/projectRuntime';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -80,11 +81,11 @@ const RUN_MODES: { id: RunMode; title: string; detail: string }[] = [
   {
     id: 'SERVER',
     title: '서버에서 바로 실행',
-    detail: '준비 과정 없이 테스트 서버에서 실행합니다. 가장 간단합니다.',
+    detail: SERVER_RUN_UNAVAILABLE_MESSAGE,
   },
   {
     id: 'EPHEMERAL',
-    title: '일회용 컨테이너',
+    title: '일회용 러너',
     detail: '매번 새 컨테이너에서 깨끗하게 실행합니다. 느리지만 실행끼리 영향을 주지 않습니다.',
   },
   {
@@ -302,19 +303,17 @@ export function ProjectFormDialog({
         const cmds = { NPM: 'npm install', YARN: 'yarn install', PNPM: 'pnpm install' };
         next.installCommand = cmds[value as keyof typeof cmds];
       }
-      if (key === 'dockerEnabled' && value === false) {
-        next.runnerLifecycle = 'PERSISTENT';
-      }
       return next;
     });
     if (key === 'baseUrl') setSiteCheck(null);
   };
 
   const selectRunMode = (mode: RunMode) => {
+    if (mode === 'SERVER') return;
     setForm((prev) => ({
       ...prev,
-      dockerEnabled: mode !== 'SERVER',
-      runnerLifecycle: mode === 'EPHEMERAL' ? 'EPHEMERAL' : 'PERSISTENT',
+      dockerEnabled: true,
+      runnerLifecycle: mode,
     }));
   };
 
@@ -416,6 +415,7 @@ export function ProjectFormDialog({
   const selectedTemplate = templates.find((template) => template.id === form.templateId);
   const creating = !initial;
   const runMode = runModeOf(form);
+  const showServerMode = !creating && runMode === 'SERVER';
   // 이름이 한글뿐이면 주소를 자동으로 만들 수 없으므로 ID 칸을 앞에 내놓는다.
 
   return (
@@ -652,13 +652,16 @@ export function ProjectFormDialog({
                 <Server className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-[15px] font-bold text-foreground">테스트 실행 방식</h3>
               </div>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+              <div className={cn('grid grid-cols-1 gap-2', showServerMode ? 'md:grid-cols-3' : 'md:grid-cols-2')}>
                 {RUN_MODES.map((mode) => {
+                  if (mode.id === 'SERVER' && !showServerMode) return null;
                   const active = runMode === mode.id;
                   return (
                     <button
                       key={mode.id}
                       type="button"
+                      aria-pressed={active}
+                      disabled={mode.id === 'SERVER'}
                       onClick={() => selectRunMode(mode.id)}
                       className={cn(
                         'rounded-sm border p-3 text-left transition-colors',

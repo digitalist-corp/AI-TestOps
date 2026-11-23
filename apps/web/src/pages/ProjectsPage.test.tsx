@@ -7,7 +7,10 @@ import type { Project, ScenarioTree } from '@/types';
 import { ProjectsPage } from './ProjectsPage';
 
 vi.mock('@/lib/aiEnabled', () => ({ useAiEnabled: () => ({ active: false }) }));
-vi.mock('@/lib/projectRuntime', () => ({ confirmPlaywrightVersion: vi.fn() }));
+vi.mock('@/lib/projectRuntime', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/projectRuntime')>(),
+  confirmPlaywrightVersion: vi.fn(),
+}));
 vi.mock('@/api/client', () => ({
   getStoredAuth: () => null,
   api: {
@@ -87,6 +90,21 @@ describe('ProjectsPage — 실행 확인 · 수정/삭제 위치', () => {
     fireEvent.click(screen.getByRole('button', { name: /실행/ }));
 
     await waitFor(() => expect(api.runTests).toHaveBeenCalledWith('shop'));
+  });
+
+  it('서버 실행 프로젝트는 일회용 러너 안내를 표시하고 실행 요청을 보내지 않는다', async () => {
+    const message = "이 방식은 지금 테스트를 실행할 수 없어요. '일회용 러너'로 바꿔 주세요.";
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.mocked(api.getProjects).mockResolvedValue([{ ...project, dockerEnabled: false, dockerStatus: 'NOT_CONFIGURED' }]);
+    await renderPage();
+
+    const run = screen.getByRole('button', { name: '실행' });
+    expect(run.getAttribute('title')).toBe(message);
+    fireEvent.click(run);
+
+    await waitFor(() => expect(alertSpy).toHaveBeenCalledWith(message));
+    expect(api.runTests).not.toHaveBeenCalled();
   });
 
   it('목록에는 수정 · 삭제 버튼이 없다', async () => {
