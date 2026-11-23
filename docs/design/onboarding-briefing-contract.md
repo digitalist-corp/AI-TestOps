@@ -12,11 +12,18 @@
 
 | 필드 | 값 |
 |---|---|
-| `briefingStatus` | `null`(아직 시작 안 함 · ERROR 로 끝남) · `PENDING`(정리 중) · `READY` · `FAILED` |
+| `briefingStatus` | `null`(아직 시작 안 함 · 브리핑 자료 없이 ERROR 로 끝남) · `PENDING`(정리 중) · `READY` · `FAILED` |
 | `briefing` | `READY` 일 때 A2UI v1.0 메시지 배열. 그 밖에는 `[]` |
 
-- phase 가 `PASSED` · `FAILED` 로 끝나면 `briefingStatus=PENDING` 으로 두고 브리핑을 만든다. `ERROR` 면 만들지 않는다.
+- phase 가 `PASSED` · `FAILED` 로 끝나면 `briefingStatus=PENDING` 으로 두고 브리핑을 만든다.
+- phase 가 `ERROR` 로 끝나도 화면 지도에 화면이 있거나 이번 생성에서 테스트 파일을 저장했다면 기본 브리핑을 만든다. 종료 상태와 `READY` 를 같은 잠금에서 공개한다. 두 자료가 모두 없으면 `briefingStatus` 는 `null` 이다.
 - 웹은 phase 가 끝났어도 `briefingStatus === 'PENDING'` 이면 계속 읽는다.
+
+### 오류 브리핑
+
+- LLM 호출 없이 화면 지도와 저장된 테스트 제목을 사용한다. 화면이 있으면 기존 요약인 “화면 N개를 살펴봤어요.”를 쓰고 추천 항목은 비워 둔다.
+- `resultNotice` 는 `danger` 다. 원문 오류의 `401` · `Unauthorized` · `API 키` · `api key` 는 관리자 설정의 AI 키 확인을, `Docker Runner` · `러너` 는 프로젝트 설정의 실행 방식 확인을 안내한다. 그 밖의 오류는 관리자에게 오류 내용을 알려 달라고 안내한다. 원문은 대화상자의 오류 문구에만 표시한다.
+- 테스트 후보가 있으면 같은 `add_to_plan` 동작으로 계획에 넣는다. 후보가 없으면 `plan` 의 children 은 `[planHint]` 이고 `checkList` · `addButton` 은 보내지 않는다. 안내 문구는 “지금은 계획에 넣을 항목이 없어요. 문제를 해결한 뒤 AI 테스트 생성을 다시 해 보세요.”다.
 
 ## A2UI 메시지
 
