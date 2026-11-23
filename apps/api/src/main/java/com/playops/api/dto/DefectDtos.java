@@ -17,18 +17,25 @@ public final class DefectDtos {
      * last*: 이 케이스의 가장 최근 실행. resolved*: 해결한 실행(실패 뒤 첫 통과), 미해결이면 비어 있다.
      * errorMessage: 마지막 실패의 오류. routeKeys: 이 테스트가 지나가는 화면(모르면 비어 있음).
      * runs: 발견 실행부터 마지막 실행까지 오래된 순.
+     * fixCategory: 서버 분류 APP_CODE · APP_API(제품 코드 수정 제안 후보) · TEST · ENVIRONMENT · UNKNOWN. 사람이 고친 원인이 규칙보다 앞선다.
      */
     public record Defect(String specPath, String grep, String title, String describePath, String status,
                          String assignee, Long assigneeUserId, int failCount,
                          Long firstFailedExecutionId, Instant firstFailedAt,
                          Long lastExecutionId, Instant lastRunAt,
                          Long resolvedExecutionId, Instant resolvedAt,
-                         String errorMessage, List<String> routeKeys, List<DefectRun> runs) {
+                         String errorMessage, List<String> routeKeys, List<DefectRun> runs, String fixCategory) {
 
         public Defect withLinks(List<String> keys, List<DefectRun> linkedRuns) {
             return new Defect(specPath, grep, title, describePath, status, assignee, assigneeUserId, failCount,
                     firstFailedExecutionId, firstFailedAt, lastExecutionId, lastRunAt, resolvedExecutionId, resolvedAt,
-                    errorMessage, keys, linkedRuns);
+                    errorMessage, keys, linkedRuns, fixCategory);
+        }
+
+        public Defect withCategory(String category) {
+            return new Defect(specPath, grep, title, describePath, status, assignee, assigneeUserId, failCount,
+                    firstFailedExecutionId, firstFailedAt, lastExecutionId, lastRunAt, resolvedExecutionId, resolvedAt,
+                    errorMessage, routeKeys, runs, category);
         }
 
         /** 마지막으로 실패한 실행 */

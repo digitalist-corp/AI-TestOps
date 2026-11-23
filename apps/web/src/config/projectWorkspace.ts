@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  Wrench,
 } from 'lucide-react';
 
 export type ProjectTabId =
@@ -33,7 +34,8 @@ export type ProjectTabId =
   | 'ai-review'
   | 'schedules'
   | 'settings'
-  | 'members';
+  | 'members'
+  | 'code-auto-fix';
 
 export const PROJECT_WORKSPACE_TABS: {
   id: ProjectTabId;
@@ -136,6 +138,12 @@ export const PROJECT_WORKSPACE_TABS: {
     label: '팀원',
     description: '프로젝트 멤버 · PM 지정',
     icon: Users,
+  },
+  {
+    id: 'code-auto-fix',
+    label: '코드 자동 수정',
+    description: '팀원별 자동 수정 사용권 요청 · 부여 · 회수',
+    icon: Wrench,
   },
 ];
 

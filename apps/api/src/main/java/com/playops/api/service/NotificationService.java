@@ -94,6 +94,35 @@ public class NotificationService {
                 "/projects/" + project.getProjectId() + "/runs?execution=" + executionId, project.getProjectId());
     }
 
+    /**
+     * 팀원이 코드 자동 수정 사용권을 요청했을 때. 그 프로젝트의 활성 PM 에게만 보낸다
+     * (다른 프로젝트 · 다른 팀원 · 관리자 알림함으로 퍼뜨리지 않는다. 관리자는 화면에서 관리한다).
+     * 누르면 그 프로젝트의 "코드 자동 수정" 탭에서 이 요청을 연다.
+     */
+    public void autoFixAccessRequested(Project project, String requesterName, Long requestId) {
+        try {
+            List<Long> pmIds = memberRepository.findByProjectId(project.getProjectId()).stream()
+                    .filter(m -> m.getRole() == com.playops.api.entity.ProjectRole.PM)
+                    .map(com.playops.api.entity.ProjectMember::getUserId).toList();
+            List<Notification> rows = new ArrayList<>();
+            for (User pm : userRepository.findAllById(pmIds)) {
+                if (!pm.isEnabled()) continue;
+                Notification n = new Notification();
+                n.setUserId(pm.getId());
+                n.setKind("AUTO_FIX_ACCESS_REQUESTED");
+                n.setLevel("INFO");
+                n.setTitle("팀원이 자동 수정 권한을 요청했습니다");
+                n.setMessage(project.getProjectName() + " · " + requesterName + " · 코드 자동 수정 탭에서 범위를 정해 부여하거나 거절할 수 있어요");
+                n.setLink("/projects/" + project.getProjectId() + "/code-auto-fix?request=" + requestId);
+                n.setProjectId(project.getProjectId());
+                rows.add(n);
+            }
+            repository.saveAll(rows);
+        } catch (RuntimeException e) {
+            log.warn("알림을 만들지 못했습니다 (AUTO_FIX_ACCESS_REQUESTED): {}", e.getMessage());
+        }
+    }
+
     /** 관리자가 새 공지를 올렸을 때 (#116). 누르면 그 공지로 간다. */
     public void noticePosted(Long noticeId, String title) {
         notifyAll("NOTICE", "INFO", "새 공지", title, "/notices/" + noticeId, null);

@@ -9,7 +9,9 @@ import com.playops.api.dto.PlanDtos.PlanItem;
 import com.playops.api.dto.TestSuiteResponse;
 import com.playops.api.entity.ExecutionCaseResult;
 import com.playops.api.entity.TestSuite;
+import com.playops.api.entity.AiClassifyFeedback;
 import com.playops.api.exception.ApiException;
+import com.playops.api.repository.AiClassifyFeedbackRepository;
 import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.repository.TestSuiteRepository;
 import com.playops.api.util.PlaywrightGrep;
@@ -26,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -50,14 +53,17 @@ public class DefectService {
     private final TestSuiteRepository suiteRepository;
     private final ExecutionRepository executionRepository;
     private final ExecutionQueryService executionQueryService;
+    private final AiClassifyFeedbackRepository feedbacks;
 
     public DefectService(PlanService planService, SiteCoverageService coverageService, TestSuiteRepository suiteRepository,
-                         ExecutionRepository executionRepository, ExecutionQueryService executionQueryService) {
+                         ExecutionRepository executionRepository, ExecutionQueryService executionQueryService,
+                         AiClassifyFeedbackRepository feedbacks) {
         this.planService = planService;
         this.coverageService = coverageService;
         this.suiteRepository = suiteRepository;
         this.executionRepository = executionRepository;
         this.executionQueryService = executionQueryService;
+        this.feedbacks = feedbacks;
     }
 
     /** 필터는 모두 생략 가능: 상태(OPEN | RESOLVED) · 담당자 계정 · 스위트 · 화면(routeKey). 미해결 먼저, 최근 실행 순. */
@@ -88,6 +94,7 @@ public class DefectService {
             defects = defects.stream().map(d -> d.withLinks(routesOf(d.specPath(), flows), d.runs().stream()
                     .map(r -> new DefectRun(r.executionId(), r.status(), r.at(), rerunOf.get(r.executionId())))
                     .toList())).toList();
+            defects = withCategories(projectId, defects);
         }
         if (screen != null && !screen.isBlank()) {
             defects = defects.stream().filter(d -> d.routeKeys().contains(screen)).toList();
@@ -99,6 +106,28 @@ public class DefectService {
                 .thenComparing(Defect::title)).toList();
         int open = (int) defects.stream().filter(d -> OPEN.equals(d.status())).count();
         return new DefectResponse(defects, open, defects.size() - open);
+    }
+
+    /** 결함 하나 (제품 코드 수정안의 기준). 목록에 없으면 404 */
+    public Defect find(String projectId, String specPath, String grep) {
+        return list(projectId, null, null, null, null).defects().stream()
+                .filter(d -> d.specPath().equals(specPath) && d.grep().equals(grep))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(404, "결함 목록에 없는 케이스입니다: " + grep));
+    }
+
+    /** 마지막 실패의 오류로 분류한다. 사람이 고친 원인(ai_classify_feedback, 학습 루프와 같은 서명)이 규칙보다 앞선다. */
+    private List<Defect> withCategories(String projectId, List<Defect> defects) {
+        Map<Defect, String> signatures = new HashMap<>();
+        defects.forEach(d -> signatures.put(d, FailureRules.signature(d.specPath(), d.errorMessage()).key()));
+        Map<String, String> human = feedbacks.findByProjectIdAndSignatureIn(projectId, Set.copyOf(signatures.values())).stream()
+                .collect(Collectors.toMap(AiClassifyFeedback::getSignature, AiClassifyFeedback::getCause, (a, b) -> b));
+        return defects.stream().map(d -> {
+            // 마지막 실패 이전의 상태(최신 먼저) — 불안정(통과 · 실패 반복) 판정에 쓴다
+            List<String> earlier = new ArrayList<>();
+            for (int i = d.runs().size() - 2; i >= 0; i--) earlier.add(d.runs().get(i).status());
+            return d.withCategory(AppFixRules.category(d.errorMessage(), earlier, human.get(signatures.get(d))).name());
+        }).toList();
     }
 
     /**
@@ -195,7 +224,7 @@ public class DefectService {
                 last.getExecutionId(), last.getCreatedAt(),
                 resolved == null ? null : resolved.getExecutionId(), resolved == null ? null : resolved.getCreatedAt(),
                 lastFailed.getErrorMessage() == null ? null : ANSI.matcher(lastFailed.getErrorMessage()).replaceAll(""),
-                List.of(), runs);
+                List.of(), runs, null);
     }
 
     /** 이 파일을 지나는 흐름들의 화면, 지나는 순서대로 중복 없이. 경로는 뒷부분이 같으면 같은 파일로 본다. */

@@ -179,7 +179,7 @@ function build(fixed: boolean): { siteMap: SiteMap; coverage: Coverage } {
 
   const siteMap: SiteMap = {
     projectId: 'mock',
-    source: { url: null, branch: null, tokenSet: false, usesProjectRepository: false, siteUrl: 'https://shop.example.com' },
+    source: { url: null, branch: null, tokenSet: false, usesProjectRepository: false, siteUrl: 'https://shop.example.com', appRoot: null },
     analysis: {
       status: 'COMPLETED',
       commitSha: null,

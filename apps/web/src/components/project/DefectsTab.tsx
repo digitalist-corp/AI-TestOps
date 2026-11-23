@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Loader2, RotateCcw } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import { ChevronDown, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 import { api } from '@/api/client';
 import type { CaseFocus, Defect, DefectFilter, DefectResponse, DefectStatus, PlanItemKey, ProjectMember, SiteMapNode, TestSuite } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { AppFixProposalPanel, FIX_CATEGORY, isFixCandidate } from '@/components/project/AppFixProposal';
+import { useAiEnabled } from '@/lib/aiEnabled';
 import { screenName } from '@/lib/coverage';
 import { assigneeLabel, planKey } from '@/lib/plan';
 import { cn, formatRelative } from '@/lib/utils';
@@ -11,6 +14,12 @@ const selectClass = 'h-9 rounded-sm border border-border bg-card px-3 text-sm te
 
 /** 결함을 누르면 가는 실행: 마지막으로 실패한 실행 */
 const lastFailedOf = (d: Defect) => [...d.runs].reverse().find((r) => r.status === 'FAILED')?.executionId ?? d.lastExecutionId;
+
+/** 마지막 실패 실행의 그 케이스 실패 단계. 같은 파일의 다른 묶음에 같은 제목이 있어도 하나만 펼치게 묶음까지 */
+const failedStepOf = (d: Defect): CaseFocus => ({
+  specPath: d.specPath,
+  title: [d.describePath, d.title].filter(Boolean).join(' > '),
+});
 
 /**
  * 통합 결함 리스트(F-4, #81). 결함 = 사용 중 계획 항목의 실패. 미해결 수는 첫 화면 · 대시보드와 같은 API(필터 없음)의 open 이다.
@@ -39,6 +48,9 @@ export function DefectsTab({
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [suites, setSuites] = useState<TestSuite[]>([]);
   const [nodes, setNodes] = useState<SiteMapNode[]>([]);
+  /** 펼친 결함 (결함 보기) */
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const ai = useAiEnabled();
 
   useEffect(() => {
     let alive = true;
@@ -213,24 +225,34 @@ export function DefectsTab({
             <tbody>
               {defects.map((d) => {
                 const key = planKey(d.specPath, d.grep);
+                const open = expanded === key;
                 return (
-                  <tr key={key} className="border-b border-border last:border-0 align-top">
+                  <Fragment key={key}>
+                  <tr className={cn('align-top', !open && 'border-b border-border last:border-0')}>
                     <td className="px-3 py-2">
                       <input type="checkbox" aria-label={`${d.title} 고르기`} checked={checked.has(key)} onChange={() => toggle(key)} />
                     </td>
                     <td className="max-w-[280px] px-3 py-2">
-                      <button
-                        type="button"
-                        className="text-left font-medium text-foreground hover:underline"
-                        title="실패한 단계 보기"
-                        onClick={() => onOpenExecution(lastFailedOf(d), {
-                          specPath: d.specPath,
-                          // 같은 파일의 다른 묶음에 같은 제목이 있어도 하나만 펼치게 묶음까지
-                          title: [d.describePath, d.title].filter(Boolean).join(' > '),
-                        })}
-                      >
-                        {d.title}
-                      </button>
+                      <div className="flex items-start gap-1">
+                        <button
+                          type="button"
+                          aria-label={`${d.title} 결함 보기`}
+                          aria-expanded={open}
+                          title="결함 보기"
+                          className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+                          onClick={() => setExpanded(open ? null : key)}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          className="text-left font-medium text-foreground hover:underline"
+                          title="실패한 단계 보기"
+                          onClick={() => onOpenExecution(lastFailedOf(d), failedStepOf(d))}
+                        >
+                          {d.title}
+                        </button>
+                      </div>
                       <p className="truncate text-xs text-muted-foreground" title={d.specPath}>
                         {[d.describePath, d.specPath].filter(Boolean).join(' · ')}
                       </p>
@@ -267,6 +289,43 @@ export function DefectsTab({
                       </p>
                     </td>
                   </tr>
+                  {open && (
+                    <tr className="border-b border-border last:border-0">
+                      <td colSpan={9} className="space-y-3 bg-muted/30 px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={FIX_CATEGORY[d.fixCategory]?.variant}>{FIX_CATEGORY[d.fixCategory]?.label ?? '분류 미확정'}</Badge>
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-primary hover:underline"
+                            onClick={() => onOpenExecution(lastFailedOf(d), failedStepOf(d))}
+                          >
+                            실패 단계 보기
+                          </button>
+                        </div>
+                        {d.errorMessage && (
+                          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-card p-2 text-xs text-muted-foreground">
+                            {d.errorMessage}
+                          </pre>
+                        )}
+                        {isFixCandidate(d.fixCategory) && (
+                          <>
+                            {/* 이미 만든 결과 · 근거는 AI 를 꺼도 본다. 새 분석만 AI 를 켠 사용자가 요청한다 */}
+                            <AppFixProposalPanel
+                              projectId={projectId}
+                              defectKey={{ specPath: d.specPath, grep: d.grep }}
+                              requestBlockedReason={ai.enabled ? null : 'AI를 꺼 두어 새 분석은 요청하지 않아요. 이미 만든 결과와 근거는 볼 수 있어요.'}
+                            />
+                            {ai.enabled && ai.checked && !ai.available && (
+                              <p className="text-xs text-muted-foreground">
+                                AI 키가 등록되지 않아 새 분석은 실행 근거만 정리한 진단으로 나와요. 관리자가 AI 설정에서 키를 등록하면 원인 분석과 diff 를 받을 수 있어요.
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>

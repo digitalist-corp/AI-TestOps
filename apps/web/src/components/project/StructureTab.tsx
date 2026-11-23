@@ -128,6 +128,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
   const [url, setUrl] = useState('');
   const [branch, setBranch] = useState('');
   const [token, setToken] = useState('');
+  const [appRoot, setAppRoot] = useState('');
   const [showSource, setShowSource] = useState(false);
   const wide = useMediaQuery(GRAPH_MEDIA_QUERY);
   const [chosenView, setChosenView] = useState<StructureView | null>(null);
@@ -152,6 +153,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
     setSiteMap(next);
     setUrl(next.source.url ?? '');
     setBranch(next.source.branch ?? '');
+    setAppRoot(next.source.appRoot ?? '');
   }, []);
 
   // 가짜 확인 지도는 개발 서버에서만 불러온다. 이 분기는 운영 빌드에서 통째로 사라진다.
@@ -365,7 +367,8 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
   const hasSource = Boolean(source.url) || source.usesProjectRepository;
   const hasSiteUrl = Boolean(source.siteUrl);
   const urlRun = analysis.framework === 'URL';
-  const sourceChanged = url.trim() !== (source.url ?? '') || branch.trim() !== (source.branch ?? '') || token !== '';
+  const sourceChanged = url.trim() !== (source.url ?? '') || branch.trim() !== (source.branch ?? '') || token !== ''
+    || appRoot.trim() !== (source.appRoot ?? '');
   const empty = siteMap.nodes.length === 0;
 
   const findBySite = () => run(() => api.analyzeSiteMapByUrl(projectId));
@@ -535,7 +538,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
               테스트할 앱의 소스 코드가 있는 GitHub 저장소입니다. React Router 와 Next.js 프로젝트를 읽을 수 있습니다.
               {source.usesProjectRepository && ' 따로 연결한 저장소가 없어 지금은 프로젝트 저장소를 읽습니다.'}
             </p>
-            <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] @3xl:items-end">
+            <div className="grid grid-cols-1 gap-3 @3xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] @3xl:items-end">
               <div className="space-y-1">
                 <Label htmlFor="structure-source-url">저장소 주소</Label>
                 <Input
@@ -565,6 +568,15 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
                   placeholder={source.tokenSet ? '변경하려면 새 토큰 입력' : '비공개 저장소일 때만'}
                 />
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="structure-source-app-root">앱 폴더</Label>
+                <Input
+                  id="structure-source-app-root"
+                  value={appRoot}
+                  onChange={(e) => setAppRoot(e.target.value)}
+                  placeholder="모노레포일 때만 (예: apps/web)"
+                />
+              </div>
               <Button
                 variant="outline"
                 disabled={busy || !sourceChanged}
@@ -574,6 +586,7 @@ export function StructureTab({ projectId, onOpenEnv, mode = 'map' }: {
                       url: url.trim(),
                       branch: branch.trim(),
                       token: token === '' ? undefined : token,
+                      appRoot: appRoot.trim(),
                     })
                   )
                 }

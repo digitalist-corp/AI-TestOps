@@ -800,6 +800,8 @@ export interface SiteMapSource {
   usesProjectRepository: boolean;
   /** 프로젝트의 대상 사이트 주소. 있으면 소스 저장소 없이도 사이트 탐색을 할 수 있다 */
   siteUrl: string | null;
+  /** 저장소 안의 앱 폴더 (모노레포). 비면 package.json 으로 찾는다. 제품 코드 수정안이 이 폴더만 읽는다 */
+  appRoot: string | null;
 }
 
 export interface SiteMapAnalysis {
@@ -1354,6 +1356,67 @@ export interface Defect extends PlanItemKey {
   routeKeys: string[];
   /** 발견 실행부터 오래된 순 */
   runs: DefectRun[];
+  /** 서버 분류. APP_CODE · APP_API 만 제품 코드 수정 제안 후보. 사람이 고친 원인이 규칙보다 앞선다 */
+  fixCategory: AppFixCategory;
+}
+
+export type AppFixCategory = 'APP_CODE' | 'APP_API' | 'TEST' | 'ENVIRONMENT' | 'UNKNOWN';
+
+/** 제품 코드 수정안 (1단계, 읽기 전용). DIFF_APPLIES = 서버가 기준 원본에 적용해 봄 · 재현 테스트 미실행 */
+export interface AppFixProposal {
+  id: number;
+  status: 'ANALYZING' | 'DIFF_READY' | 'DIAGNOSIS_ONLY' | 'FAILED';
+  category: AppFixCategory;
+  executionId: number;
+  sourceRepository: string | null;
+  sourceBranch: string | null;
+  /** 실제로 읽은 커밋. 배포 버전과는 대조하지 않았다 */
+  sourceSha: string | null;
+  appRoot: string | null;
+  verification: 'DIFF_APPLIES' | null;
+  evidence: string | null;
+  summary: string | null;
+  causes: string[];
+  checks: string[];
+  files: { path: string; diff: string }[];
+  limitation: string | null;
+  errorMessage: string | null;
+  requestedBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 코드 자동 수정 사용권 범위. AUTO_FIX: 자동 수정 · 재검증 요청, PR_PUBLISH: 검증 후 PR 게시 요청(diff 마다 사람 승인 따로) */
+export type CodeAutoFixScope = 'AUTO_FIX' | 'PR_PUBLISH';
+
+/** 팀원의 사용권 요청 (프로젝트 · 멤버마다 하나). 멤버에서 빠지면 사라지고 다시 들어와도 살아나지 않는다 */
+export interface CodeAutoFixRequest {
+  id: number;
+  userId: number;
+  userName: string | null;
+  status: 'PENDING' | 'GRANTED' | 'REJECTED' | 'REVOKED';
+  scopes: CodeAutoFixScope[];
+  note: string | null;
+  requestedAt: string;
+  decidedBy: number | null;
+  decidedAt: string | null;
+}
+
+/** 내 역할과 지금 쓸 수 있는 범위. integrationReady: 자동 수정 실행 · PR 연동이 준비됐는지 (아직 false) */
+export interface CodeAutoFixMine {
+  role: 'ADMIN' | 'PM' | 'MEMBER';
+  scopes: CodeAutoFixScope[];
+  canManage: boolean;
+  request: CodeAutoFixRequest | null;
+  integrationReady: boolean;
+}
+
+/** stale: 최근 수정안이 지금 마지막 실패 실행 · 소스 설정과 다른 기준(이전 수정안) */
+export interface AppFixView {
+  category: AppFixCategory;
+  latestFailedExecutionId: number;
+  stale: boolean;
+  proposal: AppFixProposal | null;
 }
 
 /** open · resolved 는 돌려준 목록 안에서 센다 */

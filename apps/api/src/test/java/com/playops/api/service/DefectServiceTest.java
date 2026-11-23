@@ -9,6 +9,8 @@ import com.playops.api.entity.Execution;
 import com.playops.api.entity.ExecutionCaseResult;
 import com.playops.api.entity.TestSuite;
 import com.playops.api.exception.ApiException;
+import com.playops.api.entity.AiClassifyFeedback;
+import com.playops.api.repository.AiClassifyFeedbackRepository;
 import com.playops.api.repository.ExecutionRepository;
 import com.playops.api.repository.TestSuiteRepository;
 import com.playops.api.util.PlaywrightGrep;
@@ -45,6 +47,7 @@ class DefectServiceTest {
     private TestSuiteRepository suiteRepository;
     private ExecutionRepository executionRepository;
     private ExecutionQueryService executionQueryService;
+    private AiClassifyFeedbackRepository feedbacks;
     private DefectService service;
 
     @BeforeEach
@@ -54,7 +57,8 @@ class DefectServiceTest {
         suiteRepository = mock(TestSuiteRepository.class);
         executionRepository = mock(ExecutionRepository.class);
         executionQueryService = mock(ExecutionQueryService.class);
-        service = new DefectService(planService, coverageService, suiteRepository, executionRepository, executionQueryService);
+        feedbacks = mock(AiClassifyFeedbackRepository.class);
+        service = new DefectService(planService, coverageService, suiteRepository, executionRepository, executionQueryService, feedbacks);
         when(coverageService.view("p1")).thenReturn(new Coverage(null, List.of(), List.of(), List.of(
                 new CoverageFlow("tests/a.spec.ts", "a", "PATH", "FAILED", null, 3L,
                         List.of(new FlowStep("/login", "PASSED", null), new FlowStep("/cart", "FAILED", null))))));
@@ -128,6 +132,35 @@ class DefectServiceTest {
         assertThat(res.open()).isEqualTo(1);
         assertThat(res.resolved()).isEqualTo(1);
         assertThat(res.defects().get(0).routeKeys()).containsExactly("/login", "/cart");
+    }
+
+    @Test
+    void eachDefectCarriesTheServerCategoryAndHumanCorrectionWins() {
+        List<ExecutionCaseResult> wrongTotal = history("F");
+        wrongTotal.get(0).setErrorMessage("expect(locator).toHaveText(expected)\nExpected string: \"3\"\nReceived string: \"2\"");
+        List<ExecutionCaseResult> corrected = history("F");
+        corrected.get(0).setErrorMessage("expect(locator).toHaveText(expected)\nExpected string: \"5\"\nReceived string: \"4\"");
+        when(planService.tracked("p1")).thenReturn(List.of(
+                new Tracked(item("tests/a.spec.ts", "합계", true, null), wrongTotal),
+                new Tracked(item("tests/b.spec.ts", "정정됨", true, null), corrected),
+                new Tracked(item("tests/c.spec.ts", "모름", true, null), history("F"))));
+        AiClassifyFeedback human = new AiClassifyFeedback();
+        human.setSignature(FailureRules.signature("tests/b.spec.ts", corrected.get(0).getErrorMessage()).key());
+        human.setCause("SCRIPT_ERROR");
+        when(feedbacks.findByProjectIdAndSignatureIn(eq("p1"), any())).thenReturn(List.of(human));
+
+        assertThat(service.list("p1", null, null, null, null).defects())
+                .extracting(Defect::title, Defect::fixCategory)
+                .containsExactlyInAnyOrder(tuple("합계", "APP_CODE"), tuple("정정됨", "TEST"), tuple("모름", "UNKNOWN"));
+    }
+
+    @Test
+    void findReturnsOneDefectOrNotFound() {
+        when(planService.tracked("p1")).thenReturn(List.of(new Tracked(item("tests/a.spec.ts", "가", true, null), history("F"))));
+
+        assertThat(service.find("p1", "tests/a.spec.ts", "가").title()).isEqualTo("가");
+        assertThatThrownBy(() -> service.find("p1", "tests/a.spec.ts", "없음"))
+                .isInstanceOf(ApiException.class).hasFieldOrPropertyWithValue("status", 404);
     }
 
     @Test

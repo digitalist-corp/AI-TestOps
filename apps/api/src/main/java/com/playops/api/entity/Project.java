@@ -106,6 +106,10 @@ public class Project {
     @Column(name = "source_repository_token_encrypted", columnDefinition = "TEXT")
     private String sourceRepositoryTokenEncrypted;
 
+    /** 앱 소스 저장소 안의 앱 폴더 (모노레포, V25). 비우면 package.json 으로 찾는다 */
+    @Column(name = "source_app_root", length = 500)
+    private String sourceAppRoot;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "runner_lifecycle", length = 20)
     private RunnerLifecycle runnerLifecycle = RunnerLifecycle.PERSISTENT;
@@ -267,6 +271,8 @@ public class Project {
     public void setSourceRepositoryBranch(String sourceRepositoryBranch) { this.sourceRepositoryBranch = sourceRepositoryBranch; }
     public String getSourceRepositoryTokenEncrypted() { return sourceRepositoryTokenEncrypted; }
     public void setSourceRepositoryTokenEncrypted(String value) { this.sourceRepositoryTokenEncrypted = value; }
+    public String getSourceAppRoot() { return sourceAppRoot; }
+    public void setSourceAppRoot(String sourceAppRoot) { this.sourceAppRoot = sourceAppRoot; }
     public boolean isRepositoryConnected() { return repositoryUrl != null && !repositoryUrl.isBlank(); }
 
     public RunnerLifecycle getRunnerLifecycle() {

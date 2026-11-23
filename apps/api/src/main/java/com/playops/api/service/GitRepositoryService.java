@@ -34,6 +34,7 @@ public class GitRepositoryService {
     private static final Pattern GITHUB_HTTPS_PATTERN =
             Pattern.compile("^https://github\\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(\\.git)?/?$");
     private static final Pattern BRANCH_PATTERN = Pattern.compile("^[A-Za-z0-9._/-]{1,200}$");
+    private static final Pattern COMMIT_SHA = Pattern.compile("^[0-9a-f]{40}$");
     private static final Pattern TOKEN_IN_URL_PATTERN = Pattern.compile("x-access-token:[^@\\s]+@");
 
     private final DockerRunnerService dockerRunnerService;
@@ -110,34 +111,13 @@ public class GitRepositoryService {
         cloneCmd.append(" ").append(shellDoubleQuote(cloneUrl)).append(" .");
         script.add(cloneCmd.toString());
 
-        List<String> command = new ArrayList<>();
-        command.add("docker");
-        command.add("run");
-        command.add("--rm");
-        command.add("--network");
-        command.add(SandboxProxyService.SANDBOX_NETWORK);
-        command.add("-e");
-        command.add("HTTPS_PROXY=http://" + SandboxProxyService.PROXY_HOST + ":" + SandboxProxyService.PROXY_PORT);
-        command.add("-e");
-        command.add("HTTP_PROXY=http://" + SandboxProxyService.PROXY_HOST + ":" + SandboxProxyService.PROXY_PORT);
-        if (hasToken) {
-            command.add("-e");
-            command.add("GIT_TOKEN=" + decryptedToken);
-        }
-        command.addAll(volumeArgs);
-        command.add("-w");
-        command.add(containerWorkDir);
-        command.add("--entrypoint");
-        command.add("sh");
-        command.add(GIT_IMAGE);
-        command.add("-c");
-        command.add(String.join("\n", script));
+        List<String> command = sandboxCommand(script, hasToken ? decryptedToken : null, volumeArgs, containerWorkDir);
 
         dockerRunnerService.logOperation(projectId, "[playops] GitHub 저장소 clone 시작(격리 샌드박스): " + slug
                 + (branch != null ? " (" + branch + ")" : ""));
 
         try {
-            int exitCode = runAndStream(projectId, command);
+            int exitCode = runAndStream(projectId, command, null);
             if (exitCode != 0) {
                 dockerRunnerService.logOperation(projectId, "[playops] GitHub 저장소 clone 실패 (exit=" + exitCode + ")");
                 throw new ApiException(500, "GitHub 저장소 clone에 실패했습니다 (exit=" + exitCode + ")");
@@ -152,7 +132,94 @@ public class GitRepositoryService {
         }
     }
 
-    private int runAndStream(String projectId, List<String> command) throws Exception {
+    /**
+     * 토큰 없이 공개 저장소의 브랜치(비우면 기본 브랜치) 머리 커밋을 읽는다. 제품 코드 수정안의 기준 SHA 를 고정할 때 쓴다.
+     * 비공개 · 없는 저장소 · 없는 브랜치면 ApiException.
+     */
+    public String remoteHeadSha(String projectId, String repositoryUrl, String rawBranch) {
+        String slug = validateAndNormalize(repositoryUrl);
+        String branch = validateBranch(rawBranch);
+        sandboxProxyService.ensureReady();
+        String ref = branch == null ? "HEAD" : "refs/heads/" + branch;
+        List<String> script = lsRemoteScript("https://github.com/" + slug + ".git", ref);
+        List<String> output = new ArrayList<>();
+        try {
+            int exitCode = runAndStream(projectId, sandboxCommand(script, null, List.of(), "/tmp"), output);
+            if (exitCode == 0) {
+                for (String line : output) {
+                    String sha = line.split("\\s+")[0];
+                    if (COMMIT_SHA.matcher(sha).matches()) return sha;
+                }
+            }
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("ls-remote failed for project {}: {}", projectId, redact(e.getMessage()));
+        }
+        throw new ApiException(502, "공개 저장소 " + slug + (branch == null ? "" : " (" + branch + ")") + " 을 읽지 못했습니다.");
+    }
+
+    /** 공개 저장소의 커밋 하나만 받아(토큰 없음) 폴더에 꺼낸다. 폴더의 기존 내용은 지운다. */
+    public void fetchCommit(String projectId, String repositoryUrl, String sha, String containerWorkDir, List<String> volumeArgs) {
+        String slug = validateAndNormalize(repositoryUrl);
+        if (sha == null || !COMMIT_SHA.matcher(sha).matches()) {
+            throw new ApiException(400, "커밋 SHA 형식이 올바르지 않습니다.");
+        }
+        sandboxProxyService.ensureReady();
+        List<String> script = fetchScript("https://github.com/" + slug + ".git", sha);
+        try {
+            int exitCode = runAndStream(projectId, sandboxCommand(script, null, volumeArgs, containerWorkDir), null);
+            if (exitCode != 0) throw new ApiException(502, "공개 저장소 " + slug + " 의 커밋 " + sha + " 을 받지 못했습니다.");
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ApiException(502, "공개 저장소 " + slug + " 의 커밋을 받지 못했습니다: " + redact(e.getMessage()));
+        }
+    }
+
+    /** 인증 창을 띄우지 않고 바로 실패하게 한다 (비공개 저장소). url · ref 는 호출자가 검증한 값 */
+    static List<String> lsRemoteScript(String url, String ref) {
+        return List.of("set -eu", "export GIT_TERMINAL_PROMPT=0", "git ls-remote " + shellDoubleQuote(url) + " " + shellQuote(ref));
+    }
+
+    /** 기준 커밋 하나만 받아 detached 로 꺼낸다. sha 는 40자 16진수로 검증한 값 */
+    static List<String> fetchScript(String url, String sha) {
+        return List.of("set -eu", "export GIT_TERMINAL_PROMPT=0",
+                "find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +",
+                "git init -q .",
+                "git fetch -q --depth 1 " + shellDoubleQuote(url) + " " + sha,
+                "git checkout -q --detach FETCH_HEAD");
+    }
+
+    /** clone 컨테이너 실행 명령. 토큰은 있을 때만 -e 로 넘긴다 */
+    private List<String> sandboxCommand(List<String> script, String token, List<String> volumeArgs, String containerWorkDir) {
+        List<String> command = new ArrayList<>();
+        command.add("docker");
+        command.add("run");
+        command.add("--rm");
+        command.add("--network");
+        command.add(SandboxProxyService.SANDBOX_NETWORK);
+        command.add("-e");
+        command.add("HTTPS_PROXY=http://" + SandboxProxyService.PROXY_HOST + ":" + SandboxProxyService.PROXY_PORT);
+        command.add("-e");
+        command.add("HTTP_PROXY=http://" + SandboxProxyService.PROXY_HOST + ":" + SandboxProxyService.PROXY_PORT);
+        if (token != null) {
+            command.add("-e");
+            command.add("GIT_TOKEN=" + token);
+        }
+        command.addAll(volumeArgs);
+        command.add("-w");
+        command.add(containerWorkDir);
+        command.add("--entrypoint");
+        command.add("sh");
+        command.add(GIT_IMAGE);
+        command.add("-c");
+        command.add(String.join("\n", script));
+        return command;
+    }
+
+    /** output 이 있으면 출력 줄을 거기에도 모은다 */
+    private int runAndStream(String projectId, List<String> command, List<String> output) throws Exception {
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.redirectErrorStream(true);
         Process process = pb.start();
@@ -160,6 +227,7 @@ public class GitRepositoryService {
             String line;
             while ((line = reader.readLine()) != null) {
                 dockerRunnerService.logOperation(projectId, redact(line));
+                if (output != null) output.add(line);
             }
         }
         if (!process.waitFor(180, TimeUnit.SECONDS)) {
@@ -177,7 +245,7 @@ public class GitRepositoryService {
         return TOKEN_IN_URL_PATTERN.matcher(value).replaceAll("x-access-token:***@");
     }
 
-    private String shellQuote(String value) {
+    private static String shellQuote(String value) {
         return "'" + value.replace("'", "'\"'\"'") + "'";
     }
 
