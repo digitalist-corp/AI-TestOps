@@ -88,4 +88,12 @@ class ProjectAccessInterceptorTest {
         assertThat(passes("GET", "/api/ai/bootstrap/b-blog/screens/1.png")).isFalse();
         assertThat(passes("POST", "/api/ai/bootstrap/b-shop/credentials")).isFalse();
     }
+
+    @Test
+    void briefingAddToPlanNeedsTheSameRoleAsBulkPlanEntries() throws Exception {
+        // 첫 실행 브리핑의 "계획에 넣기"는 계획 행 일괄 생성과 같은 권한(PM 이상)이다
+        assertThat(passes("POST", "/api/projects/shop/plan/entries/bulk")).isFalse();
+        assertThat(passes("POST", "/api/projects/shop/ai/bootstrap/b-shop/briefing/action")).isFalse();
+        assertThat(passes("GET", "/api/projects/shop/ai/bootstrap/b-shop")).isTrue();
+    }
 }

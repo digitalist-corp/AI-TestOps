@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CheckCircle2, KeyRound, Loader2, Sparkles, TriangleAlert, Wrench, X, XCircle } from 'lucide-react';
-import { api } from '@/api/client';
+import { api, ApiError } from '@/api/client';
 import type { AiBootstrapPhase, AiBootstrapResponse } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -17,6 +17,7 @@ import {
   resolveCredentialLabels,
   toBootstrapTimelineItems,
 } from '@/lib/bootstrapTimeline';
+import { A2uiSurface, type A2uiActionMessage } from '@/components/a2ui/A2uiSurface';
 
 interface Props {
   open: boolean;
@@ -113,6 +114,8 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
   const [submittingCredentials, setSubmittingCredentials] = useState(false);
   const [credentialError, setCredentialError] = useState('');
   const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
+  const [briefingBusy, setBriefingBusy] = useState(false);
+  const [briefingError, setBriefingError] = useState('');
   const startedAt = useRef<number>(0);
   const startedRef = useRef(false);
   const timelineRef = useRef<HTMLDivElement | null>(null);
@@ -121,16 +124,23 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
     startedAt.current = Date.now();
     setError('');
     setElapsedMs(0);
+    let current: AiBootstrapResponse | null = null;
     try {
-      let current = await api.aiBootstrap(projectId, { instruction });
+      current = await api.aiBootstrap(projectId, { instruction });
       setStatus(current);
       // 사이트 탐색 · 생성 · 실행 · 자율 교정은 서버에서 이어지고, 여기서는 끝날 때까지 상태만 다시 읽는다.
-      while (!FINISHED.includes(current.phase)) {
+      // 끝난 뒤에도 브리핑을 정리하는 중(PENDING)이면 다 될 때까지 계속 읽는다.
+      while (!FINISHED.includes(current.phase) || current.briefingStatus === 'PENDING') {
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
         current = await api.getAiBootstrap(projectId, current.bootstrapId);
         setStatus(current);
       }
     } catch (err) {
+      // 테스트는 이미 끝났고 브리핑만 기다리던 중이면 결과 화면은 그대로 두고 브리핑만 접는다.
+      if (current && FINISHED.includes(current.phase)) {
+        setStatus((prev) => (prev ? { ...prev, briefingStatus: 'FAILED' } : prev));
+        return;
+      }
       setError(err instanceof Error ? err.message : 'AI 초기 케이스 생성에 실패했습니다.');
     }
   }, [projectId, instruction]);
@@ -213,6 +223,23 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
       setCredentialError(err instanceof Error ? err.message : '로그인 정보 저장에 실패했습니다.');
     } finally {
       setSubmittingCredentials(false);
+    }
+  };
+
+  const handleBriefingAction = async (message: A2uiActionMessage) => {
+    if (!status?.bootstrapId || briefingBusy) return;
+    setBriefingBusy(true);
+    setBriefingError('');
+    try {
+      setStatus(await api.sendAiBootstrapBriefingAction(projectId, status.bootstrapId, message));
+    } catch (err) {
+      setBriefingError(
+        err instanceof ApiError && err.status === 403
+          ? '계획에 추가할 권한이 없어요.'
+          : '계획에 넣지 못했어요. 잠시 뒤 다시 눌러 주세요.'
+      );
+    } finally {
+      setBriefingBusy(false);
     }
   };
 
@@ -455,6 +482,21 @@ export function AiBootstrapProgressDialog({ open, projectId, instruction, onClos
           )}
 
           {phase === 'ERROR' && <p className="text-sm text-destructive">{error || status?.error}</p>}
+
+          {!inProgress && status?.briefingStatus === 'PENDING' && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-ai-accent" />
+              AI가 결과를 쉬운 말로 정리하는 중이에요…
+            </p>
+          )}
+
+          {!inProgress && status?.briefingStatus === 'READY' && (
+            // 요청 중에는 fieldset 으로 브리핑 안의 버튼 · 체크를 한꺼번에 막는다.
+            <fieldset disabled={briefingBusy} className="min-w-0 space-y-2">
+              <A2uiSurface messages={status.briefing ?? []} onAction={handleBriefingAction} />
+              {briefingError && <p className="text-xs text-destructive">{briefingError}</p>}
+            </fieldset>
+          )}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={onClose}>

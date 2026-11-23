@@ -633,6 +633,10 @@ export interface AiBootstrapResponse {
   currentUrl?: string | null;
   visitedCount?: number;
   credentialRequest?: AiBootstrapCredentialRequest | null;
+  /** 첫 실행 브리핑 상태. null 이면 아직 시작 안 했거나 ERROR 로 끝나 만들지 않는다 */
+  briefingStatus?: 'PENDING' | 'READY' | 'FAILED' | null;
+  /** READY 일 때 A2UI v1.0 메시지 배열 (docs/design/onboarding-briefing-contract.md). 그 밖에는 [] */
+  briefing?: unknown[];
 }
 
 export interface AiEditAssistVerifyResponse {
