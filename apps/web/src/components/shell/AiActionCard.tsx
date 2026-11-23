@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { api } from '@/api/client';
 import type { AiChatAction, AiJob, AiJobFileDiff, AiJobStatus } from '@/types';
 import { cn } from '@/lib/utils';
-import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
+import { notifyAiJobChanged, useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 import { useAccess } from '@/lib/access';
 import { ProgressNote } from '@/components/ui/ProgressNote';
 
@@ -136,6 +136,7 @@ export function AiActionCard({ action }: { action: AiChatAction }) {
           ? await api.aiJobs.approve(action.jobId)
           : await api.aiJobs.reject(action.jobId);
       setJob(next);
+      notifyAiJobChanged(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
