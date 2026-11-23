@@ -356,8 +356,8 @@
 - https://m.blog.naver.com/tbell2015/224412135370
 
 **우리 코드 (비교 근거)**
-- `/Users/junho/Developer/AI-TestOps/apps/web/src/pages/HomePage.tsx`
-- `/Users/junho/Developer/AI-TestOps/apps/web/src/config/shellNav.ts`
-- `/Users/junho/Developer/AI-TestOps/apps/web/src/config/projectWorkspace.ts`
-- `/Users/junho/Developer/AI-TestOps/apps/web/src/components/project/` (PlanTab, ScenarioTab, ExecutionsTab, ResultsTab, DefectsTab, ProjectDashboardTab, StructureTab, AiAnalysisTab, AiReviewTab, RecorderTab, SchedulesTab, MembersTab, SourceExplorerTab)
-- `/Users/junho/Developer/AI-TestOps/apps/web/src/lib/utils.ts`, `lib/plan.ts`, `lib/coverage.ts`, `types/index.ts`, `components/AiBootstrapProgressDialog.tsx`
+- `apps/web/src/pages/HomePage.tsx`
+- `apps/web/src/config/shellNav.ts`
+- `apps/web/src/config/projectWorkspace.ts`
+- `apps/web/src/components/project/` (PlanTab, ScenarioTab, ExecutionsTab, ResultsTab, DefectsTab, ProjectDashboardTab, StructureTab, AiAnalysisTab, AiReviewTab, RecorderTab, SchedulesTab, MembersTab, SourceExplorerTab)
+- `apps/web/src/lib/utils.ts`, `lib/plan.ts`, `lib/coverage.ts`, `types/index.ts`, `components/AiBootstrapProgressDialog.tsx`

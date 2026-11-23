@@ -36,3 +36,14 @@ graphify-out/
 # 과제 산출물(Office 파일)은 저장소 밖(iCloud)에서 관리
 docs/aQm-산출물/
 .claude/settings.local.json
+
+# 에이전트 설정 · 메모 (개인 로컬 전용, 커밋하지 않음)
+CLAUDE.md
+AGENTS.md
+GEMINI.md
+.claude/
+.codex/
+.agents/
+.superpowers/
+.herdr/
+graphify-out/
