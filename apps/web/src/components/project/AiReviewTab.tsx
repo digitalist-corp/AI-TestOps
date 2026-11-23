@@ -4,7 +4,7 @@ import { api } from '@/api/client';
 import type { AiJob, AiJobFileDiff } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { aiJobStatusLabel, cn } from '@/lib/utils';
-import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
+import { notifyAiJobChanged, useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 import { ProgressNote } from '@/components/ui/ProgressNote';
 import { jobEstimateMs } from '@/lib/eta';
 
@@ -61,7 +61,7 @@ function JobCard({
     setActing(true);
     setError('');
     try {
-      await api.aiJobs.approve(job.id);
+      notifyAiJobChanged(await api.aiJobs.approve(job.id));
       onDecided();
     } catch (err) {
       setError(err instanceof Error ? err.message : '승인 실패');
@@ -74,7 +74,7 @@ function JobCard({
     setActing(true);
     setError('');
     try {
-      await api.aiJobs.reject(job.id);
+      notifyAiJobChanged(await api.aiJobs.reject(job.id));
       onDecided();
     } catch (err) {
       setError(err instanceof Error ? err.message : '거부 실패');
