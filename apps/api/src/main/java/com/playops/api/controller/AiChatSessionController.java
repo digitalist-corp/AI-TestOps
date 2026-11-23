@@ -78,7 +78,8 @@ public class AiChatSessionController {
                            HttpServletRequest request) {
         User user = requireAuthenticated(request);
         return agentService.reply(id, user.getId(), user.getRole() == UserRole.ADMIN,
-                body == null ? null : body.content(), body == null ? null : body.userLevel());
+                body == null ? null : body.content(), body == null ? null : body.userLevel(),
+                body == null ? null : body.uiAction());
     }
 
     @PostMapping("/{id}/permissions/{requestId}")

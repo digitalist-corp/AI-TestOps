@@ -6,6 +6,7 @@ import com.playops.api.dto.AiBootstrapResponse;
 import com.playops.api.dto.ExecutionCaseResultResponse;
 import com.playops.api.dto.ExecutionDetailResponse;
 import com.playops.api.dto.ExecutionResponse;
+import com.playops.api.dto.PlanDtos;
 import com.playops.api.entity.Execution;
 import com.playops.api.entity.ExecutionStatus;
 import com.playops.api.entity.Project;
@@ -15,6 +16,8 @@ import com.playops.api.util.ProjectEnvVariables;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.core.task.SyncTaskExecutor;
 
 import java.nio.file.Files;
@@ -36,6 +39,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class AiBootstrapServiceTest {
@@ -289,13 +293,17 @@ class AiBootstrapServiceTest {
                              {"title": "검색할 수 있다", "screenRouteKey": "/", "priority": "낮음", "why": "자주 써요"}]}
             """;
 
-    private AiBootstrapResponse passedWithBriefing() {
-        when(siteAnalysisService.hasUsableNodes("p")).thenReturn(true);
+    private void siteMapWithTwoScreens() {
         when(siteAnalysisService.view("p")).thenReturn(new SiteAnalysisService.SiteMap("p", null, null, List.of(
                 new SiteAnalysisService.Node("/", "첫 화면", null, "OBSERVED", false, 3, false, null, "http://site/",
                         false, false, 0, 0, 0, 0),
                 new SiteAnalysisService.Node("/login", "로그인", null, "OBSERVED", false, 3, false, null,
                         "http://site/login", false, false, 0, 0, 0, 0)), List.of(), List.of()));
+    }
+
+    private AiBootstrapResponse passedWithBriefing() {
+        when(siteAnalysisService.hasUsableNodes("p")).thenReturn(true);
+        siteMapWithTwoScreens();
         when(llm.chat(any(), anyString(), anyString(), eq("첫 실행 브리핑"), eq("p"))).thenReturn(BRIEFING_JSON);
         runs(ExecutionStatus.PASSED);
         return service.start("p", "확인", null);
@@ -336,8 +344,7 @@ class AiBootstrapServiceTest {
     }
 
     @Test
-    void errorPhaseHasNoBriefing() {
-        when(siteAnalysisService.hasUsableNodes("p")).thenReturn(true);
+    void errorBeforeAnyScreenOrSpecHasNoBriefing() {
         when(llm.chat(any(), anyString(), anyString(), eq("테스트 생성"), eq("p"))).thenReturn("");
 
         AiBootstrapResponse response = service.start("p", "확인", null);
@@ -346,6 +353,100 @@ class AiBootstrapServiceTest {
         assertThat(response.briefingStatus()).isNull();
         assertThat(response.briefing()).isEmpty();
         verify(llm, never()).chat(any(), anyString(), anyString(), eq("첫 실행 브리핑"), anyString());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "OpenAI API 호출 실패: 401, AI 키가 맞지 않아 테스트를 끝까지 만들지 못했어요. 관리자 설정에서 AI 키를 확인해 주세요.",
+            "UNAUTHORIZED, AI 키가 맞지 않아 테스트를 끝까지 만들지 못했어요. 관리자 설정에서 AI 키를 확인해 주세요.",
+            "API 키 오류, AI 키가 맞지 않아 테스트를 끝까지 만들지 못했어요. 관리자 설정에서 AI 키를 확인해 주세요.",
+            "Invalid API key, AI 키가 맞지 않아 테스트를 끝까지 만들지 못했어요. 관리자 설정에서 AI 키를 확인해 주세요.",
+            "Docker Runner 중지, 테스트를 실행할 환경이 준비되지 않아 실행하지 못했어요. 프로젝트 설정에서 실행 방식을 확인해 주세요.",
+            "상주 러너 중지, 테스트를 실행할 환경이 준비되지 않아 실행하지 못했어요. 프로젝트 설정에서 실행 방식을 확인해 주세요.",
+            "unexpected generation failure, 중간에 문제가 생겨 첫 테스트를 끝까지 하지 못했어요. 아래 오류 내용을 관리자에게 알려 주세요."
+    })
+    void errorAfterSiteAnalysisUsesPlainBriefing(String error, String resultNote) {
+        when(siteAnalysisService.analyzeByUrl("p", SiteAnalysisService.QUICK_LIMITS))
+                .thenReturn(new SiteAnalysisService.UrlOutcome("DOM", 2, 6, List.of(), null));
+        siteMapWithTwoScreens();
+        when(llm.chat(any(), anyString(), anyString(), eq("테스트 생성"), eq("p")))
+                .thenThrow(new ApiException(502, error));
+
+        AiBootstrapResponse response = service.start("p", "확인", null);
+
+        assertThat(response.phase()).isEqualTo("ERROR");
+        assertThat(response.error()).isEqualTo(error);
+        assertThat(response.briefingStatus()).isEqualTo("READY");
+        assertThat(briefingData(response)).containsEntry("resultNote", resultNote)
+                .containsEntry("summary", "화면 2개를 살펴봤어요.")
+                .containsEntry("screens", List.of(Map.of("title", "첫 화면", "path", "/"),
+                        Map.of("title", "로그인", "path", "/login")))
+                .containsEntry("candidates", List.of());
+        assertThat(briefingComponents(response))
+                .anySatisfy(c -> assertThat(c).containsEntry("id", "resultNotice").containsEntry("tone", "danger"))
+                .anySatisfy(c -> assertThat(c).containsEntry("id", "plan").containsEntry("children", List.of("planHint")))
+                .anySatisfy(c -> assertThat(c).containsEntry("id", "planHint").containsEntry("text",
+                        "지금은 계획에 넣을 항목이 없어요. 문제를 해결한 뒤 AI 테스트 생성을 다시 해 보세요."))
+                .noneMatch(c -> List.of("checkList", "addButton").contains(c.get("id")));
+        verify(llm).chat(any(), anyString(), anyString(), eq("테스트 생성"), eq("p"));
+        verifyNoMoreInteractions(llm);
+    }
+
+    @Test
+    void errorBeforeExecutingKeepsTheWrittenSpecAndCanAddItToThePlan() {
+        when(executions.triggerRun(eq("p"), isNull(), eq(AiBootstrapService.SPEC_PATH), isNull(), anyString(), anyBoolean()))
+                .thenThrow(new ApiException(503, "상주 Docker Runner가 중지되어 있습니다."));
+        when(planEntries.createAll(eq("p"), any())).thenReturn(1);
+
+        AiBootstrapResponse response = service.start("p", "확인", null);
+
+        assertThat(response.phase()).isEqualTo("ERROR");
+        assertThat(response.briefingStatus()).isEqualTo("READY");
+        assertThat(response.generatedFiles()).containsExactly(AiBootstrapService.SPEC_PATH);
+        assertThat(briefingData(response)).containsEntry("screens", List.of())
+                .containsEntry("candidates", List.of(Map.of("id", "test-0", "title", "홈", "badge", "이미 만든 테스트")))
+                .containsEntry("selected", List.of("test-0"));
+        assertThat(briefingComponents(response)).anySatisfy(c -> assertThat(c).containsEntry("id", "plan")
+                .containsEntry("children", List.of("planHint", "checkList", "addButton")));
+        verify(llm).chat(any(), anyString(), anyString(), eq("테스트 생성"), eq("p"));
+        verifyNoMoreInteractions(llm);
+
+        String id = response.bootstrapId();
+        AiBootstrapResponse done = service.briefingAction("p", id,
+                action("add_to_plan", "onboarding-" + id, List.of("test-0", "suggest-0")));
+
+        assertThat(done.phase()).isEqualTo("ERROR");
+        assertThat(done.briefingStatus()).isEqualTo("READY");
+        assertThat(briefingData(done)).containsEntry("doneCount", 1);
+        assertThat(briefingComponents(done)).anySatisfy(c -> assertThat(c).containsEntry("id", "plan")
+                .containsEntry("children", List.of("planDone")));
+        verify(planEntries).createAll("p", List.of(new PlanDtos.EntryRequest("홈", null, null, null, null, null)));
+    }
+
+    @Test
+    void errorCheckingSelectorsStillIncludesTheSpecAlreadyWritten() {
+        when(siteMapPromptService.check("p", SPEC)).thenThrow(new IllegalStateException("selector check failed"));
+
+        AiBootstrapResponse response = service.start("p", "확인", null);
+
+        assertThat(response.phase()).isEqualTo("ERROR");
+        assertThat(response.briefingStatus()).isEqualTo("READY");
+        assertThat(response.generatedFiles()).containsExactly(AiBootstrapService.SPEC_PATH);
+        assertThat(briefingData(response))
+                .containsEntry("candidates", List.of(Map.of("id", "test-0", "title", "홈", "badge", "이미 만든 테스트")));
+        verify(files).writeFile("p", AiBootstrapService.SPEC_PATH, SPEC);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> briefingData(AiBootstrapResponse response) {
+        Map<String, Object> create = (Map<String, Object>) response.briefing().get(0).get("createSurface");
+        return (Map<String, Object>) create.get("dataModel");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> briefingComponents(AiBootstrapResponse response) {
+        Map<String, Object> update = (Map<String, Object>) response.briefing().get(1).get("updateComponents");
+        return (List<Map<String, Object>>) update.get("components");
     }
 
     @Test

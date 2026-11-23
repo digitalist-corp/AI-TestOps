@@ -6,7 +6,7 @@ import {
   reduceAssistantMessage,
   reduceChatMessages,
 } from './chatReducer';
-import type { ChatStreamEvent } from '@/types';
+import type { ChatMessage, ChatStreamEvent } from '@/types';
 
 describe('reduceAssistantMessage', () => {
   it('연속된 text_delta 를 하나의 text 블록으로 누적한다', () => {
@@ -219,6 +219,59 @@ describe('reduceChatMessages', () => {
     expect(messages[0].id).toBe(11);
     expect(messages[1].id).toBe(12);
     expect(messages[1].blocks).toEqual([{ type: 'text', text: '조회하겠습니다.' }]);
+  });
+});
+
+describe('reduceChatMessages — 질문 화면 답', () => {
+  const question: ChatMessage = {
+    id: 21,
+    role: 'assistant',
+    createdAt: '2026-11-01T09:00:00Z',
+    stopReason: 'END',
+    blocks: [
+      {
+        type: 'tool',
+        callId: 'call_1',
+        name: 'ask_user',
+        tier: 'READ',
+        input: {},
+        status: 'ok',
+        display: { kind: 'a2ui', data: { surfaceId: 'chat-21-call_1', question: '무엇을?', messages: [] } },
+      },
+    ],
+  };
+  const answer = { name: 'submit' as const, context: { a: 1 }, summary: '요약', answeredAt: '2026-11-01T09:01:00Z' };
+
+  it('set_question_answer 는 같은 메시지 · surfaceId 의 질문에 답을 적고, answer 없이 부르면 지운다', () => {
+    let messages = reduceChatMessages([question], {
+      type: 'set_question_answer',
+      messageId: 21,
+      surfaceId: 'chat-21-call_1',
+      answer,
+    });
+    const block = messages[0].blocks[0];
+    expect(block.type === 'tool' && block.display?.kind === 'a2ui' && block.display.data.answer).toEqual(answer);
+
+    // 다른 surfaceId 는 건드리지 않는다
+    expect(
+      reduceChatMessages([question], { type: 'set_question_answer', messageId: 21, surfaceId: 'other', answer })
+    ).toEqual([question]);
+
+    messages = reduceChatMessages(messages, { type: 'set_question_answer', messageId: 21, surfaceId: 'chat-21-call_1' });
+    expect(messages).toEqual([question]);
+  });
+
+  it('revert_turn 은 마지막 user · assistant 한 쌍만 걷어 낸다', () => {
+    const started = reduceChatMessages([question], {
+      type: 'start_turn',
+      userText: '요약',
+      tempUserId: -1,
+      tempAssistantId: -2,
+    });
+    expect(started).toHaveLength(3);
+    expect(reduceChatMessages(started, { type: 'revert_turn' })).toEqual([question]);
+    // 짝이 맞지 않으면 그대로 둔다
+    expect(reduceChatMessages([question], { type: 'revert_turn' })).toEqual([question]);
   });
 });
 

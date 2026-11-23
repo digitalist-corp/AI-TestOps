@@ -34,6 +34,7 @@ import type {
   ChatSession,
   ChatMessage,
   ChatStreamEvent,
+  ChatUiAction,
   PermissionDecision,
   UserLevel,
   RecorderAction,
@@ -735,7 +736,7 @@ export const api = {
       request<void>(`/api/ai/chat/sessions/${sessionId}/cancel`, { method: 'POST' }),
     streamMessage: async (
       sessionId: number,
-      payload: { content: string; userLevel?: UserLevel },
+      payload: { content: string; userLevel?: UserLevel; uiAction?: ChatUiAction },
       onEvent: (event: ChatStreamEvent) => void,
       signal?: AbortSignal
     ): Promise<void> => {
@@ -762,8 +763,8 @@ export const api = {
       }
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || `서버 응답 오류 (HTTP ${res.status})`);
+        // 400 은 스트림 시작 전 거절(질문 화면 답 검사 등)이라 화면을 되돌릴 수 있게 status 를 남긴다.
+        throw await toApiError(res);
       }
 
       if (!res.body) {

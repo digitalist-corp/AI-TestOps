@@ -5,18 +5,7 @@ import type { Execution, ExecutionStatus } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { ExecutionLogPanel } from '@/components/project/ExecutionLogPanel';
 import { RoundResults } from '@/components/dashboard/RoundResults';
-import { cn, executionStatusLabel, formatDuration } from '@/lib/utils';
-
-const statusStyle: Record<ExecutionStatus, string> = {
-  SCHEDULED: 'bg-ai-accent/10 text-ai-accent',
-  PENDING: 'bg-muted text-muted-foreground',
-  RUNNING: 'bg-primary/10 text-primary',
-  CANCEL_REQUESTED: 'bg-warning/10 text-warning',
-  CANCELLED: 'bg-muted text-muted-foreground',
-  PASSED: 'bg-success/10 text-success',
-  FAILED: 'bg-destructive/10 text-destructive',
-  ERROR: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
-};
+import { cn, executionStatusLabel, executionStatusStyle, formatDuration } from '@/lib/utils';
 
 interface Props {
   projectId: string;
@@ -61,7 +50,7 @@ export function ExecutionsTab({
       width: 100,
       cellRenderer: (p: ICellRendererParams<Execution>) =>
         p.value ? (
-          <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', statusStyle[p.value as ExecutionStatus])}>
+          <span className={cn('px-2 py-0.5 rounded-full text-xs font-medium', executionStatusStyle[p.value as ExecutionStatus])}>
             {executionStatusLabel[p.value as ExecutionStatus]}
           </span>
         ) : null,

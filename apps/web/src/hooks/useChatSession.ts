@@ -4,6 +4,7 @@ import { reduceChatMessages } from '@/lib/chatReducer';
 import type {
   ChatMessage,
   ChatSession,
+  ChatUiAction,
   PermissionDecision,
   UserLevel,
 } from '@/types';
@@ -21,10 +22,13 @@ export interface UseChatSessionResult {
   streaming: boolean;
   loadingSession: boolean;
   error: string | null;
+  /** 질문 화면 답을 서버가 거절했을 때(400) 그 질문 카드에 붙일 오류. */
+  questionError: { surfaceId: string; message: string } | null;
   selectSession: (sessionId: number) => Promise<void>;
   startNewSession: () => void;
   deleteSession: (sessionId: number) => Promise<void>;
-  sendMessage: (content: string) => Promise<void>;
+  /** uiAction 이 있으면 질문 화면 답으로 보낸다. content 는 라벨로 만든 사람이 읽는 요약. */
+  sendMessage: (content: string, uiAction?: ChatUiAction) => Promise<void>;
   cancel: () => Promise<void>;
   respondPermission: (requestId: string, decision: PermissionDecision) => Promise<void>;
 }
@@ -46,6 +50,7 @@ export function useChatSession({
   const [streaming, setStreaming] = useState(false);
   const [loadingSession, setLoadingSession] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [questionError, setQuestionError] = useState<UseChatSessionResult['questionError']>(null);
 
   const sessionsRef = useRef<ChatSession[]>(sessions);
   sessionsRef.current = sessions;
@@ -130,6 +135,7 @@ export function useChatSession({
       currentSessionIdRef.current = sessionId;
       setLoadingSession(true);
       setError(null);
+      setQuestionError(null);
       try {
         const detail = await api.chat.getSession(sessionId);
         setSessions((prev) =>
@@ -150,6 +156,7 @@ export function useChatSession({
     setCurrentSessionId(null);
     currentSessionIdRef.current = null;
     setError(null);
+    setQuestionError(null);
     dispatch({ type: 'set_messages', messages: [] });
   }, [abortCurrentStream]);
 
@@ -184,11 +191,12 @@ export function useChatSession({
     [abortCurrentStream]
   );
 
-  const sendMessage = useCallback(async (content: string) => {
+  const sendMessage = useCallback(async (content: string, uiAction?: ChatUiAction) => {
     const trimmed = content.trim();
     if (!trimmed || streamingRef.current) return;
 
     setError(null);
+    setQuestionError(null);
     setStreaming(true);
     streamingRef.current = true;
     cancelledByUserRef.current = false;
@@ -222,6 +230,20 @@ export function useChatSession({
       }
 
       dispatch({ type: 'start_turn', userText: trimmed });
+      // 낙관적 표시: 보내는 즉시 질문 카드를 잠근다. 서버가 400 이면 아래에서 되돌린다.
+      if (uiAction) {
+        dispatch({
+          type: 'set_question_answer',
+          messageId: uiAction.messageId,
+          surfaceId: uiAction.surfaceId,
+          answer: {
+            name: uiAction.name,
+            context: uiAction.context,
+            summary: trimmed,
+            answeredAt: new Date().toISOString(),
+          },
+        });
+      }
 
       const controller = new AbortController();
       abortRef.current = controller;
@@ -229,7 +251,9 @@ export function useChatSession({
 
       await api.chat.streamMessage(
         sessionId,
-        { content: trimmed, userLevel: userLevelRef.current },
+        uiAction
+          ? { content: trimmed, userLevel: userLevelRef.current, uiAction }
+          : { content: trimmed, userLevel: userLevelRef.current },
         (event) => {
           if (event.type === 'message_end') {
             receivedMessageEnd = true;
@@ -256,6 +280,14 @@ export function useChatSession({
     } catch (err) {
       if (cancelledByUserRef.current) {
         dispatch({ type: 'cancel_turn' });
+      } else if (uiAction && (err as { status?: unknown })?.status === 400) {
+        // 답변 스트림 시작 전에 거절됐다: 말풍선 · 잠금을 걷고 질문 카드에 이유를 보인다.
+        dispatch({ type: 'revert_turn' });
+        dispatch({ type: 'set_question_answer', messageId: uiAction.messageId, surfaceId: uiAction.surfaceId });
+        setQuestionError({
+          surfaceId: uiAction.surfaceId,
+          message: err instanceof Error && err.message ? err.message : '답을 보내지 못했어요.',
+        });
       } else if (sessionId !== null) {
         // 스트림이 도중에 끊기면 getSession 으로 다시 읽어 저장된 결과를 보여준다.
         const errMsg = err instanceof Error ? err.message : String(err);
@@ -327,6 +359,7 @@ export function useChatSession({
     streaming,
     loadingSession,
     error,
+    questionError,
     selectSession,
     startNewSession,
     deleteSession,

@@ -113,7 +113,7 @@ final class ChatHistory {
         StringBuilder sb = new StringBuilder();
         for (ChatBlock block : blocks) {
             if (block.isTextBlock() && block.text != null) {
-                sb.append(block.text);
+                sb.append(userText(block));
             }
         }
         return sb.toString();
@@ -122,10 +122,16 @@ final class ChatHistory {
     private static int sizeOf(List<ChatBlock> blocks) {
         int size = 0;
         for (ChatBlock block : blocks) {
-            size += block.text == null ? 0 : block.text.length();
+            if (block.text != null) {
+                size += userText(block).length();
+            }
             size += block.output == null ? 0 : block.output.length();
             size += block.input == null ? 0 : block.input.toString().length();
         }
         return size;
+    }
+
+    private static String userText(ChatBlock block) {
+        return block.modelText == null ? block.text : block.modelText;
     }
 }

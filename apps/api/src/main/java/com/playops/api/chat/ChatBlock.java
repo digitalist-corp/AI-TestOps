@@ -21,6 +21,8 @@ public class ChatBlock {
 
     public String type;
     public String text;
+    /** 질문 화면 응답을 모델에 전달할 글. 사용자 메시지의 text 는 화면용 요약이다. */
+    public String modelText;
 
     public String callId;
     public String name;

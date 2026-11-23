@@ -4,6 +4,7 @@ import com.playops.api.chat.ChatTool;
 import com.playops.api.chat.ChatToolContext;
 import com.playops.api.chat.ChatToolOutput;
 import com.playops.api.chat.ChatToolRegistry;
+import com.playops.api.chat.tools.AskUserTool;
 import com.playops.api.chat.ToolTier;
 import com.playops.api.dto.AiChatAction;
 import com.playops.api.llm.LlmToolCall;
@@ -77,12 +78,13 @@ public class AiChatToolService {
         if (!context.hasProject()) {
             return List.of();
         }
-        return registry.specs(ALLOWED_TIERS);
+        return registry.specs(ALLOWED_TIERS).stream().filter(spec -> !AskUserTool.NAME.equals(spec.name())).toList();
     }
 
     /** 모델이 요청한 도구를 실제로 실행한다. 실패는 숨기지 않고 모델에게 그대로 알린다. */
     public LlmToolResult execute(LlmToolCall call, ToolContext context) {
-        Optional<ChatTool> tool = registry.find(call.name()).filter(t -> ALLOWED_TIERS.contains(t.tier()));
+        Optional<ChatTool> tool = registry.find(call.name())
+                .filter(t -> ALLOWED_TIERS.contains(t.tier()) && !AskUserTool.NAME.equals(t.spec().name()));
         if (tool.isEmpty()) {
             return LlmToolResult.failed(call.id(), "알 수 없는 도구입니다: " + call.name());
         }

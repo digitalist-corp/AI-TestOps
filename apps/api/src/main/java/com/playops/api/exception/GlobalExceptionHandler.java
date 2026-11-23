@@ -3,7 +3,9 @@ package com.playops.api.exception;
 import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -19,6 +21,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<Map<String, Object>> handleApiException(ApiException ex, HttpServletRequest request) {
         return buildErrorResponse(ex.getStatus(), ex.getCode(), ex.getMessage(), request);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleUnreadableBody(HttpServletRequest request) {
+        return buildErrorResponse(400, "BAD_REQUEST", "요청 본문을 읽을 수 없습니다.", request);
     }
 
     @ExceptionHandler({OptimisticLockException.class, OptimisticLockingFailureException.class})
@@ -56,6 +63,6 @@ public class GlobalExceptionHandler {
         body.put("message", message);
         body.put("error", errorObj);
         body.put("requestId", requestId);
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(body);
     }
 }
