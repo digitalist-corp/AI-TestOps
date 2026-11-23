@@ -34,11 +34,12 @@ export function chatQuestionMessages({
       updateComponents: {
         surfaceId,
         components: [
-          { id: 'root', component: 'Column', children: ['intro', 'pick', 'browserPick', 'memoInput', 'ok', 'no', ...extraComponents.map((c) => c.id)] },
+          { id: 'root', component: 'Column', children: ['intro', 'pick', 'browserPick', 'memoInput', 'actions', ...extraComponents.map((c) => c.id)] },
           { id: 'intro', component: 'Text', text: '어제 실패한 테스트 2개예요.', variant: 'muted' },
           { id: 'pick', component: 'CheckList', items: { '@path': '/items' }, value: { '@path': '/selected' } },
           { id: 'browserPick', component: 'ChoiceList', items: { '@path': '/browsers' }, value: { '@path': '/browser' } },
           { id: 'memoInput', component: 'TextInput', label: '메모', value: { '@path': '/memo' }, placeholder: '남길 말', multiline: true },
+          { id: 'actions', component: 'Row', children: ['ok', 'no'] },
           {
             id: 'ok',
             component: 'Button',

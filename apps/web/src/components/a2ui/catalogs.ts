@@ -1,6 +1,6 @@
 import { Catalog } from '@a2ui/web_core/v1_0';
 import type { ReactCatalogComponent } from '@a2ui/react';
-import { ButtonView, Column, Notice, ScreenList, Section, TextView } from './parts/common';
+import { ButtonView, ChatButton, ChatColumn, Column, Notice, Row, ScreenList, Section, TextView } from './parts/common';
 import { CheckList, ChoiceList, TextInput } from './parts/inputs';
 
 /**
@@ -22,12 +22,13 @@ export const onboardingCatalog = new Catalog<ReactCatalogComponent>(ONBOARDING_C
 ]);
 
 export const chatCatalog = new Catalog<ReactCatalogComponent>(CHAT_CATALOG_ID, '1.0', [
-  Column,
+  ChatColumn,
+  Row,
   Section,
   TextView,
   Notice,
   CheckList,
   ChoiceList,
   TextInput,
-  ButtonView,
+  ChatButton,
 ]);

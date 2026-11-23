@@ -27,6 +27,7 @@ public class AskUserTool implements ChatTool {
             문자열은 500자, 목록은 30개 항목, data 는 JSON 8KB까지입니다. data 를 참조하는 포인터는 {"@path":"/key"} 모양입니다.
             사용할 수 있는 부품과 속성(?는 선택):
             - Column: children (부품 id 배열)
+            - Row: children (부품 id 배열), align? (start 또는 end, 기본 end)
             - Section: title (문자열), children (부품 id 배열)
             - Text: text (문자열 또는 포인터), variant? (body 또는 muted)
             - Notice: text (문자열 또는 포인터), tone (info, success, warning, danger)
@@ -35,10 +36,13 @@ public class AskUserTool implements ChatTool {
             - TextInput: label (문자열), value (문자열을 가리키는 포인터), placeholder? (문자열), multiline? (boolean)
             - Button: label (문자열), variant? (primary 또는 outline), action: {"event":{"name":"submit","context":{}}}
             항목은 {id,title,detail?,badge?}이며 각 속성은 문자열입니다. Button의 event.name은 submit 또는 cancel입니다.
-            submit 버튼은 하나 이상 필요합니다. event.context 의 포인터는 사용자가 누르는 순간 값으로 바뀝니다.
+            버튼은 Row 로 묶어 가로로 배치하세요. submit 버튼은 하나 이상 필요합니다.
+            event.context 의 포인터는 사용자가 누르는 순간 값으로 바뀝니다.
             예: {"question":"어느 테스트를 다시 실행할까요?","components":[
-              {"id":"root","component":"Column","children":["pick","ok"]},
+              {"id":"root","component":"Column","children":["pick","buttons"]},
               {"id":"pick","component":"ChoiceList","items":{"@path":"/items"},"value":{"@path":"/selected"}},
+              {"id":"buttons","component":"Row","children":["no","ok"]},
+              {"id":"no","component":"Button","label":"취소","variant":"outline","action":{"event":{"name":"cancel","context":{}}}},
               {"id":"ok","component":"Button","label":"보내기","action":{"event":{"name":"submit","context":{"selected":{"@path":"/selected"}}}}}
             ],"data":{"items":[{"id":"login","title":"로그인"},{"id":"logout","title":"로그아웃"}],"selected":"login"}}
             """, LlmToolSpec.schema(Map.of(

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertCircle, CheckCircle2, Clock, MessageCircleQuestion } from 'lucide-react';
 import { A2uiSurface, type A2uiActionMessage } from '@/components/a2ui/A2uiSurface';
+import { ChatActionsHidden } from '@/components/a2ui/parts/common';
 import { applyUiAnswer, summarizeUiAction } from '@/lib/chatA2ui';
 import type { ChatUiAction, ToolDisplayA2uiData } from '@/types';
 import { cn } from '@/lib/utils';
@@ -68,7 +69,7 @@ export function ChatQuestionCard({
             <span>{data.question}</span>
           </h3>
           <fieldset disabled={locked} aria-label="질문 답" className="min-w-0">
-            {surface}
+            <ChatActionsHidden.Provider value={locked}>{surface}</ChatActionsHidden.Provider>
           </fieldset>
           {answer ? (
             <p className="flex items-start gap-1.5 border-t border-border pt-2.5 text-[12px] text-muted-foreground">
@@ -83,7 +84,7 @@ export function ChatQuestionCard({
               지나간 질문이에요
             </p>
           ) : null}
-          {error && !answer && (
+          {error && interactive && !answer && (
             <p role="alert" className="flex items-start gap-1.5 text-[12px] text-destructive">
               <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               <span>{error}</span>

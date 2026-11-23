@@ -21,7 +21,7 @@ public class ChatUiValidator {
     static final int MAX_COMPONENTS = 40;
     static final int MAX_STRING_LENGTH = 500;
     static final List<String> COMPONENT_TYPES =
-            List.of("Column", "Section", "Text", "Notice", "CheckList", "ChoiceList", "TextInput", "Button");
+            List.of("Column", "Row", "Section", "Text", "Notice", "CheckList", "ChoiceList", "TextInput", "Button");
 
     private static final int MAX_LIST_ITEMS = 30;
     private static final int MAX_DATA_BYTES = 8 * 1024;
@@ -78,6 +78,10 @@ public class ChatUiValidator {
     private static List<String> validateComponent(Map<?, ?> component, String type) {
         switch (type) {
             case "Column" -> componentProperties(component, "children");
+            case "Row" -> {
+                componentProperties(component, "children", "align");
+                optionalChoice(component, "align", Set.of("start", "end"));
+            }
             case "Section" -> {
                 componentProperties(component, "title", "children");
                 string(component.get("title"), "title");
@@ -122,7 +126,7 @@ public class ChatUiValidator {
             }
             default -> throw new IllegalArgumentException("알 수 없는 component 입니다: " + type);
         }
-        if ("Column".equals(type) || "Section".equals(type)) {
+        if ("Column".equals(type) || "Row".equals(type) || "Section".equals(type)) {
             return list(component.get("children"), "children").stream().map(id -> string(id, "children id")).toList();
         }
         return List.of();

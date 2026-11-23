@@ -16,9 +16,9 @@ class ChatUiValidatorTest {
 
     private final ChatUiValidator validator = new ChatUiValidator(new ObjectMapper());
     private final List<Map<String, Object>> components = new ArrayList<>(List.of(
-            component("root", "Column", Map.of("children", List.of("body", "cancel"))),
+            component("root", "Column", Map.of("children", List.of("body", "actions"))),
             component("body", "Section", Map.of("title", "선택", "children",
-                    List.of("intro", "notice", "check", "choice", "input", "ok"))),
+                    List.of("intro", "notice", "check", "choice", "input"))),
             component("intro", "Text", Map.of("text", path("/intro"), "variant", "muted")),
             component("notice", "Notice", Map.of("text", "하나 이상 골라 주세요", "tone", "info")),
             component("check", "CheckList", Map.of("items", path("/items"), "value", path("/selected"))),
@@ -29,7 +29,8 @@ class ChatUiValidatorTest {
             component("ok", "Button", Map.of("label", "보내기", "variant", "primary",
                     "action", event("submit", Map.of("selected", path("/selected"))))),
             component("cancel", "Button", Map.of("label", "취소", "variant", "outline",
-                    "action", event("cancel", Map.of())))));
+                    "action", event("cancel", Map.of()))),
+            component("actions", "Row", Map.of("children", List.of("cancel", "ok")))));
     private Map<String, Object> data = Map.of("intro", "어제 실패한 테스트를 골라 주세요",
             "items", List.of(Map.of("id", "login", "title", "로그인", "badge", "실패")),
             "selected", List.of("login"), "choice", "login", "note", "");
@@ -38,6 +39,40 @@ class ChatUiValidatorTest {
     @Test
     void acceptsAllCatalogComponentsAndBoundValues() {
         validate();
+    }
+
+    @Test
+    void acceptsRowAlignStartAndEnd() {
+        components.getLast().put("align", "start");
+        validate();
+        components.getLast().put("align", "end");
+        validate();
+    }
+
+    @Test
+    void rejectsInvalidRowAlign() {
+        components.getLast().put("align", "center");
+        rejects("align");
+    }
+
+    @Test
+    void rejectsInvalidRowChildrenList() {
+        Map<String, Object> row = components.getLast();
+        row.remove("children");
+        rejects("children");
+        row.put("children", List.of(1));
+        rejects("children id");
+        row.put("children", Collections.nCopies(31, "ok"));
+        rejects("30");
+    }
+
+    @Test
+    void rejectsInvalidRowChildReferences() {
+        Map<String, Object> row = components.getLast();
+        row.put("children", List.of("ok", "missing"));
+        rejects("missing");
+        row.put("children", List.of("ok", "ok"));
+        rejects("여러 번");
     }
 
     @Test

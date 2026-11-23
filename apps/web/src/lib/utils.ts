@@ -18,6 +18,17 @@ export const executionStatusLabel: Record<ExecutionStatus, string> = {
   ERROR: '오류',
 };
 
+export const executionStatusStyle: Record<ExecutionStatus, string> = {
+  SCHEDULED: 'bg-ai-accent/10 text-ai-accent',
+  PENDING: 'bg-muted text-muted-foreground',
+  RUNNING: 'bg-primary/10 text-primary',
+  CANCEL_REQUESTED: 'bg-warning/10 text-warning',
+  CANCELLED: 'bg-muted text-muted-foreground',
+  PASSED: 'bg-success/10 text-success',
+  FAILED: 'bg-destructive/10 text-destructive',
+  ERROR: 'bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300',
+};
+
 export const projectStatusLabel: Record<ProjectStatus, string> = {
   PLANNED: '계획',
   RUNNING: '실행',

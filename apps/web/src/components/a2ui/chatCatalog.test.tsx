@@ -1,11 +1,61 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { A2uiSurface } from './A2uiSurface';
+import { CHAT_CATALOG_ID, ONBOARDING_CATALOG_ID } from './catalogs';
 import { CHAT_SURFACE_ID, chatQuestionMessages } from './chatQuestionFixture';
 
 afterEach(cleanup);
 
+function buttonLayoutMessages(layout: { component: 'Row' | 'Column'; align?: 'start' | 'end' }, catalogId = CHAT_CATALOG_ID) {
+  return [
+    { version: '1.0', createSurface: { surfaceId: CHAT_SURFACE_ID, catalogId, dataModel: {} } },
+    {
+      version: '1.0',
+      updateComponents: {
+        surfaceId: CHAT_SURFACE_ID,
+        components: [
+          { id: 'root', ...layout, children: ['cancel', 'submit'] },
+          { id: 'cancel', component: 'Button', label: '취소', action: { event: { name: 'cancel', context: {} } } },
+          { id: 'submit', component: 'Button', label: '보내기', action: { event: { name: 'submit', context: {} } } },
+        ],
+      },
+    },
+  ];
+}
+
 describe('A2uiSurface — 채팅 질문 화면 (chat/v1)', () => {
+  it.each([
+    { align: undefined, justifyClass: 'justify-end' },
+    { align: 'start' as const, justifyClass: 'justify-start' },
+    { align: 'end' as const, justifyClass: 'justify-end' },
+  ])('Row 는 줄바꿈과 간격을 적용하고 align=$align 에 맞춰 정렬한다', async ({ align, justifyClass }) => {
+    render(<A2uiSurface messages={buttonLayoutMessages({ component: 'Row', align })} onAction={() => {}} />);
+
+    const submit = await screen.findByRole('button', { name: '보내기' });
+    const row = submit.closest('.flex-wrap');
+    expect(row).toBeTruthy();
+    expect(row?.contains(screen.getByRole('button', { name: '취소' }))).toBe(true);
+    expect([...row!.classList]).toEqual(expect.arrayContaining(['flex', 'gap-1.5', justifyClass]));
+    expect(row?.classList.contains('flex-col')).toBe(false);
+    expect(submit.classList.contains('h-8')).toBe(true);
+  });
+
+  it('옛 질문의 버튼 전용 Column 을 가로로 펼쳐 오른쪽에 정렬한다', async () => {
+    render(<A2uiSurface messages={buttonLayoutMessages({ component: 'Column' })} onAction={() => {}} />);
+
+    const submit = await screen.findByRole('button', { name: '보내기' });
+    const row = submit.closest('.flex-wrap');
+    expect(row?.contains(screen.getByRole('button', { name: '취소' }))).toBe(true);
+    expect(row?.classList.contains('justify-end')).toBe(true);
+    expect(row?.classList.contains('flex-col')).toBe(false);
+  });
+
+  it('브리핑 카탈로그에서 Row 를 거부한다', async () => {
+    render(<A2uiSurface messages={buttonLayoutMessages({ component: 'Row' }, ONBOARDING_CATALOG_ID)} onAction={() => {}} />);
+
+    expect(await screen.findByText('정리한 내용을 보여 주지 못했어요.')).toBeTruthy();
+  });
+
   it('CheckList · ChoiceList · TextInput 을 데이터 모델 값으로 그리고 라벨을 연결한다', async () => {
     render(<A2uiSurface messages={chatQuestionMessages()} onAction={() => {}} />);
 

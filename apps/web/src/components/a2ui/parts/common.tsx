@@ -1,6 +1,6 @@
-import { Fragment, type ReactNode } from 'react';
+import { createContext, Fragment, useContext, type ReactNode } from 'react';
 import { z } from 'zod';
-import { CommonSchemas } from '@a2ui/web_core/v1_0';
+import { CommonSchemas, type ComponentContext } from '@a2ui/web_core/v1_0';
 import { createComponentImplementation } from '@a2ui/react';
 import { CheckCircle2, Info, TriangleAlert, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
@@ -33,9 +33,47 @@ export function objectList(value: unknown): Record<string, unknown>[] {
 
 export const text = (value: unknown) => (typeof value === 'string' ? value : '');
 
+const columnApi = { name: 'Column', schema: z.object({ children: CommonSchemas.ChildList }) };
+const rowClass = 'flex flex-wrap items-center gap-1.5';
+
+export const ChatActionsHidden = createContext(false);
+
+function hasOnlyButtons({ componentModel, surfaceComponents }: ComponentContext) {
+  const children: unknown = componentModel.properties.children;
+  return Array.isArray(children) && children.length > 0
+    && children.every((id) => typeof id === 'string' && surfaceComponents.get(id)?.type === 'Button');
+}
+
 export const Column = createComponentImplementation(
-  { name: 'Column', schema: z.object({ children: CommonSchemas.ChildList }) },
+  columnApi,
   ({ props, buildChild }) => <div className="flex flex-col gap-3">{renderChildren(props.children, buildChild)}</div>
+);
+
+export const ChatColumn = createComponentImplementation(columnApi, ({ props, buildChild, context }) => {
+  const actionsHidden = useContext(ChatActionsHidden);
+  const onlyButtons = hasOnlyButtons(context);
+  if (actionsHidden && onlyButtons) return null;
+  return (
+    <div className={onlyButtons ? cn(rowClass, 'justify-end') : 'flex flex-col gap-3'}>
+      {renderChildren(props.children, buildChild)}
+    </div>
+  );
+});
+
+export const Row = createComponentImplementation(
+  {
+    name: 'Row',
+    schema: z.object({ children: CommonSchemas.ChildList, align: z.enum(['start', 'end']).optional() }),
+  },
+  ({ props, buildChild, context }) => {
+    const actionsHidden = useContext(ChatActionsHidden);
+    if (actionsHidden && hasOnlyButtons(context)) return null;
+    return (
+      <div className={cn(rowClass, props.align === 'start' ? 'justify-start' : 'justify-end')}>
+        {renderChildren(props.children, buildChild)}
+      </div>
+    );
+  }
 );
 
 export const Section = createComponentImplementation(
@@ -107,27 +145,35 @@ export const ScreenList = createComponentImplementation(
   }
 );
 
-export const ButtonView = createComponentImplementation(
-  {
-    name: 'Button',
-    schema: z.object({
-      label: z.string(),
-      variant: z.enum(['primary', 'outline']).optional(),
-      action: CommonSchemas.Action,
-    }),
-  },
-  ({ props }) => (
-    <div className="flex justify-end">
-      <Button
-        type="button"
-        size="sm"
-        variant={props.variant === 'outline' ? 'outline' : 'default'}
-        // 잠긴 질문(fieldset disabled)에서 콘솔 테마의 발광 그림자를 끈다.
-        className="disabled:shadow-none!"
-        onClick={() => void props.action()}
-      >
-        {props.label}
-      </Button>
-    </div>
-  )
-);
+function buttonView(size: 'sm' | 'xs') {
+  return createComponentImplementation(
+    {
+      name: 'Button',
+      schema: z.object({
+        label: z.string(),
+        variant: z.enum(['primary', 'outline']).optional(),
+        action: CommonSchemas.Action,
+      }),
+    },
+    ({ props }) => {
+      const actionsHidden = useContext(ChatActionsHidden);
+      if (size === 'xs' && actionsHidden) return null;
+      return (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            size={size}
+            variant={props.variant === 'outline' ? 'outline' : 'default'}
+            className="disabled:shadow-none!"
+            onClick={() => void props.action()}
+          >
+            {props.label}
+          </Button>
+        </div>
+      );
+    }
+  );
+}
+
+export const ButtonView = buttonView('sm');
+export const ChatButton = buttonView('xs');

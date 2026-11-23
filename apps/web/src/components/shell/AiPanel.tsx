@@ -44,11 +44,12 @@ import type {
   ChatMessage,
   ChatToolBlock,
   ChatUiAction,
+  ExecutionStatus,
   PermissionDecision,
   ToolDisplay,
   UserLevel,
 } from '@/types';
-import { cn, formatDuration } from '@/lib/utils';
+import { cn, executionStatusLabel, executionStatusStyle, formatDuration } from '@/lib/utils';
 
 const LEVEL_STORAGE_KEY = 'playops.aiChat.userLevel';
 
@@ -271,14 +272,15 @@ function ToolDisplayView({
 
     case 'execution': {
       const { executionId, status, projectId: execProjectId } = display.data;
+      const executionStatus = status as ExecutionStatus;
       const targetProjectId = execProjectId || projectId;
       return (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-[12px]">
           <div className="flex items-center gap-2">
             <Play className="h-3.5 w-3.5 text-ai-accent" aria-hidden />
             <span className="font-semibold text-foreground">실행 #{executionId}</span>
-            <Badge variant={status === 'FAILED' || status === 'ERROR' ? 'destructive' : 'info'}>
-              {status}
+            <Badge className={executionStatusStyle[executionStatus]}>
+              {executionStatusLabel[executionStatus] ?? '알 수 없음'}
             </Badge>
           </div>
           {targetProjectId && (
@@ -414,7 +416,9 @@ function ChatToolCard({
 
   const label = getToolLabel(block.name);
   const durationText = toolDuration(block.durationMs);
-  const headerSummary = block.summary || summarizeInput(block.input);
+  const headerSummary = block.name === 'get_execution_detail' && block.display?.kind === 'execution'
+    ? `#${block.display.data.executionId}`
+    : block.summary || summarizeInput(block.input);
   const status = toolStatusView(block);
   const StatusIcon = status.icon;
   const alwaysVisibleDisplay =
@@ -615,7 +619,8 @@ function Segmented<T extends string>({
             aria-pressed={role ? undefined : selected}
             onClick={() => onChange(opt.id)}
             className={cn(
-              'rounded-md px-2.5 py-1 text-[12px] font-semibold transition-colors',
+              'rounded-md px-2.5 py-1 text-[12px] font-semibold',
+              !role && 'transition-colors',
               selected
                 ? 'bg-card text-foreground shadow-sm ring-1 ring-border'
                 : 'text-muted-foreground hover:text-foreground'

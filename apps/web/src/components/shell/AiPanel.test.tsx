@@ -68,6 +68,29 @@ describe('AiPanel', () => {
     expect(await screen.findByText('지금 처리할 AI 작업이 없습니다')).toBeTruthy();
   });
 
+  it('탭을 바꾸면 선택 배경과 테두리, aria-selected 가 대화로 함께 이동한다', async () => {
+    mockedChat.listSessions.mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <AiPanel onClose={() => {}} contextLabel="proj-1 · 실행" projectId="proj-1" />
+      </MemoryRouter>
+    );
+    const tasks = screen.getByRole('tab', { name: '작업', selected: true });
+    const chat = screen.getByRole('tab', { name: '대화', selected: false });
+    expect([...tasks.classList]).toEqual(expect.arrayContaining(['bg-card', 'ring-border']));
+    fireEvent.click(chat);
+
+    expect(screen.getByRole('tab', { name: '대화', selected: true })).toBe(chat);
+    expect(screen.getByRole('tab', { name: '작업', selected: false })).toBe(tasks);
+    expect([...chat.classList]).toEqual(expect.arrayContaining(['bg-card', 'ring-border']));
+    for (const className of ['bg-card', 'ring-border', 'transition-colors']) {
+      expect(tasks.classList.contains(className)).toBe(false);
+    }
+    expect(chat.classList.contains('transition-colors')).toBe(false);
+    expect(await screen.findByText('무엇을 도와드릴까요?')).toBeTruthy();
+    expect(screen.queryByText('지금 처리할 AI 작업이 없습니다')).toBeNull();
+  });
+
   it('프로젝트의 최근 세션을 자동으로 불러와 도구 카드 · 표 · 실행 링크 · 토큰 사용량을 표시한다', async () => {
     const messages: ChatMessage[] = [
       {
@@ -120,6 +143,19 @@ describe('AiPanel', () => {
               },
             },
           },
+          {
+            type: 'tool',
+            callId: 'c-detail',
+            name: 'get_execution_detail',
+            tier: 'READ',
+            input: { executionId: 100 },
+            status: 'ok',
+            summary: '#100 PASSED',
+            display: {
+              kind: 'execution',
+              data: { executionId: 100, status: 'PASSED', projectId: 'proj-1' },
+            },
+          },
         ],
       },
     ];
@@ -140,8 +176,11 @@ describe('AiPanel', () => {
     expect(screen.getByText(/입력 1,200 · 출력 340 토큰/)).toBeTruthy();
 
     // 실행 카드는 바로 보이고 실행 탭 링크를 가진다
-    const runLink = screen.getByRole('link', { name: '실행 탭에서 보기' });
-    expect(runLink.getAttribute('href')).toBe('/projects/proj-1/runs');
+    const runLinks = screen.getAllByRole('link', { name: '실행 탭에서 보기' });
+    expect(runLinks.map((link) => link.getAttribute('href'))).toEqual(['/projects/proj-1/runs', '/projects/proj-1/runs']);
+    expect(screen.getByText('실행 중').classList.contains('text-primary')).toBe(true);
+    expect(screen.getByText('성공', { selector: '.text-success' })).toBeTruthy();
+    expect(screen.queryByText(/RUNNING|PASSED/)).toBeNull();
 
     // DB 조회 카드를 펼치면 SQL 코드 블록과 표, 200행 제한 안내가 나온다
     fireEvent.click(screen.getByText('DB 조회'));
@@ -342,6 +381,7 @@ describe('AiPanel', () => {
       expect(await screen.findAllByText(summary)).toHaveLength(2);
       const locked = screen.getByRole('region', { name: `질문: ${QUESTION}` });
       expect(within(locked).getByText(/보낸 답:/)).toBeTruthy();
+      expect(within(locked).queryByRole('button')).toBeNull();
       const cart = within(locked).getByRole('checkbox', { name: /장바구니/ }) as HTMLInputElement;
       expect(cart.checked).toBe(true);
       expect(isLocked(cart)).toBe(true);
@@ -360,7 +400,12 @@ describe('AiPanel', () => {
           },
         }),
         userMessage(22, '다시 실행: 장바구니에 담을 수 있다'),
-        questionMessage(23, 'chat-23-call_1'),
+        questionMessage(23, 'chat-23-call_1', {
+          extraComponents: [{
+            id: 'back', component: 'Button', label: '돌아가기',
+            action: { event: { name: 'cancel', context: {} } },
+          }],
+        }),
         userMessage(24, '그냥 다른 얘기'),
         {
           id: 25,
@@ -378,9 +423,11 @@ describe('AiPanel', () => {
       expect(answeredCart.checked).toBe(true);
       expect(answeredLogin.checked).toBe(false);
       expect(isLocked(answeredCart)).toBe(true);
+      expect(within(answered).queryByRole('button')).toBeNull();
 
       expect(within(past).getByText('지나간 질문이에요')).toBeTruthy();
-      expect(isLocked(within(past).getByRole('button', { name: '다시 실행' }))).toBe(true);
+      expect(within(past).queryByRole('button')).toBeNull();
+      expect(isLocked(within(past).getByRole('checkbox', { name: /로그인/ }))).toBe(true);
       expect(mockedChat.streamMessage).not.toHaveBeenCalled();
     });
 
