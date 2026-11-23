@@ -48,7 +48,7 @@ public class TestAccountsSeeder implements CommandLineRunner {
         if (password == null || password.isBlank()) return;
         try {
             create("admin1", "테스트 관리자", UserRole.ADMIN, null);
-            create("pm1", "테스트 PM", UserRole.USER, ProjectRole.PM);
+            create("pm1", "테스트 PM", UserRole.PM, ProjectRole.PM);
             create("user1", "테스트 팀원", UserRole.USER, ProjectRole.MEMBER);
         } catch (RuntimeException e) {
             log.warn("테스트 계정을 만들지 못했습니다: {}", e.getMessage());

@@ -2,7 +2,7 @@ export type PackageManager = 'NPM' | 'YARN' | 'PNPM';
 export type DockerStatus = 'STOPPED' | 'RUNNING' | 'ERROR' | 'NOT_CONFIGURED';
 export type RunnerActivity = 'IDLE' | 'TESTING' | 'UNAVAILABLE';
 export type RunnerLifecycle = 'PERSISTENT' | 'EPHEMERAL';
-export type UserRole = 'ADMIN' | 'USER';
+export type UserRole = 'ADMIN' | 'PM' | 'USER';
 /** 프로젝트 상태 (#117): 계획 · 실행 · 종료 */
 export type ProjectStatus = 'PLANNED' | 'RUNNING' | 'CLOSED';
 

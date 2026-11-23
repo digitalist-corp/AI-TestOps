@@ -64,7 +64,7 @@ class TestAccountsSeederTest {
         seeder("qwer1234").run();
 
         assertThat(users.get("admin1").getRole()).isEqualTo(UserRole.ADMIN);
-        assertThat(users.get("pm1").getRole()).isEqualTo(UserRole.USER);
+        assertThat(users.get("pm1").getRole()).isEqualTo(UserRole.PM);
         assertThat(users.get("user1").getRole()).isEqualTo(UserRole.USER);
         users.values().forEach(u -> {
             assertThat(encoder.matches("qwer1234", u.getPassword())).as(u.getUsername()).isTrue();
