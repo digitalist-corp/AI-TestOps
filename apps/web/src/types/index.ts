@@ -756,6 +756,8 @@ export interface AiJob {
   reviewedBy?: number | null;
   /** 학습 루프(LEARNING_LOOP)가 띄운 수정 작업이면 그 루프 작업 id */
   parentJobId?: number | null;
+  /** 실패에서 자동으로 만든 제안 · 학습 루프가 띄운 수정. 예전 서버 응답에는 없다 */
+  autoCreated?: boolean;
   updatedAt: string;
 }
 

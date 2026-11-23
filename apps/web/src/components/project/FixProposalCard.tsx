@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Wrench } from 'lucide-react';
+import { CheckCircle2, Loader2, Wrench, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AiJob } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { useAiEnabled } from '@/lib/aiEnabled';
-import { useAiTaskEvents } from '@/hooks/useAiTaskEvents';
+import { notifyAiJobChanged, useAiTaskEvents } from '@/hooks/useAiTaskEvents';
 import { useAccess } from '@/lib/access';
 
 /**
@@ -18,10 +18,20 @@ export function FixProposals({ projectId, executionId }: { projectId: string; ex
   const canManage = useAccess().canManage(projectId);
   const [proposals, setProposals] = useState<AiJob[]>([]);
 
+  // 이 실행에서 자동으로 만든 제안은 진행한 뒤에도 남겨 진행 중 → 끝 상태를 같은 자리에서 보여 준다.
+  // 닫은 것(CANCELED) · 학습 루프가 띄운 수정(parentJobId)은 뺀다. autoCreated 가 없는 예전 응답도 PROPOSED 는 보인다.
   const load = useCallback(() => {
     api.aiJobs
       .listByProject(projectId)
-      .then((jobs) => setProposals(jobs.filter((j) => j.status === 'PROPOSED' && j.failedExecutionId === executionId)))
+      .then((jobs) =>
+        setProposals(
+          jobs.filter(
+            (j) =>
+              j.failedExecutionId === executionId &&
+              (j.status === 'PROPOSED' || (j.autoCreated && j.parentJobId == null && j.status !== 'CANCELED'))
+          )
+        )
+      )
       .catch(() => {});
   }, [projectId, executionId]);
 
@@ -46,15 +56,19 @@ export function FixProposals({ projectId, executionId }: { projectId: string; ex
 export function FixProposalCard({ job, canManage }: { job: AiJob; canManage: boolean }) {
   const { active: aiActive } = useAiEnabled();
   const [busy, setBusy] = useState<'proceed' | 'dismiss' | null>(null);
-  const [done, setDone] = useState<'proceeded' | 'dismissed' | null>(null);
+  // 서버가 돌려준 진행 · 닫기 결과. 목록이 아직 PROPOSED 로 남아 있는 동안만 쓰고, 목록이 다시 읽히면 그쪽 상태를 따른다.
+  const [decided, setDecided] = useState<AiJob | null>(null);
   const [error, setError] = useState('');
+  const current = decided && job.status === 'PROPOSED' ? decided : job;
+  const status = current.status;
 
   const decide = async (action: 'proceed' | 'dismiss') => {
     setBusy(action);
     setError('');
     try {
-      await (action === 'proceed' ? api.aiJobs.proceed(job.id) : api.aiJobs.dismiss(job.id));
-      setDone(action === 'proceed' ? 'proceeded' : 'dismissed');
+      const next = await (action === 'proceed' ? api.aiJobs.proceed(job.id) : api.aiJobs.dismiss(job.id));
+      setDecided(next);
+      notifyAiJobChanged(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : '처리하지 못했어요.');
     } finally {
@@ -62,19 +76,19 @@ export function FixProposalCard({ job, canManage }: { job: AiJob; canManage: boo
     }
   };
 
-  if (done === 'dismissed') return null;
+  if (status === 'CANCELED') return null;
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
       <div className="flex items-start gap-3">
         <Wrench className="h-4 w-4 mt-0.5 text-primary shrink-0" />
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="text-sm font-medium text-foreground">이렇게 고칠까요?</p>
-          {job.summary && <p className="text-sm text-muted-foreground">{job.summary}</p>}
+          <p className="text-sm font-medium text-foreground">{status === 'PROPOSED' ? '이렇게 고칠까요?' : '수정 요청'}</p>
+          {!current.revertedAt && job.summary && <p className="text-sm text-muted-foreground">{job.summary}</p>}
           <p className="text-sm text-foreground">{job.instruction}</p>
           {job.targetSpecPath && <p className="text-xs font-mono text-muted-foreground truncate">{job.targetSpecPath}</p>}
-          {!canManage ? null : done === 'proceeded' ? (
-            <p className="text-sm text-primary pt-1">AI가 고치기 시작했어요. 끝나면 AI 검토 탭에서 확인하고 승인해 주세요.</p>
-          ) : (
+          {status !== 'PROPOSED' ? (
+            <ProceededStatus job={current} />
+          ) : !canManage ? null : (
             <div className="flex flex-wrap items-center gap-2 pt-2">
               {aiActive && (
                 <Button size="sm" onClick={() => decide('proceed')} disabled={busy !== null}>
@@ -94,6 +108,45 @@ export function FixProposalCard({ job, canManage }: { job: AiJob; canManage: boo
           {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** 진행한 뒤의 상태. 완료는 서버가 반영(APPLIED)했다고 알려 준 뒤에만 보인다. */
+function ProceededStatus({ job }: { job: AiJob }) {
+  if (job.status === 'APPLIED' && job.revertedAt) {
+    return (
+      <div className="space-y-0.5 pt-1">
+        <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+          <XCircle className="h-4 w-4" /> 사후 검증에서 문제가 발견됐어요. 되돌림 결과를 확인해 주세요.
+        </p>
+        {job.summary && <p className="text-xs text-muted-foreground whitespace-pre-wrap">{job.summary}</p>}
+      </div>
+    );
+  }
+  if (job.status === 'APPLIED') {
+    return (
+      <p className="flex items-center gap-1.5 pt-1 text-sm font-medium text-success">
+        <CheckCircle2 className="h-4 w-4" /> 수정 완료 — 파일에 반영했어요.
+      </p>
+    );
+  }
+  if (job.status === 'NEEDS_REVIEW') {
+    return <p className="pt-1 text-sm text-warning">AI 수정이 끝났어요. AI 검토 탭에서 확인하고 승인하면 반영돼요.</p>;
+  }
+  if (job.status === 'PENDING' || job.status === 'RUNNING' || job.status === 'DIFF_READY') {
+    return (
+      <p className="flex items-center gap-1.5 pt-1 text-sm text-primary">
+        <Loader2 className="h-4 w-4 animate-spin" /> AI가 고치는 중이에요.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-0.5 pt-1">
+      <p className="flex items-center gap-1.5 text-sm font-medium text-destructive">
+        <XCircle className="h-4 w-4" /> {job.status === 'REJECTED' ? '수정을 거부했어요.' : '수정하지 못했어요.'}
+      </p>
+      {job.errorMessage && <p className="text-xs text-destructive">{job.errorMessage}</p>}
     </div>
   );
 }

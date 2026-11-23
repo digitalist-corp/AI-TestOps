@@ -33,6 +33,8 @@ public record AiJobResponse(
         String rejectionReason,
         Long version,
         Long parentJobId,
+        /** 실패에서 자동으로 만든 제안(FixProposalService) · 학습 루프가 띄운 수정이면 true */
+        boolean autoCreated,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -61,6 +63,7 @@ public record AiJobResponse(
                 job.getRejectionReason(),
                 job.getVersion(),
                 job.getParentJobId(),
+                job.isAutoCreated(),
                 job.getCreatedAt(),
                 job.getUpdatedAt()
         );
