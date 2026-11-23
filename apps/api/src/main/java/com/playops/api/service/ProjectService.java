@@ -375,8 +375,8 @@ public class ProjectService {
             if (!requestedNames.isEmpty() && (!selected || (!runnerContainer && !buildIntermediate))) {
                 continue;
             }
-            if (active || runner.dockerStatus() == DockerStatus.RUNNING) {
-                skipped.add(runner.name() + " (active execution)");
+            if (active) {
+                skipped.add(runner.name() + " (테스트 실행 중)");
                 continue;
             }
 
@@ -410,10 +410,9 @@ public class ProjectService {
     public void ensureDockerRunnerRunning(Project project) {
         DockerStatus status = dockerRunnerService.getStatus(project);
         if (status != DockerStatus.RUNNING) {
-            // 일회용 러너는 사용자가 미리 컨테이너를 만들지 않는다.
-            // 테스트 실행 요청이 들어온 순간 생성하고, 실행 종료 후 cleanupEphemeralRunner에서 삭제한다.
-            if (Boolean.TRUE.equals(project.getDockerEnabled())
-                    && project.getRunnerLifecycle() == RunnerLifecycle.EPHEMERAL) {
+            // 일회용 러너는 실행 요청 때 만들고 끝나면 지운다. 상주 러너도 Runner 관리에서 지웠거나 멈췄으면
+            // Docker Runner 를 켜 둔 프로젝트라면 실행 요청 때 다시 띄운다.
+            if (Boolean.TRUE.equals(project.getDockerEnabled())) {
                 dockerRunnerService.startRunner(project);
                 projectRepository.save(project);
                 return;
@@ -491,14 +490,14 @@ public class ProjectService {
                 container.dockerStatus(),
                 containerType(container),
                 container.projectId(),
+                known ? project.getProjectName() : null,
                 known,
                 dockerEnabled,
                 known ? project.getStatus() : null,
                 active,
                 reconnectable,
-                (container.name().startsWith("playops-runner-") || isBuildIntermediateContainer(container))
-                        && !active
-                        && container.dockerStatus() != DockerStatus.RUNNING,
+                // 실행 중이어도 테스트가 돌지 않으면 지울 수 있다 (상주 Runner 는 늘 실행 중이다)
+                (container.name().startsWith("playops-runner-") || isBuildIntermediateContainer(container)) && !active,
                 container.cpuPercent(),
                 container.memoryUsage(),
                 container.memoryPercent(),
