@@ -74,6 +74,7 @@ type StopReason = 'END' | 'CANCELLED' | 'MAX_TURNS' | 'ERROR';
 | `job` | `{ jobId: number, jobType: string, status: string, specPath?: string }` | 기존 AI 작업 카드(AiActionCard) — 관리자는 채팅 안에서 diff 보고 승인 |
 | `execution` | `{ executionId: number, status: string, projectId: string }` | 실행 카드 + 실행 탭으로 이동 링크 |
 | `list` | `{ items: { label: string, detail?: string }[] }` | 짧은 목록 |
+| `a2ui` | `{ surfaceId, question, messages, answer? }` | [채팅 질문 화면](chat-a2ui-contract.md) |
 | 없음 | — | output 을 접힌 텍스트로 |
 
 ## 도구 목록 (P1)
@@ -86,6 +87,7 @@ type StopReason = 'END' | 'CANCELLED' | 'MAX_TURNS' | 'ERROR';
 | `grep_files` | READ | 신규 — 프로젝트 파일에서 정규식/문자열 검색 (최대 100줄) |
 | `search_logs` | READ | 신규 — 실행 로그에서 검색 (executionId 지정 또는 최근 N개) |
 | `get_case_history` | READ | 신규 — 케이스 이름으로 최근 실행 결과 이력 |
+| `ask_user` | READ | 선택, 짧은 입력, 실행 전 확인을 위한 질문 카드 (display=a2ui) |
 | `run_tests` | RUN | 신규 — spec 경로/케이스 grep 으로 실행 시작 (display=execution) |
 | `set_env_variables` | RUN | 프로젝트 환경변수 저장 (허락 필요, 비밀 값은 화면 · DB 에서 가림) |
 

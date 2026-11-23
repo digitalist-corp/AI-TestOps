@@ -5,6 +5,7 @@ import com.playops.api.entity.AiChatSession;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /** 채팅 세션 API 의 요청 · 응답 모양. docs/design/ai-chat-agent-contract.md 의 REST 절과 같다. */
 public final class ChatDtos {
@@ -14,7 +15,9 @@ public final class ChatDtos {
 
     public record CreateSessionRequest(String projectId) {}
 
-    public record SendMessageRequest(String content, String userLevel) {}
+    public record SendMessageRequest(String content, String userLevel, UiAction uiAction) {}
+
+    public record UiAction(Long messageId, String surfaceId, String name, Map<String, Object> context) {}
 
     public record PermissionDecisionRequest(String decision) {}
 

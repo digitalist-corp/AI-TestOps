@@ -10,8 +10,13 @@ import com.playops.api.llm.LlmToolCall;
  * @param userId    요청한 사용자
  * @param admin     관리자인지. SQL 조회 범위 등 권한 판단에 쓴다
  * @param sessionId 채팅 세션 id (채팅 밖 호출자면 null)
+ * @param messageId 이번 assistant 메시지 id (세션 채팅 밖에서는 null)
  */
-public record ChatToolContext(String projectId, Long userId, boolean admin, Long sessionId) {
+public record ChatToolContext(String projectId, Long userId, boolean admin, Long sessionId, Long messageId) {
+
+    public ChatToolContext(String projectId, Long userId, boolean admin, Long sessionId) {
+        this(projectId, userId, admin, sessionId, null);
+    }
 
     public boolean hasProject() {
         return projectId != null && !projectId.isBlank();

@@ -3,6 +3,7 @@ import type {
   ChatMessage,
   ChatStreamEvent,
   ChatToolBlock,
+  ChatUiAnswer,
   PermissionDecision,
 } from '@/types';
 
@@ -22,6 +23,7 @@ export const TOOL_LABELS: Record<string, string> = {
   fix_test: '테스트 수정',
   generate_scenario: '테스트 생성',
   set_env_variables: '환경변수 저장',
+  ask_user: '질문 화면',
 };
 
 export function getToolLabel(name: string): string {
@@ -242,7 +244,11 @@ export type ChatMessagesAction =
   | { type: 'stream_event'; event: ChatStreamEvent }
   | { type: 'resolve_permission'; requestId: string; decision: PermissionDecision }
   | { type: 'cancel_turn' }
-  | { type: 'fail_turn'; errorMessage: string };
+  | { type: 'fail_turn'; errorMessage: string }
+  /** 질문 화면(`display.kind=a2ui`)의 답을 적거나(answer) 지운다(undefined, 거절됐을 때 되돌리기). */
+  | { type: 'set_question_answer'; messageId: number; surfaceId: string; answer?: ChatUiAnswer }
+  /** 서버가 보내기 전에 거절한 턴(start_turn 으로 붙인 user · assistant 한 쌍)을 걷어 낸다. */
+  | { type: 'revert_turn' };
 
 /**
  * 한 세션의 전체 메시지 배열을 갱신하는 순수 리듀서.
@@ -308,6 +314,29 @@ export function reduceChatMessages(
       const last = messages[lastIdx];
       if (last.role !== 'assistant') return messages;
       return [...messages.slice(0, lastIdx), cancelAssistantMessage(last)];
+    }
+
+    case 'set_question_answer': {
+      return messages.map((msg) => {
+        if (msg.id !== action.messageId || msg.role !== 'assistant') return msg;
+        const { blocks, matched } = updateToolBlocks(
+          msg.blocks,
+          (b) => b.display?.kind === 'a2ui' && b.display.data.surfaceId === action.surfaceId,
+          (b) => {
+            if (b.display?.kind !== 'a2ui') return b;
+            const data = { ...b.display.data, answer: action.answer };
+            if (!action.answer) delete data.answer;
+            return { ...b, display: { kind: 'a2ui', data } };
+          }
+        );
+        return matched ? { ...msg, blocks } : msg;
+      });
+    }
+
+    case 'revert_turn': {
+      const n = messages.length;
+      if (n < 2 || messages[n - 1].role !== 'assistant' || messages[n - 2].role !== 'user') return messages;
+      return messages.slice(0, -2);
     }
 
     case 'fail_turn': {

@@ -1040,12 +1040,38 @@ export type ToolDisplayListData = {
   items: { label: string; detail?: string }[];
 };
 
+/** 질문 화면에 사용자가 보낸 답 (docs/design/chat-a2ui-contract.md). */
+export type ChatUiAnswer = {
+  name: 'submit' | 'cancel';
+  context: Record<string, unknown>;
+  /** 사용자 말풍선에 보인 요약 (= 보낸 content). */
+  summary: string;
+  answeredAt: string;
+};
+
+/** `ask_user` 도구가 띄운 질문 화면. messages 는 A2UI v1.0 (createSurface → updateComponents). */
+export type ToolDisplayA2uiData = {
+  surfaceId: string;
+  question: string;
+  messages: unknown[];
+  answer?: ChatUiAnswer;
+};
+
 export type ToolDisplay =
   | { kind: 'table'; data: ToolDisplayTableData }
   | { kind: 'code'; data: ToolDisplayCodeData }
   | { kind: 'job'; data: ToolDisplayJobData }
   | { kind: 'execution'; data: ToolDisplayExecutionData }
-  | { kind: 'list'; data: ToolDisplayListData };
+  | { kind: 'list'; data: ToolDisplayListData }
+  | { kind: 'a2ui'; data: ToolDisplayA2uiData };
+
+/** 질문 화면 답을 보낼 때 `SendMessageRequest.uiAction`. */
+export type ChatUiAction = {
+  messageId: number;
+  surfaceId: string;
+  name: 'submit' | 'cancel';
+  context: Record<string, unknown>;
+};
 
 export type ChatTextBlock = {
   type: 'text';

@@ -1,11 +1,14 @@
 package com.playops.api.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.playops.api.chat.ChatTool;
 import com.playops.api.chat.ChatToolContext;
 import com.playops.api.chat.ChatToolOutput;
 import com.playops.api.chat.ChatToolRegistry;
 import com.playops.api.chat.ToolDisplay;
 import com.playops.api.chat.ToolTier;
+import com.playops.api.chat.tools.AskUserTool;
+import com.playops.api.chat.tools.ChatUiValidator;
 import com.playops.api.llm.LlmToolCall;
 import com.playops.api.llm.LlmToolResult;
 import com.playops.api.llm.LlmToolSpec;
@@ -59,7 +62,8 @@ class AiChatToolServiceTest {
     };
 
     private final AiChatToolService service =
-            new AiChatToolService(new ChatToolRegistry(List.of(fixTest, runTests)));
+            new AiChatToolService(new ChatToolRegistry(List.of(fixTest, runTests,
+                    new AskUserTool(new ChatUiValidator(new ObjectMapper())))));
 
     @Test
     void onlyReadAndChangeToolsAreOfferedAndOnlyWithAProject() {
@@ -73,6 +77,14 @@ class AiChatToolServiceTest {
         LlmToolResult result = service.execute(new LlmToolCall("c1", "run_tests", Map.of()),
                 new AiChatToolService.ToolContext("demo", 1L, null));
         assertThat(result.error()).isTrue();
+    }
+
+    @Test
+    void sessionQuestionToolIsRefusedEvenIfTheModelCallsIt() {
+        LlmToolResult result = service.execute(new LlmToolCall("c1", "ask_user", Map.of()),
+                new AiChatToolService.ToolContext("demo", 1L, null));
+        assertThat(result.error()).isTrue();
+        assertThat(result.content()).contains("알 수 없는 도구");
     }
 
     @Test
