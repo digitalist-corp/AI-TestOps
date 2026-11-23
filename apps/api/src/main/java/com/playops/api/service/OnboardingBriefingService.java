@@ -44,6 +44,9 @@ public class OnboardingBriefingService {
     /** 프롬프트에 넣는 화면 상세 · 실패 기록 길이. 브리핑은 요약이라 길게 줄 필요가 없다. */
     private static final int PROMPT_CONTEXT_CHARS = 6_000;
     private static final int PROMPT_FAILURE_CHARS = 1_500;
+    private static final Pattern AI_KEY_ERROR = Pattern.compile(
+            "\\b401\\b|unauthorized|api[\\s_-]*(?:키|key)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern RUNNER_ERROR = Pattern.compile("docker[\\s_-]*runner|러너", Pattern.CASE_INSENSITIVE);
 
     /**
      * Playwright 의 test(...) · test.only(...) 등의 첫 인자(문자열 제목). test.describe · test.step 은 테스트가 아니라 뺀다.
@@ -75,8 +78,10 @@ public class OnboardingBriefingService {
     public record Candidate(String id, String title, String detail, String badge, String screenRouteKey,
                             String priority, boolean existingTest) {}
 
+    public enum Result { PASSED, FAILED, ERROR }
+
     /** 브리핑 내용. 메모리에만 두고, 상태 조회마다 A2UI 메시지로 바꾼다. */
-    public record Content(String summary, String resultNote, boolean passed, List<Screen> screens,
+    public record Content(String summary, String resultNote, Result result, List<Screen> screens,
                           List<String> cautions, List<Candidate> candidates, List<String> selected) {}
 
     // ---------------------------------------------------------------- 내용 만들기
@@ -85,7 +90,7 @@ public class OnboardingBriefingService {
     public Content build(String projectId, AiModelProvider provider, String instruction, String spec,
                          boolean passed, String failureLog) {
         List<String> titles = testTitles(spec);
-        List<Screen> screens = screens(projectId);
+        List<Screen> screens = screens(screenNodes(projectId));
         try {
             String raw = llmGatewayService.chat(provider, SYSTEM_PROMPT,
                     userPrompt(projectId, instruction, titles, screens, passed, failureLog),
@@ -99,6 +104,29 @@ public class OnboardingBriefingService {
             log.warn("첫 실행 브리핑: LLM 호출 실패로 기본 브리핑을 씁니다. project={}: {}", projectId, e.getMessage());
         }
         return fallback(titles, screens, passed);
+    }
+
+    /** 화면 지도나 이번에 저장한 spec 이 있으면 LLM 없이 오류 브리핑을 만든다. */
+    public Content buildForError(String projectId, String spec, String error) {
+        List<SiteAnalysisService.Node> nodes = screenNodes(projectId);
+        if (nodes.isEmpty() && spec == null) {
+            return null;
+        }
+        List<Screen> screens = screens(nodes);
+        String summary = screens.isEmpty() && spec == null
+                ? "살펴본 화면 목록을 보여 드릴 수 없어요."
+                : defaultSummary(screens);
+        return fallback(testTitles(spec), screens, Result.ERROR, summary, errorResultNote(error));
+    }
+
+    private static String errorResultNote(String error) {
+        if (AI_KEY_ERROR.matcher(error).find()) {
+            return "AI 키가 맞지 않아 테스트를 끝까지 만들지 못했어요. 관리자 설정에서 AI 키를 확인해 주세요.";
+        }
+        if (RUNNER_ERROR.matcher(error).find()) {
+            return "테스트를 실행할 환경이 준비되지 않아 실행하지 못했어요. 프로젝트 설정에서 실행 방식을 확인해 주세요.";
+        }
+        return "중간에 문제가 생겨 첫 테스트를 끝까지 하지 못했어요. 아래 오류 내용을 관리자에게 알려 주세요.";
     }
 
     /** spec 의 테스트 제목(파일에 적힌 그대로, 순서 유지 · 중복 제거). 계획 제목이 될 수 없는 것('@' · 줄바꿈 · 200자 초과)은 뺀다. */
@@ -123,25 +151,29 @@ public class OnboardingBriefingService {
         return List.copyOf(titles);
     }
 
-    private List<Screen> screens(String projectId) {
+    private List<SiteAnalysisService.Node> screenNodes(String projectId) {
         try {
             SiteAnalysisService.SiteMap map = siteAnalysisService.view(projectId);
-            if (map == null || map.nodes() == null) {
-                return List.of();
-            }
-            List<Screen> out = new ArrayList<>();
-            for (SiteAnalysisService.Node node : map.nodes()) {
-                if (node.excluded() || node.routeKey() == null || out.size() >= MAX_SCREENS) {
-                    continue;
-                }
-                String title = node.title() != null && !node.title().isBlank() ? node.title().trim() : node.routeKey();
-                out.add(new Screen(node.routeKey(), clip(title, 80), node.routeKey(), null));
-            }
-            return List.copyOf(out);
+            return map != null && map.nodes() != null ? map.nodes() : List.of();
         } catch (Exception e) {
             log.warn("첫 실행 브리핑: 화면 목록을 읽지 못했습니다. project={}: {}", projectId, e.getMessage());
             return List.of();
         }
+    }
+
+    private static List<Screen> screens(List<SiteAnalysisService.Node> nodes) {
+        List<Screen> out = new ArrayList<>();
+        for (SiteAnalysisService.Node node : nodes) {
+            if (out.size() >= MAX_SCREENS) {
+                break;
+            }
+            if (node.excluded() || node.routeKey() == null) {
+                continue;
+            }
+            String title = node.title() != null && !node.title().isBlank() ? node.title().trim() : node.routeKey();
+            out.add(new Screen(node.routeKey(), clip(title, 80), node.routeKey(), null));
+        }
+        return List.copyOf(out);
     }
 
     private static final String SYSTEM_PROMPT = """
@@ -264,19 +296,24 @@ public class OnboardingBriefingService {
         return content(
                 summary != null ? summary : defaultSummary(screens),
                 resultNote != null ? resultNote : defaultResultNote(passed, titles.size()),
-                passed, withNotes, cautions, titles, plain, suggestions);
+                passed ? Result.PASSED : Result.FAILED, withNotes, cautions, titles, plain, suggestions);
     }
 
     /** LLM 없이: 화면 제목 목록, 테스트 제목 그대로, 추천 없음. */
     static Content fallback(List<String> titles, List<Screen> screens, boolean passed) {
-        return content(defaultSummary(screens), defaultResultNote(passed, titles.size()), passed, screens,
-                List.of(), titles, Map.of(), List.of());
+        return fallback(titles, screens, passed ? Result.PASSED : Result.FAILED,
+                defaultSummary(screens), defaultResultNote(passed, titles.size()));
+    }
+
+    private static Content fallback(List<String> titles, List<Screen> screens, Result result, String summary,
+                                    String resultNote) {
+        return content(summary, resultNote, result, screens, List.of(), titles, Map.of(), List.of());
     }
 
     private record Suggestion(String title, String screenRouteKey, String priority, String why) {}
 
     /** 후보 id 를 붙이고 기본 선택(모든 테스트 + 우선순위 높음 추천)을 정한다. */
-    private static Content content(String summary, String resultNote, boolean passed, List<Screen> screens,
+    private static Content content(String summary, String resultNote, Result result, List<Screen> screens,
                                    List<String> cautions, List<String> titles, Map<String, String> plain,
                                    List<Suggestion> suggestions) {
         List<Candidate> candidates = new ArrayList<>();
@@ -295,7 +332,7 @@ public class OnboardingBriefingService {
                 selected.add(id);
             }
         }
-        return new Content(summary, resultNote, passed, List.copyOf(screens), List.copyOf(cautions),
+        return new Content(summary, resultNote, result, List.copyOf(screens), List.copyOf(cautions),
                 List.copyOf(candidates), List.copyOf(selected));
     }
 
@@ -394,9 +431,18 @@ public class OnboardingBriefingService {
         }
 
         components.add(section("result", "첫 테스트 결과", List.of("resultNotice")));
-        components.add(notice("resultNotice", path("/resultNote"), c.passed() ? "success" : "danger"));
+        components.add(notice("resultNotice", path("/resultNote"), c.result() == Result.PASSED ? "success" : "danger"));
 
-        if (doneCount == null) {
+        if (doneCount != null) {
+            components.add(section("plan", "계획에 넣을 항목을 골라 주세요", List.of("planDone")));
+            components.add(notice("planDone", doneCount + "건을 계획에 넣었어요. 계획 탭에서 볼 수 있어요.", "success"));
+        } else if (c.result() == Result.ERROR && c.candidates().isEmpty()) {
+            components.add(section("plan", "계획에 넣을 항목을 골라 주세요", List.of("planHint")));
+            Map<String, Object> hint = component("planHint", "Text", "text",
+                    "지금은 계획에 넣을 항목이 없어요. 문제를 해결한 뒤 AI 테스트 생성을 다시 해 보세요.");
+            hint.put("variant", "muted");
+            components.add(hint);
+        } else {
             components.add(section("plan", "계획에 넣을 항목을 골라 주세요", List.of("planHint", "checkList", "addButton")));
             Map<String, Object> hint = component("planHint", "Text", "text",
                     "고른 항목은 계획 탭에 한 줄씩 들어가요. 이미 만든 테스트는 그 줄에 바로 이어져요.");
@@ -411,9 +457,6 @@ public class OnboardingBriefingService {
                     "name", ACTION_ADD_TO_PLAN,
                     "context", Map.of("selected", path("/selected")))));
             components.add(button);
-        } else {
-            components.add(section("plan", "계획에 넣을 항목을 골라 주세요", List.of("planDone")));
-            components.add(notice("planDone", doneCount + "건을 계획에 넣었어요. 계획 탭에서 볼 수 있어요.", "success"));
         }
 
         Map<String, Object> updateComponents = new LinkedHashMap<>();

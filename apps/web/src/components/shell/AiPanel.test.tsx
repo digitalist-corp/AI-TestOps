@@ -1,9 +1,10 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/api/client';
 import { AiPanel } from './AiPanel';
-import type { ChatMessage, ChatSession, ChatStreamEvent } from '@/types';
+import type { ChatMessage, ChatSession, ChatStreamEvent, ChatUiAnswer } from '@/types';
+import { chatQuestionMessages } from '@/components/a2ui/chatQuestionFixture';
 
 afterEach(cleanup);
 
@@ -67,6 +68,29 @@ describe('AiPanel', () => {
     expect(await screen.findByText('지금 처리할 AI 작업이 없습니다')).toBeTruthy();
   });
 
+  it('탭을 바꾸면 선택 배경과 테두리, aria-selected 가 대화로 함께 이동한다', async () => {
+    mockedChat.listSessions.mockResolvedValue([]);
+    render(
+      <MemoryRouter>
+        <AiPanel onClose={() => {}} contextLabel="proj-1 · 실행" projectId="proj-1" />
+      </MemoryRouter>
+    );
+    const tasks = screen.getByRole('tab', { name: '작업', selected: true });
+    const chat = screen.getByRole('tab', { name: '대화', selected: false });
+    expect([...tasks.classList]).toEqual(expect.arrayContaining(['bg-card', 'ring-border']));
+    fireEvent.click(chat);
+
+    expect(screen.getByRole('tab', { name: '대화', selected: true })).toBe(chat);
+    expect(screen.getByRole('tab', { name: '작업', selected: false })).toBe(tasks);
+    expect([...chat.classList]).toEqual(expect.arrayContaining(['bg-card', 'ring-border']));
+    for (const className of ['bg-card', 'ring-border', 'transition-colors']) {
+      expect(tasks.classList.contains(className)).toBe(false);
+    }
+    expect(chat.classList.contains('transition-colors')).toBe(false);
+    expect(await screen.findByText('무엇을 도와드릴까요?')).toBeTruthy();
+    expect(screen.queryByText('지금 처리할 AI 작업이 없습니다')).toBeNull();
+  });
+
   it('프로젝트의 최근 세션을 자동으로 불러와 도구 카드 · 표 · 실행 링크 · 토큰 사용량을 표시한다', async () => {
     const messages: ChatMessage[] = [
       {
@@ -119,6 +143,19 @@ describe('AiPanel', () => {
               },
             },
           },
+          {
+            type: 'tool',
+            callId: 'c-detail',
+            name: 'get_execution_detail',
+            tier: 'READ',
+            input: { executionId: 100 },
+            status: 'ok',
+            summary: '#100 PASSED',
+            display: {
+              kind: 'execution',
+              data: { executionId: 100, status: 'PASSED', projectId: 'proj-1' },
+            },
+          },
         ],
       },
     ];
@@ -139,8 +176,11 @@ describe('AiPanel', () => {
     expect(screen.getByText(/입력 1,200 · 출력 340 토큰/)).toBeTruthy();
 
     // 실행 카드는 바로 보이고 실행 탭 링크를 가진다
-    const runLink = screen.getByRole('link', { name: '실행 탭에서 보기' });
-    expect(runLink.getAttribute('href')).toBe('/projects/proj-1/runs');
+    const runLinks = screen.getAllByRole('link', { name: '실행 탭에서 보기' });
+    expect(runLinks.map((link) => link.getAttribute('href'))).toEqual(['/projects/proj-1/runs', '/projects/proj-1/runs']);
+    expect(screen.getByText('실행 중').classList.contains('text-primary')).toBe(true);
+    expect(screen.getByText('성공', { selector: '.text-success' })).toBeTruthy();
+    expect(screen.queryByText(/RUNNING|PASSED/)).toBeNull();
 
     // DB 조회 카드를 펼치면 SQL 코드 블록과 표, 200행 제한 안내가 나온다
     fireEvent.click(screen.getByText('DB 조회'));
@@ -256,5 +296,172 @@ describe('AiPanel', () => {
     });
 
     expect(await screen.findByText('서버에 저장된 복구 답변입니다.')).toBeTruthy();
+  });
+
+  describe('질문 화면 (ask_user · a2ui)', () => {
+    const QUESTION = '다시 돌릴 테스트를 골라 주세요';
+
+    function questionMessage(
+      id: number,
+      surfaceId: string,
+      { answer, extraComponents }: { answer?: ChatUiAnswer; extraComponents?: Record<string, unknown>[] } = {}
+    ): ChatMessage {
+      return {
+        id,
+        role: 'assistant',
+        createdAt: '2026-11-01T09:00:02Z',
+        stopReason: 'END',
+        blocks: [
+          { type: 'text', text: '어떤 테스트를 다시 돌릴까요?' },
+          {
+            type: 'tool',
+            callId: 'call_1',
+            name: 'ask_user',
+            tier: 'READ',
+            input: {},
+            status: 'ok',
+            summary: QUESTION,
+            display: {
+              kind: 'a2ui',
+              data: { surfaceId, question: QUESTION, messages: chatQuestionMessages({ surfaceId, extraComponents }), answer },
+            },
+          },
+        ],
+      };
+    }
+
+    const userMessage = (id: number, text: string): ChatMessage => ({
+      id,
+      role: 'user',
+      createdAt: '2026-11-01T09:00:00Z',
+      blocks: [{ type: 'text', text }],
+    });
+
+    async function openChat(messages: ChatMessage[]) {
+      mockedChat.listSessions.mockResolvedValue([sampleSession]);
+      mockedChat.getSession.mockResolvedValue({ session: sampleSession, messages });
+      render(
+        <MemoryRouter>
+          <AiPanel onClose={() => {}} contextLabel="proj-1 · 실행" projectId="proj-1" />
+        </MemoryRouter>
+      );
+      fireEvent.click(screen.getByRole('tab', { name: '대화' }));
+      await screen.findByText('로그인 실패 원인 분석');
+    }
+
+    const isLocked = (el: HTMLElement) => el.matches(':disabled');
+
+    it('최근 질문에 답하면 uiAction 과 라벨 요약 content 로 보내고, 말풍선에 요약을 보이며 질문을 잠근다', async () => {
+      mockedChat.streamMessage.mockImplementation(async (_sid, _payload, onEvent) => {
+        onEvent({ type: 'message_start', data: { userMessageId: 22, messageId: 23 } });
+        await new Promise(() => {});
+      });
+      await openChat([userMessage(20, '실패한 거 다시 돌려줘'), questionMessage(21, 'chat-21-call_1')]);
+
+      const card = await screen.findByRole('region', { name: `질문: ${QUESTION}` });
+      fireEvent.click(within(card).getByRole('checkbox', { name: /장바구니/ }));
+      fireEvent.click(within(card).getByRole('radio', { name: '사파리' }));
+      fireEvent.click(within(card).getByRole('button', { name: '다시 실행' }));
+
+      await waitFor(() => expect(mockedChat.streamMessage).toHaveBeenCalledTimes(1));
+      const summary = '다시 실행: 로그인 후 이름이 보인다, 장바구니에 담을 수 있다 · 사파리 · 메모: (비어 있음)';
+      expect(mockedChat.streamMessage.mock.calls[0][0]).toBe(1);
+      expect(mockedChat.streamMessage.mock.calls[0][1]).toEqual({
+        content: summary,
+        userLevel: 'JUNIOR',
+        uiAction: {
+          messageId: 21,
+          surfaceId: 'chat-21-call_1',
+          name: 'submit',
+          context: { selected: ['login', 'cart'], browser: 'webkit', memo: '' },
+        },
+      });
+
+      // 사용자 말풍선 + "보낸 답" + 잠금 (고른 값은 그대로 보인다)
+      expect(await screen.findAllByText(summary)).toHaveLength(2);
+      const locked = screen.getByRole('region', { name: `질문: ${QUESTION}` });
+      expect(within(locked).getByText(/보낸 답:/)).toBeTruthy();
+      expect(within(locked).queryByRole('button')).toBeNull();
+      const cart = within(locked).getByRole('checkbox', { name: /장바구니/ }) as HTMLInputElement;
+      expect(cart.checked).toBe(true);
+      expect(isLocked(cart)).toBe(true);
+      expect((within(locked).getByRole('radio', { name: '사파리' }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('답한 질문은 보낸 값으로 잠겨 "보낸 답" 을 보이고, 지나간 질문은 "지나간 질문이에요" 로 잠근다', async () => {
+      await openChat([
+        userMessage(20, '첫 질문'),
+        questionMessage(21, 'chat-21-call_1', {
+          answer: {
+            name: 'submit',
+            context: { selected: ['cart'], browser: 'webkit', memo: '' },
+            summary: '다시 실행: 장바구니에 담을 수 있다',
+            answeredAt: '2026-11-01T09:01:00Z',
+          },
+        }),
+        userMessage(22, '다시 실행: 장바구니에 담을 수 있다'),
+        questionMessage(23, 'chat-23-call_1', {
+          extraComponents: [{
+            id: 'back', component: 'Button', label: '돌아가기',
+            action: { event: { name: 'cancel', context: {} } },
+          }],
+        }),
+        userMessage(24, '그냥 다른 얘기'),
+        {
+          id: 25,
+          role: 'assistant',
+          createdAt: '2026-11-01T09:03:00Z',
+          stopReason: 'END',
+          blocks: [{ type: 'text', text: '네, 알겠습니다.' }],
+        },
+      ]);
+
+      const [answered, past] = await screen.findAllByRole('region', { name: `질문: ${QUESTION}` });
+      expect(within(answered).getByText('다시 실행: 장바구니에 담을 수 있다')).toBeTruthy();
+      const answeredCart = within(answered).getByRole('checkbox', { name: /장바구니/ }) as HTMLInputElement;
+      const answeredLogin = within(answered).getByRole('checkbox', { name: /로그인/ }) as HTMLInputElement;
+      expect(answeredCart.checked).toBe(true);
+      expect(answeredLogin.checked).toBe(false);
+      expect(isLocked(answeredCart)).toBe(true);
+      expect(within(answered).queryByRole('button')).toBeNull();
+
+      expect(within(past).getByText('지나간 질문이에요')).toBeTruthy();
+      expect(within(past).queryByRole('button')).toBeNull();
+      expect(isLocked(within(past).getByRole('checkbox', { name: /로그인/ }))).toBe(true);
+      expect(mockedChat.streamMessage).not.toHaveBeenCalled();
+    });
+
+    it('서버가 400 으로 거절하면 말풍선과 잠금을 되돌리고 질문 카드에 이유를 보인다', async () => {
+      mockedChat.streamMessage.mockRejectedValueOnce(
+        Object.assign(new Error('이미 답한 질문이에요.'), { status: 400 })
+      );
+      await openChat([userMessage(20, '실패한 거 다시 돌려줘'), questionMessage(21, 'chat-21-call_1')]);
+
+      const card = await screen.findByRole('region', { name: `질문: ${QUESTION}` });
+      fireEvent.click(within(card).getByRole('button', { name: '그만두기' }));
+
+      const alert = await screen.findByRole('alert');
+      expect(alert.textContent).toContain('이미 답한 질문이에요.');
+      expect(screen.queryByText('그만두기', { selector: '.whitespace-pre-wrap' })).toBeNull();
+      const again = screen.getByRole('region', { name: `질문: ${QUESTION}` });
+      expect(within(again).queryByText(/보낸 답:/)).toBeNull();
+      expect(isLocked(within(again).getByRole('button', { name: '다시 실행' }))).toBe(false);
+      // 서버에 저장된 대화로 덮어쓰지 않는다 (처음 불러온 1번뿐)
+      expect(mockedChat.getSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('렌더러가 질문 화면을 거부하면 카드 자리에 안내 한 줄만 보이고 대화는 그대로다', async () => {
+      await openChat([
+        userMessage(20, '실패한 거 다시 돌려줘'),
+        questionMessage(21, 'chat-21-call_1', {
+          extraComponents: [{ id: 'weird', component: 'Video', url: 'x' }],
+        }),
+      ]);
+
+      expect(await screen.findByText('질문 화면을 보여 주지 못했어요.')).toBeTruthy();
+      expect(screen.queryByRole('region', { name: `질문: ${QUESTION}` })).toBeNull();
+      expect(screen.getByText('어떤 테스트를 다시 돌릴까요?')).toBeTruthy();
+      expect(screen.getByPlaceholderText('무엇이든 물어보세요 (Shift+Enter 로 줄바꿈)')).toBeTruthy();
+    });
   });
 });

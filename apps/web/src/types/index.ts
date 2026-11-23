@@ -633,7 +633,7 @@ export interface AiBootstrapResponse {
   currentUrl?: string | null;
   visitedCount?: number;
   credentialRequest?: AiBootstrapCredentialRequest | null;
-  /** 첫 실행 브리핑 상태. null 이면 아직 시작 안 했거나 ERROR 로 끝나 만들지 않는다 */
+  /** 첫 실행 브리핑 상태. null 이면 아직 시작하지 않았거나 브리핑 자료 없이 ERROR 로 끝난 상태다. */
   briefingStatus?: 'PENDING' | 'READY' | 'FAILED' | null;
   /** READY 일 때 A2UI v1.0 메시지 배열 (docs/design/onboarding-briefing-contract.md). 그 밖에는 [] */
   briefing?: unknown[];
@@ -1040,12 +1040,38 @@ export type ToolDisplayListData = {
   items: { label: string; detail?: string }[];
 };
 
+/** 질문 화면에 사용자가 보낸 답 (docs/design/chat-a2ui-contract.md). */
+export type ChatUiAnswer = {
+  name: 'submit' | 'cancel';
+  context: Record<string, unknown>;
+  /** 사용자 말풍선에 보인 요약 (= 보낸 content). */
+  summary: string;
+  answeredAt: string;
+};
+
+/** `ask_user` 도구가 띄운 질문 화면. messages 는 A2UI v1.0 (createSurface → updateComponents). */
+export type ToolDisplayA2uiData = {
+  surfaceId: string;
+  question: string;
+  messages: unknown[];
+  answer?: ChatUiAnswer;
+};
+
 export type ToolDisplay =
   | { kind: 'table'; data: ToolDisplayTableData }
   | { kind: 'code'; data: ToolDisplayCodeData }
   | { kind: 'job'; data: ToolDisplayJobData }
   | { kind: 'execution'; data: ToolDisplayExecutionData }
-  | { kind: 'list'; data: ToolDisplayListData };
+  | { kind: 'list'; data: ToolDisplayListData }
+  | { kind: 'a2ui'; data: ToolDisplayA2uiData };
+
+/** 질문 화면 답을 보낼 때 `SendMessageRequest.uiAction`. */
+export type ChatUiAction = {
+  messageId: number;
+  surfaceId: string;
+  name: 'submit' | 'cancel';
+  context: Record<string, unknown>;
+};
 
 export type ChatTextBlock = {
   type: 'text';

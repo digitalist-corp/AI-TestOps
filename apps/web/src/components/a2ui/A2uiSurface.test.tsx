@@ -21,6 +21,7 @@ describe('A2uiSurface — 첫 실행 브리핑 (onboarding/v1)', () => {
     expect(screen.getByText('검색창과 메뉴가 있어요')).toBeTruthy();
     // 후보 · 배지, 기본 선택
     expect(screen.getByText('이미 만든 테스트')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '계획에 넣기' }).classList.contains('h-10')).toBe(true);
     expect(screen.getByText('추천 · 높음')).toBeTruthy();
     expect((screen.getByRole('checkbox', { name: /로그인하면 내 이름이 보인다/ }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole('checkbox', { name: /장바구니/ }) as HTMLInputElement).checked).toBe(true);

@@ -1,6 +1,8 @@
 package com.playops.api.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.playops.api.chat.tools.AskUserTool;
+import com.playops.api.chat.tools.ChatUiValidator;
 import com.playops.api.entity.AiChatMessage;
 import com.playops.api.entity.AiChatSession;
 import com.playops.api.entity.AiModelProvider;
@@ -82,7 +84,8 @@ class ChatAgentServiceTest {
         when(settings.getDecryptedKey(AiModelProvider.CLAUDE)).thenReturn("key");
 
         LlmGatewayService gateway = new LlmGatewayService(List.of(llm), settings, usageRepository);
-        ChatToolRegistry registry = new ChatToolRegistry(List.of(readTool, runTool));
+        ChatToolRegistry registry = new ChatToolRegistry(List.of(readTool, runTool,
+                new AskUserTool(new ChatUiValidator(new ObjectMapper()))));
         service = new ChatAgentService(sessions, registry, broker, gateway, analysis, new ObjectMapper(),
                 Runnable::run, Duration.ofSeconds(5));
     }
@@ -124,6 +127,38 @@ class ChatAgentServiceTest {
         assertThat(blocks.get(0).text).isEqualTo("안녕하세요");
         assertThat(llm.calls.get(0).messages()).containsExactly(LlmMessage.user("안녕?"));
         assertThat(service.isRunning(SESSION_ID)).isFalse();
+    }
+
+    @Test
+    void successfulAskUserEndsAfterOtherToolsInTheSameTurn() {
+        llm.then(Turn.text().calls(
+                call("question_1", "ask_user", Map.of("question", "계속할까요?", "data", Map.of(),
+                        "components", List.of(Map.of("id", "root", "component", "Button", "label", "계속",
+                                "action", Map.of("event", Map.of("name", "submit", "context", Map.of())))))),
+                call("c2", "read_x", Map.of())));
+
+        ask("다시 실행하자");
+
+        assertThat(llm.calls).hasSize(1);
+        assertThat(readTool.executed).hasSize(1);
+        assertThat(sink.names()).containsExactly(
+                "message_start", "tool_start", "tool_end", "tool_start", "tool_end", "usage", "message_end");
+        assertThat(sink.data("message_end")).containsEntry("stopReason", "END");
+        assertThat(savedBlocks("END").getFirst().display.data())
+                .containsEntry("surfaceId", "chat-101-question_1");
+    }
+
+    @Test
+    void failedAskUserLetsTheModelContinue() {
+        llm.then(Turn.text().calls(call("bad", "ask_user",
+                Map.of("question", "계속할까요?", "components", List.of(), "data", Map.of()))))
+           .then(Turn.text("계속할까요?"));
+
+        ask("다시 실행하자");
+
+        assertThat(llm.calls).hasSize(2);
+        assertThat(sink.data("tool_end")).containsEntry("status", "error");
+        assertThat(sink.data("message_end")).containsEntry("stopReason", "END");
     }
 
     @Test

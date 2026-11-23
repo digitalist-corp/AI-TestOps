@@ -1,6 +1,7 @@
 package com.playops.api.chat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.playops.api.chat.tools.AskUserTool;
 import com.playops.api.entity.AiChatMessage;
 import com.playops.api.entity.AiChatSession;
 import com.playops.api.exception.ApiException;
@@ -111,9 +112,11 @@ public class ChatAgentService {
     }
 
     /** POST .../messages — 답변 하나를 시작하고, 끝날 때까지 이벤트를 흘릴 SSE 스트림을 돌려준다. */
-    public SseEmitter reply(Long sessionId, Long userId, boolean admin, String content, String userLevel) {
+    public SseEmitter reply(Long sessionId, Long userId, boolean admin, String content, String userLevel,
+                            ChatDtos.UiAction uiAction) {
         SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MS);
-        start(sessionId, userId, admin, content, userLevel, new SseChatEventSink(emitter, objectMapper, pingScheduler));
+        start(sessionId, userId, admin, content, userLevel, uiAction,
+                new SseChatEventSink(emitter, objectMapper, pingScheduler));
         return emitter;
     }
 
@@ -147,7 +150,12 @@ public class ChatAgentService {
      * 검증 · 저장을 요청 스레드에서 끝내고(그래야 404 · 409 가 일반 JSON 오류로 나간다) 루프만 실행기에 넘긴다.
      */
     void start(Long sessionId, Long userId, boolean admin, String content, String userLevel, ChatEventSink sink) {
-        if (content == null || content.isBlank()) {
+        start(sessionId, userId, admin, content, userLevel, null, sink);
+    }
+
+    private void start(Long sessionId, Long userId, boolean admin, String content, String userLevel,
+                       ChatDtos.UiAction uiAction, ChatEventSink sink) {
+        if (uiAction == null && (content == null || content.isBlank())) {
             throw new ApiException(400, "메시지를 입력해주세요.");
         }
         AiChatSession session = sessions.getOwned(userId, sessionId);
@@ -157,11 +165,23 @@ public class ChatAgentService {
         }
         AiChatMessage assistant = null;
         try {
-            List<AiChatMessage> history = sessions.messages(sessionId);
-            AiChatMessage user = sessions.addUserMessage(session, content.trim());
-            assistant = sessions.startAssistantMessage(sessionId);
+            List<AiChatMessage> history;
+            AiChatMessage user;
+            String modelText;
+            if (uiAction == null) {
+                history = sessions.messages(sessionId);
+                modelText = content.trim();
+                user = sessions.addUserMessage(session, modelText);
+                assistant = sessions.startAssistantMessage(sessionId);
+            } else {
+                ChatSessionService.UiReply reply = sessions.addUiReply(session, content, uiAction);
+                history = reply.history();
+                user = reply.user();
+                assistant = reply.assistant();
+                modelText = reply.modelText();
+            }
             Run run = new Run(state, sink, sessionId, session.getProjectId(), userId, admin,
-                    content.trim(), userLevel, history, session.getAllowedToolNames(), user.getId(), assistant.getId());
+                    modelText, userLevel, history, session.getAllowedToolNames(), user.getId(), assistant.getId());
             executor.execute(() -> runSafely(run));
         } catch (RejectedExecutionException e) {
             running.remove(sessionId, state);
@@ -205,7 +225,8 @@ public class ChatAgentService {
             List<LlmMessage> messages = new ArrayList<>(ChatHistory.toLlmMessages(run.history, sessions::readBlocks));
             messages.add(LlmMessage.user(run.content));
             List<LlmToolSpec> tools = registry.specs();
-            ChatToolContext context = new ChatToolContext(run.projectId, run.userId, run.admin, run.sessionId);
+            ChatToolContext context = new ChatToolContext(run.projectId, run.userId, run.admin,
+                    run.sessionId, run.messageId);
 
             for (int turn = 0; turn < MAX_TURNS && run.totalTokens() < TOKEN_BUDGET; turn++) {
                 LlmResult result = streamTurn(run, setup, messages, tools, blocks);
@@ -215,9 +236,16 @@ public class ChatAgentService {
                 }
                 messages.add(LlmMessage.toolRequest(result.text(), result.toolCalls()));
                 List<LlmToolResult> results = new ArrayList<>();
+                boolean askedUser = false;
                 for (LlmToolCall call : result.toolCalls()) {
                     run.state.checkCancelled();
-                    results.add(runTool(run, call, context, blocks));
+                    LlmToolResult output = runTool(run, call, context, blocks);
+                    results.add(output);
+                    askedUser |= AskUserTool.NAME.equals(call.name()) && !output.error();
+                }
+                if (askedUser) {
+                    stopReason = STOP_END;
+                    break;
                 }
                 messages.add(LlmMessage.toolResponse(results));
                 sessions.saveAssistantBlocks(run.messageId, blocks, null);
