@@ -32,3 +32,7 @@ __pycache__/
 
 # graphify 코드 그래프 (로컬 전용)
 graphify-out/
+
+# 과제 산출물(Office 파일)은 저장소 밖(iCloud)에서 관리
+docs/aQm-산출물/
+.claude/settings.local.json
