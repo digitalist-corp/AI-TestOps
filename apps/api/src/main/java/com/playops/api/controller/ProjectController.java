@@ -105,7 +105,7 @@ public class ProjectController {
         }
         try {
             siteAnalysisService.updateSource(projectId, new SiteAnalysisService.SourceRequest(
-                    request.sourceRepositoryUrl(), request.sourceRepositoryBranch(), request.sourceRepositoryToken()));
+                    request.sourceRepositoryUrl(), request.sourceRepositoryBranch(), request.sourceRepositoryToken(), null));
             siteAnalysisService.runAsync(siteAnalysisService.start(projectId).getId());
         } catch (RuntimeException e) {
             log.warn("등록 직후 구조 분석을 시작하지 못했습니다 (project={}): {}", projectId, e.getMessage());

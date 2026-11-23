@@ -4,9 +4,11 @@ import { api } from '@/api/client';
 import type { Defect } from '@/types';
 import { DefectsTab } from './DefectsTab';
 
+const ai = vi.hoisted(() => ({ state: { active: true, enabled: true, available: true, checked: true } }));
+vi.mock('@/lib/aiEnabled', () => ({ useAiEnabled: () => ai.state }));
 vi.mock('@/api/client', () => ({
   api: {
-    defects: { list: vi.fn() },
+    defects: { list: vi.fn(), fixProposal: vi.fn(), requestFixProposal: vi.fn() },
     members: { list: vi.fn() },
     testSuites: { listByProject: vi.fn() },
     getSiteMap: vi.fn(),
@@ -19,10 +21,12 @@ const defect = (over: Partial<Defect>): Defect => ({
   firstFailedExecutionId: 3, firstFailedAt: null, lastExecutionId: 4, lastRunAt: null,
   resolvedExecutionId: null, resolvedAt: null, errorMessage: 'Timeout\n자세히', routeKeys: ['/login'],
   runs: [{ executionId: 3, status: 'FAILED', at: null, rerunOf: null }, { executionId: 4, status: 'FAILED', at: null, rerunOf: 3 }],
+  fixCategory: 'UNKNOWN',
   ...over,
 });
 
 beforeEach(() => {
+  ai.state = { active: true, enabled: true, available: true, checked: true };
   vi.mocked(api.defects.list).mockResolvedValue({
     defects: [defect({}), defect({ grep: '결제(카드)', title: '결제(카드)', specPath: 'tests/b.spec.ts', routeKeys: [] })],
     open: 2,
@@ -44,7 +48,81 @@ function renderTab(onRerun = vi.fn(), onOpenExecution = vi.fn()) {
   return { onRerun, onOpenExecution };
 }
 
+const diagnosis = {
+  category: 'APP_API' as const, latestFailedExecutionId: 4, stale: false,
+  proposal: {
+    id: 5, status: 'DIAGNOSIS_ONLY' as const, category: 'APP_API' as const, executionId: 4, sourceRepository: null, sourceBranch: null,
+    sourceSha: null, appRoot: null, verification: null, evidence: '오류: Received: 500', summary: '주문 API 가 500 을 돌려준다',
+    causes: [], checks: [], files: [], limitation: null, errorMessage: null, requestedBy: 7, createdAt: '', updatedAt: '',
+  },
+};
+
+describe('결함 탭 · AI 를 쓸 수 없을 때의 수정 제안', () => {
+  const openCandidate = async () => {
+    vi.mocked(api.defects.list).mockResolvedValue({ defects: [defect({ fixCategory: 'APP_API' })], open: 1, resolved: 0 });
+    renderTab();
+    fireEvent.click(await screen.findByRole('button', { name: '로그인 결함 보기' }));
+  };
+
+  it('AI 를 끈 사용자도 이미 만든 진단 · 근거는 보지만 새 분석은 요청하지 않는다', async () => {
+    ai.state = { active: false, enabled: false, available: true, checked: true };
+    vi.mocked(api.defects.fixProposal).mockResolvedValueOnce(diagnosis);
+    await openCandidate();
+
+    expect(screen.getByText(/AI를 꺼 두어 새 분석은 요청하지 않아요/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'AI 수정 제안 보기' }));
+
+    expect(await screen.findByText('주문 API 가 500 을 돌려준다')).toBeTruthy();
+    expect(screen.getByText('진단만 제공')).toBeTruthy();
+    expect(api.defects.requestFixProposal).not.toHaveBeenCalled();
+  });
+
+  it('AI 를 끈 사용자에게 아직 결과가 없으면 요청하지 않고 없다고만 알린다', async () => {
+    ai.state = { active: false, enabled: false, available: true, checked: true };
+    vi.mocked(api.defects.fixProposal).mockResolvedValueOnce({ ...diagnosis, proposal: null });
+    await openCandidate();
+    fireEvent.click(screen.getByRole('button', { name: 'AI 수정 제안 보기' }));
+
+    expect(await screen.findByText(/아직 만든 수정 제안이 없어요/)).toBeTruthy();
+    expect(api.defects.requestFixProposal).not.toHaveBeenCalled();
+  });
+
+  it('키가 등록되지 않았으면 요청은 되고(서버가 실행 근거로 진단) 그 사실을 알린다', async () => {
+    ai.state = { active: false, enabled: true, available: false, checked: true };
+    vi.mocked(api.defects.fixProposal).mockResolvedValueOnce({ ...diagnosis, proposal: null });
+    vi.mocked(api.defects.requestFixProposal).mockResolvedValueOnce(diagnosis);
+    await openCandidate();
+
+    expect(screen.getByText(/AI 키가 등록되지 않아/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'AI 수정 제안 보기' }));
+
+    expect(await screen.findByText('주문 API 가 500 을 돌려준다')).toBeTruthy();
+    expect(api.defects.requestFixProposal).toHaveBeenCalledWith('p1', { specPath: 'tests/a.spec.ts', grep: '로그인' }, 4);
+  });
+});
+
 describe('결함 탭', () => {
+  it('결함 보기로 펼치면 위에 분류 배지 · 실패 단계 링크, 아래에 코드 · API 후보만 AI 수정 제안 버튼이 있다', async () => {
+    vi.mocked(api.defects.list).mockResolvedValue({
+      defects: [defect({ fixCategory: 'APP_API' }), defect({ grep: '선택자', title: '선택자', specPath: 'tests/b.spec.ts', fixCategory: 'TEST' })],
+      open: 2,
+      resolved: 0,
+    });
+    const { onOpenExecution } = renderTab();
+    await screen.findByText('선택자');
+
+    fireEvent.click(screen.getByRole('button', { name: '로그인 결함 보기' }));
+    expect(screen.getByText('API 오류 후보')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: '실패 단계 보기' }));
+    expect(onOpenExecution).toHaveBeenCalledWith(4, { specPath: 'tests/a.spec.ts', title: '로그인' });
+    expect(screen.getByRole('button', { name: 'AI 수정 제안 보기' })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '로그인 결함 보기' }));
+    fireEvent.click(screen.getByRole('button', { name: '선택자 결함 보기' }));
+    expect(screen.getByText('테스트 오류')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'AI 수정 제안 보기' })).toBeNull();
+  });
+
   it('처음에는 미해결만 불러오고 화면 이름 · 담당자 · 실패 횟수 · 오류 첫 줄을 보여 준다', async () => {
     renderTab();
     expect(await screen.findByText('결제(카드)')).toBeTruthy();

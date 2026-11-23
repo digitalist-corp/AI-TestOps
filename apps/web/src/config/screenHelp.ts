@@ -74,6 +74,10 @@ const PROJECT_TAB_HELP: Record<ProjectTabId, ScreenHelp> = {
     title: '팀원',
     body: '이 프로젝트의 PM과 팀원입니다. PM은 사용자를 찾아 팀원으로 넣거나 빼고, PM 지정은 관리자가 합니다.',
   },
+  'code-auto-fix': {
+    title: '코드 자동 수정',
+    body: '팀원은 자동 수정 사용권을 PM에게 요청하고, PM · 관리자는 범위를 골라 부여 · 거절 · 회수합니다. 실행 · PR 연동은 아직 준비 전이라 지금은 사용권만 관리해요.',
+  },
 };
 
 const ROUTE_HELP: { prefix: string; help: ScreenHelp }[] = [

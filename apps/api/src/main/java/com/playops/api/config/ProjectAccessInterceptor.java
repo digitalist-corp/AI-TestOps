@@ -40,10 +40,13 @@ public class ProjectAccessInterceptor implements HandlerInterceptor {
     private static final Pattern BOOTSTRAP_PATH = Pattern.compile("^/api/ai/bootstrap/([^/]+)(/.*)?$");
     /** /api/projects/ 바로 아래지만 프로젝트 id 가 아닌 경로 */
     private static final Set<String> NOT_PROJECT_IDS = Set.of("docker", "site-check");
-    /** 팀원이 할 수 있는 쓰기 (프로젝트 기준 상대 경로): 실행 · 실패 재실행 · 결함 다시 실행 · 러너 켜기 · 실행 취소 */
+    /** 팀원이 할 수 있는 쓰기 (프로젝트 기준 상대 경로): 실행 · 실패 재실행 · 결함 다시 실행 · 제품 코드 수정안(읽기 전용) 요청 · 코드 자동 수정 사용권 요청 · 러너 켜기 · 실행 취소 */
     private static final List<Pattern> MEMBER_WRITES = List.of(
             Pattern.compile("^POST /executions$"),
             Pattern.compile("^POST /defects/rerun$"),
+            Pattern.compile("^POST /defects/fix-proposals$"),
+            // 코드 자동 수정 사용권은 본인 것만 요청한다 (부여 · 거절 · 회수는 PM · 관리자)
+            Pattern.compile("^POST /code-auto-fix/requests$"),
             Pattern.compile("^POST /test-suites/\\d+/execute$"),
             Pattern.compile("^POST /docker/start$"),
             Pattern.compile("^POST /execution/\\d+/cancel$")
